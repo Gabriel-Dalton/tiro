@@ -59,7 +59,7 @@ cost, and what you're saving. *(Prices as of Aug 2026.)*
 Requires macOS 13+ and the Xcode command-line tools (`xcode-select --install`).
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/tiro.git
+git clone https://github.com/mypip-io/tiro.git
 cd tiro
 ./make-app.sh
 open Tiro.app
@@ -125,3 +125,17 @@ years later, and it's the mark in Tiro's icon.
 
 [MIT](LICENSE). Fees you pay Deepgram are between you and Deepgram; watch your usage in
 Settings.
+
+---
+
+## From the same desk
+
+Tiro is a side project from building **[MyPip](https://mypip.io)**. You build. MyPip finds
+who's ready to buy, every morning.
+
+If Tiro saved you a subscription, come say hi:
+
+- **[mypip.io](https://mypip.io)** — who your next customers are, and the way in
+- **[Toby on LinkedIn](https://www.linkedin.com/in/tobystapleton95)** — Tiro's author
+- **[Elfin Growth on Substack](https://elfingrowth.substack.com)** — essays on finding your first customers
+
