@@ -66,7 +66,9 @@ repository root** and no framework preset; [`vercel.json`](vercel.json) does the
 then assembles `public/` from `landing/` and `web/`, so a deploy can never ship a stale
 palette or icon set.
 
-Two details that are load-bearing rather than cosmetic:
+Two settings in there are load-bearing rather than cosmetic. Vercel validates
+`vercel.json` against a strict schema that rejects unknown keys, so it cannot carry
+comments of its own and the reasoning lives here instead:
 
 - `trailingSlash: true` makes Vercel redirect `/app` to `/app/`. Without it the PWA is
   served at `/app`, every relative asset URL resolves against the site root instead of the

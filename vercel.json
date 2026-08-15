@@ -1,9 +1,7 @@
 {
-  "$comment": "Deploy this repository as a static Vercel project with the Root Directory left at the repo root. The build assembles public/: landing page at /, PWA at /app/.",
   "buildCommand": "node scripts/build-site.mjs",
   "installCommand": "echo 'no dependencies'",
   "outputDirectory": "public",
-  "$comment2": "trailingSlash makes Vercel redirect /app to /app/. Without it the PWA is served at /app and every relative asset URL resolves against the site root instead of the app directory, so the whole app 404s.",
   "trailingSlash": true,
   "headers": [
     {
