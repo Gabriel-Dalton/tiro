@@ -17,6 +17,49 @@ $15/month dictation subscription, at about **$0.0043 per minute**, in an app you
 
 ---
 
+## About this fork
+
+This is a fork of [mypip-io/tiro](https://github.com/mypip-io/tiro) by
+[Toby Stapleton](https://www.linkedin.com/in/tobystapleton95), extending it to the two platforms
+it does not cover: **the iPhone, and Windows.**
+
+Upstream solved the hard part, and the macOS app below is his, unmodified. What it has no story
+for is the phone, and there is no Windows build. This fork adds both, around a shared core.
+
+One thing to be upfront about: **a PWA cannot type into other apps on iOS.** There is no global
+hotkey, no background mic, and no API for inserting text into another app's text field. Wispr
+Flow gets around this by shipping a native custom keyboard, which is the only sanctioned path.
+So the web app here is deliberately a fast dictation scratchpad: hold, speak, and the transcript
+is on your clipboard before you switch apps. You paste it yourself. Windows has no such limit and
+gets full parity with the Mac.
+
+| | Status |
+|---|---|
+| macOS | Upstream's, unchanged |
+| Web / iPhone PWA | Planned, phases 1 to 3 |
+| Windows | Planned, phase 4 |
+| Native iOS keyboard | Deferred, phase 5 |
+
+- **[ROADMAP.md](ROADMAP.md)** — phases, scope and non-goals
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the three clients share one core
+- **[docs/RESEARCH.md](docs/RESEARCH.md)** — verified platform constraints, with sources. Read
+  this first; several obvious approaches are dead ends.
+- **[docs/SPEC-PWA.md](docs/SPEC-PWA.md)** and **[docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md)** —
+  build specs
+
+Two findings from that research worth surfacing here, because they change the design:
+
+- Deepgram's **REST API is CORS-blocked** by design, so a browser cannot POST audio to it. The
+  **streaming WebSocket API** is built for client-side use and works. That is what the fork uses,
+  which also makes it cheaper: **$0.0048/min** streaming versus $0.0077/min pre-recorded.
+- Upstream's quoted $0.0043/min no longer matches Deepgram's published pricing. The savings
+  argument still holds easily; break-even against a $15/month subscription is about 52 hours of
+  dictation a month.
+
+Everything below this line is upstream's README, describing the macOS app.
+
+---
+
 ## Why
 
 Voice dictation on the Mac is a solved problem with an unsolved price. The good tools are
