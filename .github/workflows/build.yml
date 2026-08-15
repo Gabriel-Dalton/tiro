@@ -4,11 +4,14 @@
 #
 # Every push builds both and uploads them as workflow artifacts.
 #
-# A release is published two ways:
-#   - push a tag like v1.0.0, or
-#   - run this workflow manually and give it a version, which creates the tag
-#     and the release from the run. This exists because some environments can
-#     push branches but not tags.
+# A release is published three ways, all producing the same thing:
+#   - push a tag like v1.0.0
+#   - push a branch named release/v1.0.0
+#   - run this workflow manually and give it a version
+#
+# The last two create the tag from the run. They exist because pushing a tag
+# needs credentials that some environments do not have, and without them a
+# release cannot be cut from those environments at all.
 #
 # Publishing happens in one job that waits for both builds, so a release always
 # carries both assets. Attaching from each build job separately would race, with
@@ -18,7 +21,7 @@ name: build
 
 on:
   push:
-    branches: ["main", "claude/**"]
+    branches: ["main", "claude/**", "release/**"]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -78,6 +81,7 @@ jobs:
     needs: [windows, macos]
     if: >
       startsWith(github.ref, 'refs/tags/v') ||
+      startsWith(github.ref, 'refs/heads/release/') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
     runs-on: ubuntu-latest
     steps:
@@ -89,11 +93,33 @@ jobs:
       - name: List what will be published
         run: ls -lh dist
 
+      - name: Resolve version
+        id: v
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_VERSION}" ]; then
+            version="${INPUT_VERSION}"
+          elif [ "${REF#refs/heads/release/}" != "${REF}" ]; then
+            version="${REF_NAME#release/}"   # release/v1.0.0 -> v1.0.0
+          else
+            version="${REF_NAME}"            # tag push
+          fi
+          case "$version" in
+            v*) ;;
+            *) echo "version '$version' must start with v" >&2; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing $version"
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.version || github.ref_name }}
-          name: Tiro ${{ github.event.inputs.version || github.ref_name }}
+          tag_name: ${{ steps.v.outputs.version }}
+          name: Tiro ${{ steps.v.outputs.version }}
           files: dist/*.zip
           make_latest: true
           body: |
