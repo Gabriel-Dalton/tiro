@@ -78,9 +78,21 @@ comments of its own and the reasoning lives here instead:
 To deploy only the PWA instead, set the project's Root Directory to `web/` — that folder
 carries its own [`web/vercel.json`](web/vercel.json) with the equivalent headers.
 
-Every release is produced by [`.github/workflows/build.yml`](.github/workflows/build.yml):
-pushing a `v*` tag builds the Windows EXE and the macOS app and attaches both zips to a
-GitHub Release, which is where the landing page's `releases/latest/download/…` links point.
+Every release is produced by [`.github/workflows/build.yml`](.github/workflows/build.yml).
+It builds the Windows EXE and the macOS app, then a single release job attaches both zips
+to a GitHub Release — which is where the landing page's `releases/latest/download/…` links
+point. Publishing from one job rather than from each build is deliberate: two jobs
+attaching to the same release race each other.
+
+Three ways to cut one, all equivalent:
+
+```bash
+git push origin v1.1.0              # tag
+git push origin HEAD:release/v1.1.0 # branch, for setups that cannot push tags
+```
+
+or run the workflow manually and give it a version. The last two create the tag from the
+run, which matters in environments whose credentials cover branches but not tags.
 
 Design tokens, behavioural constants and the icon set are generated from one source,
 [`shared/design-tokens.json`](shared/design-tokens.json) — regenerate with
