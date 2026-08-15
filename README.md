@@ -33,12 +33,40 @@ So the web app here is deliberately a fast dictation scratchpad: hold, speak, an
 is on your clipboard before you switch apps. You paste it yourself. Windows has no such limit and
 gets full parity with the Mac.
 
-| | Status |
-|---|---|
-| macOS | Upstream's, unchanged |
-| Web / iPhone PWA | Planned, phases 1 to 3 |
-| Windows | Planned, phase 4 |
-| Native iOS keyboard | Deferred, phase 5 |
+| | Status | Where |
+|---|---|---|
+| macOS | Upstream's, unchanged | `Sources/`, built by CI into `Tiro-macOS.zip` |
+| Web / iPhone PWA | **Built** (phases 0–2; deploy `web/` to any static host) | [`web/`](web/) |
+| Windows | **Built** — WebView2 shell around the same web core | [`windows/`](windows/), built by CI into `Tiro-Windows-x64.zip` |
+| Landing page | **Built** — download links for all three | [`landing/`](landing/) |
+| Native iOS keyboard | Deferred, phase 5 | — |
+
+### Getting the apps
+
+- **Windows**: grab `Tiro-Windows-x64.zip` from the
+  [latest release](https://github.com/Gabriel-Dalton/tiro/releases/latest) (or a `build`
+  workflow artifact), unzip anywhere, run `Tiro.exe`. It sits in the tray; hold **Right Alt**
+  in any app to dictate. Unsigned build, so SmartScreen asks once.
+- **macOS**: `Tiro-macOS.zip` from the same release, or build locally with `./make-app.sh`.
+- **Web / iPhone**: deploy `web/` as a static site (Vercel config included) and open it over
+  HTTPS — then Add to Home Screen. Everything (`getUserMedia`, service worker, install)
+  requires a secure origin.
+- **Landing page**: `landing/index.html` is a self-contained static page with the download
+  buttons; deploy it next to (or separate from) the PWA.
+
+Every release is produced by [`.github/workflows/build.yml`](.github/workflows/build.yml):
+pushing a `v*` tag builds the Windows EXE and the macOS app and attaches both zips to a
+GitHub Release, which is where the landing page's `releases/latest/download/…` links point.
+
+Design tokens, behavioural constants and the icon set are generated from one source,
+[`shared/design-tokens.json`](shared/design-tokens.json) — regenerate with
+`node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs`.
+
+One deliberate deviation from [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): the native host
+frame is WinForms rather than WinUI 3 — it provides the tray icon and WebView2 with a plain
+csproj and publishes to a genuine single self-contained EXE in CI, which the Windows App SDK
+still makes painful. The split the spec draws is unchanged: all product UI is the web core;
+native code is only the keyboard hook, `SendInput` paste, tray, and DPAPI key storage.
 
 - **[ROADMAP.md](ROADMAP.md)** — phases, scope and non-goals
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the three clients share one core

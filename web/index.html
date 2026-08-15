@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tiro — dictation scratchpad</title>
+  <meta name="description" content="Hold, speak, release — the transcript is on your clipboard. Powered by your own Deepgram key.">
+  <meta name="theme-color" content="#F6F1E7">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon-32.png" type="image/png">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <!-- iOS ignores manifest icons for the home screen -->
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Tiro">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/app.css">
+</head>
+<body>
+  <header class="app-head">
+    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round">
+        <path d="M11 14 H37"/>
+        <path d="M30 14 C30 26 30 34 19 37"/>
+      </g>
+    </svg>
+    <h1>Tiro</h1>
+    <span class="caps" id="head-status">ready</span>
+  </header>
+
+  <main>
+    <!-- ============================ record ============================ -->
+    <section class="view active" id="view-record">
+      <div class="card setup" id="setup-card" hidden>
+        <h2>Set up in one minute</h2>
+        <p>Tiro turns speech into punctuated text using <strong>your own Deepgram
+        API key</strong>. New Deepgram accounts include free credit; after that,
+        dictation costs about half a cent per minute.</p>
+        <ol>
+          <li>Create a free key at <a href="https://console.deepgram.com" target="_blank" rel="noopener">console.deepgram.com</a></li>
+          <li>Paste it below — it is stored <strong>on this device only</strong>, never on a server</li>
+        </ol>
+        <div class="row">
+          <input type="password" id="setup-key" placeholder="Deepgram API key"
+                 autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button class="btn-clay" id="setup-save">Save &amp; test</button>
+        </div>
+        <p class="hint" id="setup-status"></p>
+      </div>
+
+      <div class="stage">
+        <div class="halo" id="halo"></div>
+        <button id="talk" class="talk" aria-label="Hold to dictate">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round">
+              <path d="M11 14 H37"/>
+              <path d="M30 14 C30 26 30 34 19 37"/>
+            </g>
+          </svg>
+          <span id="talk-label">Hold to talk</span>
+        </button>
+        <p class="hint" id="talk-hint">Hold and speak. A quick tap keeps it recording hands-free.</p>
+        <p class="timer mono" id="timer" hidden>0:00</p>
+      </div>
+
+      <div class="live" id="live" hidden>
+        <p id="live-final"></p><p class="interim" id="live-interim"></p>
+      </div>
+
+      <div class="card result" id="result-card" hidden>
+        <div class="result-head">
+          <span class="caps">transcript</span>
+          <span class="badge" id="result-badge">copied</span>
+        </div>
+        <p id="result-text" class="result-text"></p>
+        <div class="row">
+          <button class="btn-clay" id="result-copy">Copy</button>
+          <button class="btn-pill" id="result-share" hidden>Share</button>
+        </div>
+      </div>
+
+      <div class="a2hs" id="a2hs" hidden>
+        <p>Install Tiro: tap <strong>Share</strong> → <strong>Add to Home Screen</strong></p>
+        <button class="btn-pill" id="a2hs-dismiss">Got it</button>
+      </div>
+    </section>
+
+    <!-- ============================ history ============================ -->
+    <section class="view" id="view-history">
+      <div class="row toolbar">
+        <input type="search" id="history-search" placeholder="Search history">
+      </div>
+      <div id="history-list" class="history-list"></div>
+      <p class="hint empty" id="history-empty" hidden>Nothing here yet. Everything you dictate lands in history, on this device only.</p>
+      <div class="row toolbar">
+        <button class="btn-pill" id="history-export">Export JSONL</button>
+        <button class="btn-pill" id="history-import">Import</button>
+        <input type="file" id="history-import-file" accept=".jsonl,.txt,application/jsonl,text/plain" hidden>
+      </div>
+    </section>
+
+    <!-- ============================ usage ============================ -->
+    <section class="view" id="view-usage">
+      <div class="stat-row">
+        <div class="card stat"><span class="caps">this month</span><strong id="usage-minutes">0 min</strong><span class="hint">dictated</span></div>
+        <div class="card stat"><span class="caps">est. cost</span><strong id="usage-cost">$0.00</strong><span class="hint" id="usage-rate"></span></div>
+        <div class="card stat"><span class="caps">takes</span><strong id="usage-count">0</strong><span class="hint">this month</span></div>
+      </div>
+      <div class="card">
+        <div class="result-head"><span class="caps">minutes per day</span></div>
+        <div class="daily-bars" id="daily-bars"></div>
+      </div>
+      <div class="card">
+        <div class="result-head"><span class="caps">versus subscriptions</span></div>
+        <div id="compare-bars"></div>
+        <p class="hint" id="usage-note"></p>
+      </div>
+      <p class="hint">Computed from local history — this is an estimate, not your account balance.
+        The real number lives in the <a href="https://console.deepgram.com" target="_blank" rel="noopener">Deepgram console</a>.</p>
+    </section>
+
+    <!-- ============================ settings ============================ -->
+    <section class="view" id="view-settings">
+      <div class="card">
+        <div class="result-head"><span class="caps">deepgram api key</span><span class="badge" id="key-badge" hidden></span></div>
+        <p class="hint">Stored on this device only. <span id="key-storage-note">Never sent anywhere except directly to Deepgram.</span></p>
+        <div class="row">
+          <input type="password" id="settings-key" placeholder="dg_…" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button class="btn-clay" id="settings-key-save">Save &amp; test</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="result-head"><span class="caps">microphone</span></div>
+        <label class="toggle-row">
+          <span>Keep the mic warm while idle<br>
+            <span class="hint">Pre-roll catches words spoken before you press, at the cost of the
+            recording indicator staying lit and some battery.</span></span>
+          <input type="checkbox" id="set-warm">
+        </label>
+        <div class="row">
+          <button class="btn-pill" id="debug-wav">Record 5 s test clip</button>
+          <span class="hint" id="debug-wav-status"></span>
+        </div>
+      </div>
+
+      <div class="card" id="hotkey-card">
+        <div class="result-head"><span class="caps" id="hotkey-title">keyboard</span></div>
+        <label class="toggle-row" id="hotkey-enable-row">
+          <span>Hold-to-talk key while this tab is focused</span>
+          <input type="checkbox" id="set-hotkey-on">
+        </label>
+        <div class="row">
+          <label for="set-hotkey" class="hint">Key</label>
+          <select id="set-hotkey">
+            <option value="AltRight">Right Alt</option>
+            <option value="ShiftRight">Right Shift</option>
+            <option value="ControlRight">Right Ctrl</option>
+            <option value="CapsLock">Caps Lock (advanced)</option>
+            <option value="ScrollLock">Scroll Lock</option>
+          </select>
+        </div>
+        <p class="hint" id="hotkey-note" hidden>The key works system-wide: hold it in any app and
+          Tiro pastes the transcript where your cursor is.</p>
+      </div>
+
+      <div class="card">
+        <div class="result-head"><span class="caps">data</span></div>
+        <div class="row">
+          <button class="btn-pill" id="settings-export">Export history</button>
+          <button class="btn-pill" id="settings-clear-history">Clear history</button>
+          <button class="btn-pill danger" id="settings-clear-all">Clear everything</button>
+        </div>
+        <p class="hint">History and key live in this browser's storage. Export before clearing
+          site data — iOS can evict PWA storage under pressure.</p>
+      </div>
+
+      <div class="card">
+        <div class="result-head"><span class="caps">about</span></div>
+        <p class="hint">Tiro is a free, open dictation tool: hold, speak, and the transcript is on
+          your clipboard. No account, no telemetry, no server of ours — your key talks straight to
+          Deepgram. <a href="https://github.com/Gabriel-Dalton/tiro" target="_blank" rel="noopener">Source on GitHub</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden><span class="dot" id="toast-dot"></span><span id="toast-text"></span></div>
+
+  <nav class="tabbar">
+    <button class="tab active" data-view="record">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"><path d="M11 14 H37"/><path d="M30 14 C30 26 30 34 19 37"/></g></svg>
+      <span>Dictate</span>
+    </button>
+    <button class="tab" data-view="history"><span class="tab-glyph">⌸</span><span>History</span></button>
+    <button class="tab" data-view="usage"><span class="tab-glyph">◔</span><span>Usage</span></button>
+    <button class="tab" data-view="settings"><span class="tab-glyph">✳</span><span>Settings</span></button>
+  </nav>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

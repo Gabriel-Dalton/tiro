@@ -1,0 +1,63 @@
+{
+  "$comment": "Forum palette and shared constants. Source of truth for the PWA and the Windows app. The macOS app keeps its own copy in Sources/tiro/design.swift (upstream, untouched). Run `node scripts/gen-tokens.mjs` after editing.",
+  "color": {
+    "paper-50": "#FCFAF4",
+    "paper-100": "#F6F1E7",
+    "paper-200": "#EFE8D9",
+    "paper-300": "#E4DAC6",
+    "white": "#FFFFFF",
+    "ink-950": "#14110B",
+    "ink-900": "#1F1A12",
+    "ink-800": "#2E271C",
+    "ink-500": "#756B57",
+    "ink-400": "#948A74",
+    "ink-300": "#B4AB96",
+    "ink-200": "#D2CABA",
+    "clay-700": "#7E2318",
+    "clay-600": "#9C3126",
+    "clay-500": "#B23A2E",
+    "clay-400": "#C85A4C",
+    "clay-100": "#F3E1DC",
+    "gilt-600": "#9A7429",
+    "gilt-500": "#B78A3C",
+    "green-600": "#3F6B47",
+    "green-100": "#E1EBDF",
+    "amber-600": "#A66A1E",
+    "amber-100": "#F3E7CF",
+    "red-600": "#A23127",
+    "border-default": "rgba(31, 26, 18, 0.16)",
+    "border-subtle": "rgba(31, 26, 18, 0.10)"
+  },
+  "font": {
+    "display": "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif",
+    "sans": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    "mono": "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace"
+  },
+  "radius": {
+    "card": "10px",
+    "button": "8px",
+    "pill": "13px"
+  },
+  "mark": {
+    "$comment": "Tironian et, two strokes in a 48-unit box (SVG y-down). Same paths as tironianPaths() in design.swift.",
+    "viewBox": 48,
+    "bar": "M11 14 H37",
+    "curl": "M30 14 C30 26 30 34 19 37",
+    "slash": "M6 6 L42 42",
+    "strokeWidth": 4.4
+  },
+  "constants": {
+    "$comment": "Behavioural constants shared by every client. TAP_THRESHOLD and pre-roll match upstream main.swift.",
+    "tapThresholdSec": 0.35,
+    "preRollSec": 0.7,
+    "tailSec": 0.5,
+    "sampleRate": 16000,
+    "deepgramStreamingPerMin": 0.0048,
+    "keepAliveIntervalSec": 5,
+    "competitors": [
+      { "name": "Wispr Flow Pro", "perMonth": 15.0 },
+      { "name": "superwhisper", "perMonth": 8.49 },
+      { "name": "Aqua Voice", "perMonth": 8.0 }
+    ]
+  }
+}
