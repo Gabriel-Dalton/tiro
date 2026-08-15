@@ -1,5 +1,4 @@
 {
-  "$comment": "Deploy this directory as a static Vercel project (root = web/).",
   "headers": [
     {
       "source": "/sw.js",

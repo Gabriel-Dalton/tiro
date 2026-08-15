@@ -1,3 +1,5 @@
 .build/
 Tiro.app/
 .DS_Store
+public/
+.vercel/
