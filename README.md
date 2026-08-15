@@ -48,11 +48,33 @@ gets full parity with the Mac.
   workflow artifact), unzip anywhere, run `Tiro.exe`. It sits in the tray; hold **Right Alt**
   in any app to dictate. Unsigned build, so SmartScreen asks once.
 - **macOS**: `Tiro-macOS.zip` from the same release, or build locally with `./make-app.sh`.
-- **Web / iPhone**: deploy `web/` as a static site (Vercel config included) and open it over
-  HTTPS — then Add to Home Screen. Everything (`getUserMedia`, service worker, install)
-  requires a secure origin.
-- **Landing page**: `landing/index.html` is a self-contained static page with the download
-  buttons; deploy it next to (or separate from) the PWA.
+- **Web / iPhone**: open the deployed site's `/app/` over HTTPS, then Add to Home Screen.
+  Everything (`getUserMedia`, service worker, install) requires a secure origin, so the
+  PWA cannot be tested from a file:// URL or from `localhost` on a phone.
+
+### Deploying the site
+
+The repository root is the Vercel project. Import it with **Root Directory left at the
+repository root** and no framework preset; [`vercel.json`](vercel.json) does the rest:
+
+| URL | What it serves |
+|---|---|
+| `/` | the landing page with the Windows and macOS download buttons |
+| `/app/` | the PWA |
+
+`scripts/build-site.mjs` is the build command. It regenerates the design tokens and icons,
+then assembles `public/` from `landing/` and `web/`, so a deploy can never ship a stale
+palette or icon set.
+
+Two details that are load-bearing rather than cosmetic:
+
+- `trailingSlash: true` makes Vercel redirect `/app` to `/app/`. Without it the PWA is
+  served at `/app`, every relative asset URL resolves against the site root instead of the
+  app directory, and the whole app 404s.
+- `sw.js` is served no-cache, or an old app shell gets pinned on people's phones.
+
+To deploy only the PWA instead, set the project's Root Directory to `web/` — that folder
+carries its own [`web/vercel.json`](web/vercel.json) with the equivalent headers.
 
 Every release is produced by [`.github/workflows/build.yml`](.github/workflows/build.yml):
 pushing a `v*` tag builds the Windows EXE and the macOS app and attaches both zips to a
