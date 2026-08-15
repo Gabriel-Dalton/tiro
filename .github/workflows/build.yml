@@ -1,0 +1,74 @@
+# Builds the two downloadable apps the landing page links to:
+#   Tiro-Windows-x64.zip — self-contained single EXE (WebView2 shell + web core)
+#   Tiro-macOS.zip       — upstream's Swift menu-bar app, ad-hoc signed
+#
+# Every push builds and uploads workflow artifacts. Pushing a tag like v1.1.0
+# additionally publishes a GitHub Release with both zips attached, which is what
+# landing/index.html's releases/latest/download/ links resolve to.
+
+name: build
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to attach release assets on tag builds
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish self-contained EXE
+        run: >
+          dotnet publish windows/Tiro.Windows/Tiro.Windows.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtraction=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath Tiro-Windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tiro-Windows-x64
+          path: Tiro-Windows-x64.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Tiro-Windows-x64.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Tiro.app
+        run: ./make-app.sh
+
+      - name: Zip (ditto preserves the bundle)
+        run: ditto -c -k --keepParent Tiro.app Tiro-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tiro-macOS
+          path: Tiro-macOS.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Tiro-macOS.zip
