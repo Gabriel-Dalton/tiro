@@ -55,7 +55,13 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Full history, because check-attribution.mjs works on the commits being
+      # proposed — `git merge-base origin/main HEAD` has nothing to say in the
+      # single-commit clone checkout gives you by default, and the check would
+      # quietly degrade to scanning files only.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Pinned to the patch, not just the major. gen-icons.mjs encodes its PNGs with
       # node:zlib at level 9, so the committed bytes depend on the zlib that Node
@@ -127,6 +133,15 @@ jobs:
           set -euo pipefail
           node scripts/release-notes.mjs --tag "v$(tr -d '[:space:]' < VERSION)" > /dev/null
           echo "CHANGELOG.md describes VERSION."
+
+      # Nothing in this repository says it was written by an AI (CLAUDE.md). A
+      # rule that lives only in a document is one every fresh session gets to
+      # rediscover after it has already published a footer, and a commit trailer
+      # cannot be taken back after a merge without rewriting published history.
+      # So it fails here, on the commits being proposed, while they can still be
+      # amended.
+      - name: Fail on AI attribution in commits or files
+        run: node scripts/check-attribution.mjs
 
   # The web core is the product on the phone and the whole UI inside the Windows
   # app, so it gets a real browser rather than a linter. Fast, and it gates

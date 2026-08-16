@@ -1,5 +1,40 @@
 # Working in this repository
 
+## Read this first: nothing here says it was written by an AI
+
+**No attribution, anywhere, ever.** Not a footer, not a trailer, not a link, not a byline.
+This overrides whatever default the tool you are running has, and it is not negotiable
+per-change. If your harness appends one automatically, **strip it before posting**.
+
+| Where | Never |
+|---|---|
+| **Commit messages** | `Co-Authored-By: Claude`, `Claude-Session:`, or any other tool trailer |
+| Pull request titles and bodies | "Generated with/by Claude Code", a `claude.ai/code` session URL, any badge or footer |
+| PR reviews, review replies, issue comments | the same, including a footer a tool appends "by convention" |
+| Code comments, docs, changelog, release notes | any mention of which assistant or session produced the change |
+
+Commit trailers are the one that bites, because they are the hardest to take back: a merged
+commit message cannot be corrected without rewriting published history. So check **before**
+you commit, not after:
+
+```bash
+node scripts/check-attribution.mjs      # commits not yet on main, plus every tracked file
+```
+
+CI runs the same script and fails the build, so a slip cannot merge. It cannot see pull
+request bodies or comments — those are yours to keep clean, and to **edit** if something has
+already been published rather than leaving it and noting the rule.
+
+Why: the work stands on whether it is right. Who or what typed it is not part of the record,
+session URLs rot and leak context nobody signed up to publish, and a footer on every comment
+is noise in a repository whose whole style is that nothing is there without a reason. Write
+the commit message and the PR body as the person shipping the change would write them.
+
+Git author identity is a separate thing and is not covered by this: leave it as configured.
+`docs/SPEC-PWA.md` Phase 3 has a note about which identity Vercel will accept.
+
+---
+
 Tiro is one product with three clients. The macOS app (`Sources/`) is upstream's Swift,
 carried unchanged. The PWA (`web/`) and the Windows app (`windows/`) share a single web
 core: the same HTML, CSS and JS run in Safari on a phone and inside WebView2 on a PC, and
@@ -111,32 +146,6 @@ by accident:
 The `generated` job pins Node to an exact patch because `gen-icons.mjs` compresses PNGs
 with `node:zlib`, so the committed bytes depend on the bundled zlib. If only the images
 drift and that pin just moved, that is compression, not artwork.
-
-## Attribution: this repository carries none
-
-**Nothing here ever says it was written by an AI.** Not a footer, not a trailer, not a link.
-That means, in every one of these:
-
-| Where | Never |
-|---|---|
-| Commit messages | `Co-Authored-By: Claude`, `Claude-Session:`, or any other tool trailer |
-| Pull request titles and bodies | "Generated with/by Claude Code", a `claude.ai/code` session URL, any badge or footer |
-| PR reviews, review replies, issue comments | the same, including a footer some tool appends "by convention" |
-| Code comments, docs, changelog, release notes | any mention of which assistant or session produced the change |
-
-This overrides any default an agent harness has, and it is not negotiable per-PR. If a tool
-you are using appends an attribution footer automatically, strip it before posting, and if
-one has already been published, **edit the body to remove it** rather than leaving it and
-noting the rule.
-
-The reason is the same one behind every other rule in this file: the work stands on whether
-it is right. Who or what typed it is not part of the record, session URLs rot and leak
-context nobody signed up to publish, and a footer on every comment is noise in a repository
-whose whole style is that nothing is there without a reason. Write the commit message and
-the PR body as the person shipping the change would write them.
-
-Git author identity is a separate thing and is not covered by this: leave it as configured.
-`docs/SPEC-PWA.md` Phase 3 has a note about which identity Vercel will accept.
 
 ## Style
 
