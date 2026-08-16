@@ -211,12 +211,16 @@ jobs:
       - name: Self-test the shipped EXE
         if: matrix.rid == 'win-x64'
         shell: pwsh
+        # Start-Process -Wait, not `&`. Tiro.exe is a GUI-subsystem binary — it
+        # has to be, or every launch would flash a console window — and the shell
+        # does not wait on those: `&` returns immediately, leaves $LASTEXITCODE
+        # untouched, and the next line reads a log the app has not written yet.
         run: |
-          & publish/Tiro.exe --self-test
-          $code = $LASTEXITCODE
+          $run = Start-Process -FilePath publish/Tiro.exe -ArgumentList '--self-test' -Wait -PassThru
           $log = Join-Path $env:APPDATA 'Tiro/tiro.log'
-          if (Test-Path $log) { Get-Content $log -Tail 40 }
-          if ($code -ne 0) { throw "Tiro.exe --self-test failed; see the log above." }
+          if (Test-Path $log) { Get-Content $log -Tail 40 } else { "No log at $log" }
+          if ($run.ExitCode -ne 0) { throw "Tiro.exe --self-test exited $($run.ExitCode); see the log above." }
+          "Self-test passed."
 
       # SignPath Foundation signs releases, not every push: its free tier is for
       # published open-source builds, and each signing request is a human-auditable
