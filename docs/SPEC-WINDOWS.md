@@ -103,6 +103,25 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   nag everyone every week. `Tiro.exe --self-test` asserts all of that, and CI runs it against
   the EXE that ships.
 
+- **What is worth interrupting someone over.** Finding an update is not the same as being
+  worth a notification. The version number already says what changed, because the release
+  rules make it say so, so read it rather than inventing a signal:
+
+  | Step | Verdict | What happens |
+  |---|---|---|
+  | `1.2.0` → `1.3.0` or `2.0.0` | something was added | tray menu, tooltip, balloon, **and a banner in the app** |
+  | `1.2.0` → `1.2.1` | one fix | tray menu and tooltip only. Nobody gets pulled out of a sentence to hear that a typo was corrected |
+  | `1.2.0` → `1.2.2` or further | fixes piling up | treated as worth saying once: this is no longer a typo, it is a stack of things you are missing |
+
+  Two rules on top of that, and both matter more than the table: it is said **once per
+  version** — dismissing 1.3.0 means never being asked about 1.3.0 again, only about what
+  comes after it — and it is **never said mid-take**, because a Download button under a
+  thumb that is holding the record button is the worst possible offer. "Check for updates"
+  from the menu always answers, since then you asked.
+
+  The web core applies the identical test (`updateWorth` in `web/src/app.js`, `Classify` in
+  `UpdateCheck.cs`), so the app and the shell cannot disagree about what deserves a banner.
+
 ### 4.4 Storage
 
 - History at `%APPDATA%\Tiro\history.jsonl`, same schema as everywhere else.

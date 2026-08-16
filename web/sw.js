@@ -4,7 +4,7 @@
 
 // Stamped by scripts/gen-version.mjs. A version bump renames the cache, which
 // is what drops the previous shell on activate.
-const CACHE = "tiro-1.1.0";
+const CACHE = "tiro-1.2.0";
 const SHELL = [
   "./",
   "index.html",

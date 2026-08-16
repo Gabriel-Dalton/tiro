@@ -55,6 +55,30 @@ static class SelfTest
         Check("this build's own version parses", !UpdateCheck.IsNewer(Build.Version, Build.Version)
             && UpdateCheck.IsNewer("999.0.0", Build.Version));
 
+        // What is worth interrupting someone over. Getting this wrong is not a
+        // crash, it is either nagging people over a typo or never telling them
+        // about a release that added the thing they wanted.
+        Check("a new minor is a feature",
+            UpdateCheck.Classify("1.3.0", "1.2.0") == UpdateCheck.Worth.Feature);
+        Check("a new major is a feature",
+            UpdateCheck.Classify("2.0.0", "1.9.9") == UpdateCheck.Worth.Feature);
+        Check("one patch is quiet",
+            UpdateCheck.Classify("1.2.1", "1.2.0") == UpdateCheck.Worth.Quiet);
+        Check("two patches have piled up",
+            UpdateCheck.Classify("1.2.2", "1.2.0") == UpdateCheck.Worth.Fixes);
+        Check("five patches have piled up",
+            UpdateCheck.Classify("1.2.5", "1.2.0") == UpdateCheck.Worth.Fixes);
+        Check("the same version is nothing",
+            UpdateCheck.Classify("1.2.0", "1.2.0") == UpdateCheck.Worth.None);
+        Check("an older release is nothing",
+            UpdateCheck.Classify("1.1.9", "1.2.0") == UpdateCheck.Worth.None);
+        Check("an older major is nothing, however high its minor",
+            UpdateCheck.Classify("1.99.0", "2.0.0") == UpdateCheck.Worth.None);
+        Check("an unparseable tag is nothing",
+            UpdateCheck.Classify("nightly", "1.2.0") == UpdateCheck.Worth.None);
+        Check("1.10.0 over 1.9.0 is a feature, not a downgrade",
+            UpdateCheck.Classify("1.10.0", "1.9.0") == UpdateCheck.Worth.Feature);
+
         Log.Write(failures == 0 ? "self-test passed" : $"self-test: {failures} failure(s)");
         return failures == 0 ? 0 : 1;
     }

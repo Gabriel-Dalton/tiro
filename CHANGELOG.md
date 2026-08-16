@@ -2,7 +2,7 @@
 
 What changed in each release, in plain terms, including the things that were broken.
 
-Every release publishes the same three apps from one version number, so **1.1.0 on the Mac,
+Every release publishes the same three apps from one version number, so **1.2.0 on the Mac,
 on Windows and in the browser are the same release** even when a change only touched one of
 them. Where an entry affects one platform, it says so.
 
@@ -20,6 +20,55 @@ something is added or the interface changes, the last when the fix is the whole 
 
 Nothing yet.
 
+## [1.2.0] — unreleased
+
+Knowing when to update, and being able to read what changed.
+
+### Added
+
+- **Tiro tells you when there is a new version**, rather than leaving you to notice. The web
+  app names the version waiting and offers **Update**; the Windows app reads GitHub's latest
+  release once a week and offers it in the app and in the tray menu. It does not fire for
+  every release — the rule, and exactly what the check does and does not send, are under
+  [Update notifications](#update-notifications) below. *(Web, Windows.)*
+- **This changelog**, backfilled to 1.0.0, and release notes generated from it — so the notes
+  on the download page and the record in the repository cannot say different things.
+
+### Fixed
+
+- **The web app no longer swaps a new version in underneath you.** The service worker
+  activated as soon as it finished downloading, which could replace the running app in the
+  middle of a take, with a socket open and a clipboard write pending — and said nothing
+  either way. It now waits until you take the offer. *(Web.)*
+
+### Update notifications
+
+New in this release, and the reason it is worth reading rather than skimming:
+
+- **You are not told about every release.** A prompt that fires every time teaches people to
+  dismiss prompts, so the version number decides: a release that **adds** something gets one
+  banner naming it, a single **fix** gets none and simply applies next time you open the app,
+  and **two or more fixes behind** is treated as worth saying once. Whatever you are shown,
+  you are shown once per version — turning down 1.3.0 means being asked about 1.4.0, not
+  about 1.3.0 again — and nothing ever interrupts a take.
+- **Web and installed PWA.** The app already re-fetched itself in the background; it just
+  never said so, and swapped the new version in under a page that was mid-take. Now the new
+  version waits, a toast names it and offers **Update**, and nothing changes until you take
+  it. No new network requests: it only ever re-fetches Tiro's own files, from the same
+  address the app is already served from.
+- **Windows.** Once a week, at most, Tiro asks GitHub whether there is a newer release. Its
+  tray menu always says what it found; the banner inside the app appears when the release is
+  worth it by the rule above, and offers to open the release page. **It sends no
+  identifiers**: no account, no device ID, no usage, nothing about what you dictate — the
+  request is the same anonymous one your browser would make opening the releases page, and
+  GitHub sees an IP address and nothing else. It can be turned off in the tray menu, and
+  turning it off is remembered. If you installed via `winget`, `winget upgrade` continues to
+  work and this changes nothing about that.
+- **macOS** is unchanged and checks nothing: that app is upstream's, and this fork's rule is
+  not to modify it. The Mac app's version is in its About box, and the
+  [releases page](https://github.com/Gabriel-Dalton/tiro/releases/latest) is the place to
+  compare it.
+
 ## [1.1.0] — 2026-08-16
 
 The interface release. If you have used Tiro before, this is the one you will notice.
@@ -34,16 +83,12 @@ The interface release. If you have used Tiro before, this is the one you will no
   like holding it with a finger. The button was pointer-only before, so anyone working from
   a keyboard, a switch, or a screen reader could reach it and do nothing with it. *(Web,
   Windows.)*
-- **Tiro tells you when there is a new version**, rather than leaving you to notice. The web
-  app offers a **Reload** when a new version has finished downloading in the background; the
-  Windows app checks once a week and puts a "new version" item in its tray menu. Both are
-  described in full, including what they do and do not send, under
-  [Update notifications](#update-notifications) below. *(Web, Windows.)*
 - **Delete a single transcript** from History, next to the copy button, instead of clearing
   everything or nothing. *(Web, Windows.)*
 - **Reveal your API key** while typing it, so a mistyped character is something you can see
   rather than deduce from "key rejected". *(Web, Windows.)*
-- **This changelog**, and release notes generated from it.
+- **The Deepgram key walkthrough is on the website**, with drawings of the console screens it
+  describes, rather than only in a document on GitHub. *(Website.)*
 
 ### Changed
 
@@ -87,27 +132,6 @@ The interface release. If you have used Tiro before, this is the one you will no
   opened it. *(Web.)*
 - **Clearing history now redraws the History view**, instead of leaving the entries you just
   deleted on screen until you switched tabs and back. *(Web, Windows.)*
-
-### Update notifications
-
-New in this release, and the reason it is worth reading rather than skimming:
-
-- **Web and installed PWA.** The app already re-fetched itself in the background; it just
-  never said so, and swapped the new version in under a page that was mid-take. Now the new
-  version waits, a toast offers **Reload**, and nothing changes until you take it. No new
-  network requests: it only ever re-fetches Tiro's own files, from the same address the app
-  is already served from.
-- **Windows.** Once a week, at most, Tiro asks GitHub whether there is a newer release, and
-  if there is, its tray menu says so and offers to open the release page. **It sends no
-  identifiers**: no account, no device ID, no usage, nothing about what you dictate — the
-  request is the same anonymous one your browser would make opening the releases page, and
-  GitHub sees an IP address and nothing else. It can be turned off in the tray menu, and
-  turning it off is remembered. If you installed via `winget`, `winget upgrade` continues to
-  work and this changes nothing about that.
-- **macOS** is unchanged and checks nothing: that app is upstream's, and this fork's rule is
-  not to modify it. The Mac app's version is in its About box, and the
-  [releases page](https://github.com/Gabriel-Dalton/tiro/releases/latest) is the place to
-  compare it.
 
 ## [1.0.1] — 2026-08-16
 
@@ -164,7 +188,8 @@ covered.
   the same JSONL file so it moves between them.
 - **No account, no server, no telemetry.** Your Deepgram key talks straight to Deepgram.
 
-[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.1.0
 [1.0.1]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.0.1
 [1.0.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.0.0

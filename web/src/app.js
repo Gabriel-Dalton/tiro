@@ -164,6 +164,16 @@ function notice(text, tone = "warn", ms = 3200, action = null) {
   button.hidden = !action;
   button.onclick = action ? action.onClick : null;
   if (action) button.textContent = action.label;
+  // A sticky offer needs a way out, or it is just a banner you cannot close.
+  const dismiss = $("toast-dismiss");
+  dismiss.hidden = !action;
+  dismiss.onclick = action
+    ? () => {
+        $("toast").dataset.open = "false";
+        $("toast-text").textContent = "";
+        if (action.onDismiss) action.onDismiss();
+      }
+    : null;
   $("toast").dataset.open = "true";
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = null;
@@ -861,6 +871,50 @@ const UPDATE_CHECK_MS = 60 * 60 * 1000; // hourly at most, and only while in use
 let lastUpdateCheck = Date.now();
 let reloading = false;
 
+// ---- when an update is worth interrupting someone over -------------------
+//
+// The version number already says what changed, because the release rules make
+// it say so: the middle number moves when something is added or the interface
+// changes, the last one when a fix is the whole story. So:
+//
+//   1.2.0 -> 1.3.0   something new. Worth one interruption.
+//   1.2.0 -> 1.2.1   a fix. Not worth stopping someone mid-sentence for; it
+//                    lands the next time they open the app anyway.
+//   1.2.0 -> 1.2.3   two or more fixes deep. That is no longer "a typo", it is
+//                    a pile of things you are missing, so say it once.
+//
+// Whatever we do decide to show is shown **once per version**: dismissing 1.3.0
+// means never being asked about 1.3.0 again, only about whatever comes after.
+// An update prompt that reappears is how people learn to dismiss them unread.
+
+const DISMISSED_KEY = "tiro.update.dismissed";
+const PATCH_PILE_UP = 2;
+
+const parseVersion = (v) => {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(v || "").trim());
+  return m ? m.slice(1, 4).map(Number) : null;
+};
+
+/** "feature" | "fixes" | "quiet" | null — null when it is not an update at all. */
+export function updateWorth(current, next) {
+  const a = parseVersion(current);
+  const b = parseVersion(next);
+  if (!a || !b) return null;
+  if (b[0] > a[0]) return "feature";
+  if (b[0] < a[0]) return null;
+  if (b[1] > a[1]) return "feature";
+  if (b[1] < a[1]) return null;
+  if (b[2] <= a[2]) return null;
+  return b[2] - a[2] >= PATCH_PILE_UP ? "fixes" : "quiet";
+};
+
+const alreadyDismissed = (version) => {
+  try { return localStorage.getItem(DISMISSED_KEY) === version; } catch { return false; }
+};
+const rememberDismissed = (version) => {
+  try { localStorage.setItem(DISMISSED_KEY, version); } catch {}
+};
+
 function watchForUpdate(reg) {
   if (!reg) return;
 
@@ -896,20 +950,44 @@ function watchForUpdate(reg) {
   });
 }
 
+/** The version the waiting worker is about to install, read off the copy of
+ * version.js the network is now serving. No version is ever assumed here: the
+ * running one comes from the build, the new one from the server, and if the
+ * read fails the offer still stands, just without a number in it. */
+async function incomingVersion() {
+  try {
+    const res = await fetch("src/version.js", { cache: "reload" });
+    if (!res.ok) return null;
+    const found = (await res.text()).match(/VERSION\s*=\s*"([\d.]+)"/);
+    return found && found[1] !== VERSION ? found[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 let updateOffered = false;
-function offerUpdate(worker) {
+async function offerUpdate(worker) {
   if (updateOffered) return;
   updateOffered = true;
 
+  const version = await incomingVersion();
+  // A fix-only release still installs — it just does it the next time the app
+  // is opened, silently, the way it always did. The only thing being decided
+  // here is whether to say anything now.
+  const worth = version ? updateWorth(VERSION, version) : "feature";
+  if (worth === "quiet" || worth === null) return;
+  if (version && alreadyDismissed(version)) return;
+
   const ask = () =>
-    notice(`Tiro ${VERSION} is running. A newer version is ready.`, "ok", 0, {
-      label: "Reload",
+    notice(version ? `Tiro ${version} is ready` : "A new version is ready", "ok", 0, {
+      label: "Update",
       onClick: () => {
         reloading = true;
         worker.postMessage("SKIP_WAITING");
         // If the worker never answers, the reload still gets us the new shell.
         setTimeout(() => location.reload(), 1500);
       },
+      onDismiss: () => version && rememberDismissed(version),
     });
 
   // Never interrupt a take. The transcript is not on the clipboard yet, and a
@@ -917,6 +995,32 @@ function offerUpdate(worker) {
   if (state === "idle") ask();
   else setTimeout(() => offerWhenIdle(ask), 1200);
 }
+
+// The Windows app cannot update itself in place: it is a portable EXE someone
+// unzipped. So the host reads GitHub's latest release, and the same banner
+// appears here with the number it found, rather than that news living only in a
+// tray menu nobody opens until they already suspect something.
+bridge.onUpdate = ({ version, url }) => {
+  if (!version || updateOffered) return;
+  // Same rule as the web: a fix-only release is in the tray menu and the tray
+  // tooltip, and that is where it stays. The host applies the same test before
+  // sending this at all; this is the second half of one policy, not a new one.
+  const worth = updateWorth(VERSION, version);
+  if (worth === "quiet" || worth === null) return;
+  if (alreadyDismissed(version)) return;
+  updateOffered = true;
+  const ask = () =>
+    notice(`Tiro ${version} is available`, "ok", 0, {
+      label: "Download",
+      onClick: () => {
+        bridge.openExternal(url || "https://github.com/Gabriel-Dalton/tiro/releases/latest");
+        $("toast").dataset.open = "false";
+      },
+      onDismiss: () => rememberDismissed(version),
+    });
+  if (state === "idle") ask();
+  else offerWhenIdle(ask);
+};
 
 function offerWhenIdle(ask) {
   if (state === "idle") ask();

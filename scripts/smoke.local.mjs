@@ -49,6 +49,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(8099, r));
 
 const browser = await chromium.launch({
+  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   // a synthetic mic, so a real take can run end to end without hardware
   args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
 });

@@ -150,12 +150,29 @@ sealed class TrayContext : ApplicationContext
     {
         if (newer && latest != null)
         {
+            // Always visible to anyone who looks, whatever the release contains.
             if (_updateItem != null)
             {
                 _updateItem.Text = $"New version {latest} — download";
                 _updateItem.Visible = true;
             }
             _tray.Text = $"Tiro {Build.Version}. Version {latest} is available.";
+
+            // Interrupting, though, is reserved for a release that changed
+            // something you would want. A fix-only one sits in the menu above
+            // and says nothing: nobody should be pulled out of a sentence to be
+            // told a typo was corrected. `announce` is the exception, because
+            // then you asked.
+            var worth = UpdateCheck.Classify(latest, Build.Version);
+            if (worth == UpdateCheck.Worth.Quiet && !announce)
+            {
+                Log.Write($"update {latest} is fixes only; tray menu only");
+                return;
+            }
+
+            // In the app itself, where someone is actually looking. The tray menu
+            // is where you go once you already suspect there is an update.
+            _mainForm.PostUpdateAvailable(latest, UpdateCheck.ReleasesPage);
             // One balloon, when the news is new. Windows collapses these into the
             // notification centre, so it does not steal focus mid-sentence.
             _tray.BalloonTipTitle = $"Tiro {latest} is out";

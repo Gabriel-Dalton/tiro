@@ -129,9 +129,25 @@ How you find out there is a new one differs by platform, because what each can d
 
 | | How you hear about it | Off switch |
 |---|---|---|
-| **Web / installed PWA** | The new version downloads in the background, **waits**, and the app offers a **Reload**. Nothing changes under you mid-take. | n/a — it only ever re-fetches Tiro's own files from the site already serving it |
-| **Windows** | Once a week the tray menu checks GitHub for a newer release and says so if there is one. `winget upgrade` also works. | **Check for updates weekly** in the tray menu |
+| **Web / installed PWA** | The new version downloads in the background, **waits**, and the app offers **Update** — naming the version it found. Nothing changes under you mid-take. | n/a — it only ever re-fetches Tiro's own files from the site already serving it |
+| **Windows** | Once a week Tiro reads GitHub's latest release. The tray menu always shows it; a banner in the app appears when the release is worth it. `winget upgrade` also works. | **Check for updates weekly** in the tray menu |
 | **macOS** | Nothing checks. Compare the About box against the [releases page](https://github.com/Gabriel-Dalton/tiro/releases/latest). | n/a |
+
+**When you are told, and when you are not.** An update prompt that fires for every release
+teaches people to dismiss update prompts, so the version number decides — it can, because
+the release rules make it mean something:
+
+- **`1.2.0` → `1.3.0`** — something was added or the interface changed. You get one banner,
+  naming the version.
+- **`1.2.0` → `1.2.1`** — a fix. No banner. On the web it simply applies next time you open
+  the app; on Windows it waits in the tray menu for anyone who looks.
+- **`1.2.0` → `1.2.2` or further behind** — fixes have piled up. That is no longer a typo, so
+  it is worth saying once.
+
+Whatever is shown is shown **once per version**: turning down 1.3.0 means you are asked
+about 1.4.0, not about 1.3.0 again. Nothing ever interrupts a take. Neither app hardcodes a
+version anywhere — the running one comes from the build, the newer one from GitHub or from
+the files the site is serving.
 
 The Windows check is the only request either app makes that is not dictation, so it is worth
 being exact about: it is an anonymous `GET` of a public GitHub URL, the same one your browser

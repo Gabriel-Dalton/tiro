@@ -98,6 +98,46 @@ static class UpdateCheck
         return false;
     }
 
+    /// <summary>How much of an interruption a release is worth.</summary>
+    public enum Worth
+    {
+        /// <summary>Not an update at all, or older than what is running.</summary>
+        None,
+        /// <summary>A fix. Tray menu and tooltip only; never a balloon or a banner.</summary>
+        Quiet,
+        /// <summary>Enough fixes have piled up to be worth saying once.</summary>
+        Fixes,
+        /// <summary>Something was added or the interface changed. Say it once.</summary>
+        Feature,
+    }
+
+    /// <summary>Two or more patches behind stops being "a typo got fixed".</summary>
+    private const int PatchPileUp = 2;
+
+    /// <summary>
+    /// Whether to interrupt someone over this release, decided from the number
+    /// itself — which is meaningful because the release rules make it so: the
+    /// middle number moves when something is added or the interface changes, the
+    /// last when a fix is the whole story.
+    ///
+    ///   1.2.0 -> 1.3.0   Feature. Worth one interruption.
+    ///   1.2.0 -> 1.2.1   Quiet. It is in the tray menu for anyone who looks.
+    ///   1.2.0 -> 1.2.3   Fixes. Several things you are missing, so say it once.
+    ///
+    /// The web core applies the identical test, so the app and the shell cannot
+    /// disagree about what deserves a banner.
+    /// </summary>
+    public static Worth Classify(string? candidate, string? current)
+    {
+        var a = Parse(candidate);
+        var b = Parse(current);
+        if (a == null || b == null) return Worth.None;
+        if (a[0] != b[0]) return a[0] > b[0] ? Worth.Feature : Worth.None;
+        if (a[1] != b[1]) return a[1] > b[1] ? Worth.Feature : Worth.None;
+        if (a[2] <= b[2]) return Worth.None;
+        return a[2] - b[2] >= PatchPileUp ? Worth.Fixes : Worth.Quiet;
+    }
+
     private static int[]? Parse(string? version)
     {
         if (string.IsNullOrWhiteSpace(version)) return null;
