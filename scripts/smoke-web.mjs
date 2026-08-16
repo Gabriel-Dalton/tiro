@@ -225,7 +225,7 @@ const check = (name, ok, extra = "") => {
   await page.goto("http://localhost:8099/");
   await page.waitForTimeout(300);
 
-  // No CSS transition may remain on the halo — a transition re-armed by every
+  // No CSS transition may remain on the halo: a transition re-armed by every
   // rAF write is exactly what made the old pulse smear behind the voice.
   const dur = await page.evaluate(() =>
     getComputedStyle(document.getElementById("halo")).transitionDuration);
@@ -417,7 +417,7 @@ const FAKE_SOCKET = () => {
   await page.goto("http://localhost:8099/");
   await page.waitForTimeout(600);
 
-  check("no install sheet on arrival — nothing has been proved yet",
+  check("no install sheet on arrival, nothing has been proved yet",
     await page.locator("#install-sheet").isHidden());
 
   const box = await page.locator("#talk").boundingBox();

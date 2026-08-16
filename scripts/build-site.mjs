@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "public");
 
-for (const script of ["gen-tokens.mjs", "gen-icons.mjs"]) {
+for (const script of ["gen-version.mjs", "gen-tokens.mjs", "gen-icons.mjs"]) {
   execFileSync(process.execPath, [join(root, "scripts", script)], { stdio: "inherit" });
 }
 
@@ -28,7 +28,7 @@ mkdirSync(out, { recursive: true });
 // landing page at the site root
 cpSync(join(root, "landing"), out, { recursive: true });
 
-// the PWA under /app — index.html, manifest, sw.js and every asset path in the
+// the PWA under /app. index.html, manifest, sw.js and every asset path in the
 // web core is relative, so it works unchanged from a subdirectory
 cpSync(join(root, "web"), join(out, "app"), { recursive: true });
 
@@ -37,4 +37,4 @@ cpSync(join(root, "web"), join(out, "app"), { recursive: true });
 const strayConfig = join(out, "app", "vercel.json");
 if (existsSync(strayConfig)) rmSync(strayConfig);
 
-console.log("built public/ — landing at /, PWA at /app/");
+console.log("built public/: landing at /, PWA at /app/");

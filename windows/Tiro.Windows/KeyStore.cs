@@ -6,7 +6,7 @@ namespace Tiro.Windows;
 /// <summary>
 /// Deepgram API key at rest, encrypted with DPAPI (current-user scope).
 /// Better than upstream's chmod-600 file and the PWA's browser storage,
-/// and cheap on Windows — SPEC-WINDOWS 4.4.
+/// and cheap on Windows (SPEC-WINDOWS 4.4).
 /// </summary>
 static class KeyStore
 {

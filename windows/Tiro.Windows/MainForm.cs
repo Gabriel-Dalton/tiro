@@ -52,7 +52,7 @@ sealed class MainForm : Form
     /// The WebView2 runtime ships with Windows 11, but on Windows 10 it arrives
     /// only alongside Edge or Microsoft 365 and can genuinely be absent. Without
     /// this check the app starts, fails deep inside EnsureCoreWebView2Async, and
-    /// leaves a tray icon that does nothing — say what is wrong and offer the fix.
+    /// leaves a tray icon that does nothing. Say what is wrong and offer the fix.
     /// </summary>
     private bool WebViewRuntimeMissing()
     {
@@ -76,7 +76,7 @@ sealed class MainForm : Form
             "It ships with Windows 11 and usually arrives with Edge on Windows 10. It is a free " +
             "download from Microsoft and takes about a minute.\n\n" +
             "Open the download page now?",
-            "Tiro — one component missing",
+            "Tiro needs one more component",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Information);
 
@@ -122,6 +122,11 @@ sealed class MainForm : Form
                 e.Handled = true;
             }
         };
+
+        // The web core cannot read the EXE's version, so hand it over before the
+        // page loads. It shows up in the About card as the Windows build number.
+        await core.AddScriptToExecuteOnDocumentCreatedAsync(
+            $"window.__tiroHost = {{ version: \"{Build.Version}\" }};");
 
         core.WebMessageReceived += OnWebMessage;
         core.Navigate($"https://{VirtualHost}/index.html");
@@ -174,7 +179,7 @@ sealed class MainForm : Form
 
             case "appendHistory":
             {
-                // mirror to %APPDATA%\Tiro\history.jsonl — the same artefact as the
+                // mirror to %APPDATA%\Tiro\history.jsonl, the same artefact as the
                 // macOS file and a PWA export
                 var line = msg.GetProperty("line").GetString();
                 if (!string.IsNullOrEmpty(line))

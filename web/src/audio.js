@@ -93,7 +93,7 @@ export class AudioEngine {
     this._source = source;
 
     // Headphones unplugged / device gone: the track ends. Rebuild instead of
-    // dying — this crashed upstream on macOS, treat it as expected.
+    // dying. This crashed upstream on macOS, so treat it as expected.
     const track = this.stream.getAudioTracks()[0];
     track.addEventListener("ended", () => this._rebuild());
 

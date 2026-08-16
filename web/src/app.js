@@ -10,6 +10,7 @@ import { monthStats, fmtMoney, fmtMinutes } from "./usage.js";
 import * as settings from "./settings.js";
 import { bridge } from "./bridge.js";
 import { Installer } from "./install.js";
+import { VERSION } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -24,7 +25,7 @@ let timerHandle = null;
 let recordStartedAt = 0;
 
 const engine = new AudioEngine();
-engine.onDeviceChange = () => notice("Mic changed — reconnected", "warn");
+engine.onDeviceChange = () => notice("Mic changed, reconnected", "warn");
 
 // ---------------------------------------------------------------- ui helpers
 
@@ -80,7 +81,7 @@ function stopTimer() {
 //
 //  1. The CSS carried `transition: opacity` while this loop rewrote opacity
 //     every frame. Each write restarted a 200 ms transition that the next frame
-//     replaced, so the ring never reached any value it was told to — it smeared
+//     replaced, so the ring never reached any value it was told to. It smeared
 //     and lagged behind the voice. The transition is gone; smoothing happens
 //     here, on the number, where it can be tuned.
 //  2. Raw RMS through automatic gain control sits around 0.05–0.15 for ordinary
@@ -110,7 +111,7 @@ function startHalo() {
 
   const tick = () => {
     const recording = isRecordingState();
-    // Target is the voice while recording, and zero once it stops — so the ring
+    // Target is the voice while recording, and zero once it stops, so the ring
     // eases back down instead of snapping off mid-pulse.
     let target = 0;
     if (recording) {
@@ -186,7 +187,7 @@ async function pressStart() {
     await engine.start(); // no-op when already warm
   } catch {
     starting = false;
-    notice("Microphone unavailable — check permissions", "bad", 5000);
+    notice("No microphone. Check permissions", "bad", 5000);
     return;
   }
 
@@ -214,12 +215,12 @@ async function pressStart() {
 
   if (releasedWhileStarting) {
     releasedWhileStarting = false;
-    // The press ended before the mic was open — the first run, where the
+    // The press ended before the mic was open. That is the first run, where the
     // permission prompt sits in front of everything. There is no audio yet, and
     // the user gesture is long gone, so a stop here would transcribe silence and
     // be refused the clipboard anyway. Hands-free mode is the useful landing.
     setState("toggleRecording");
-    notice("Recording — tap the button when you're done", "warn", 4000);
+    notice("Recording. Tap the button when you're done", "warn", 4000);
   }
 
   stream.start().catch((err) => {
@@ -229,7 +230,7 @@ async function pressStart() {
     if (stream) { stream.abort(); stream = null; }
     setState("idle");
     notice(
-      err.kind === "auth" ? "Deepgram rejected your key — check Settings"
+      err.kind === "auth" ? "Deepgram rejected your key. Check Settings"
         : err.kind === "offline" ? "You are offline"
         : "Could not reach Deepgram",
       "bad", 5000
@@ -302,8 +303,8 @@ function finishTake(text, sec) {
   installer.offerAfterSuccess();
 }
 
-// Clipboard tiers (SPEC-PWA 1.4). Tier 3 — the visible Copy button on the
-// result card — is always available regardless.
+// Clipboard tiers (SPEC-PWA 1.4). Tier 3, the visible Copy button on the
+// result card, is always available regardless.
 function writeClipboardTiered(transcriptPromise) {
   const setBadge = (ok) => {
     $("result-badge").textContent = ok ? "copied" : "tap copy";
@@ -385,8 +386,8 @@ bridge.onPasteResult = (r) => {
   if (!r.ok) {
     notice(
       r.reason === "elevated"
-        ? "That window is elevated — transcript left on the clipboard, paste it yourself"
-        : "Could not paste — transcript is on the clipboard",
+        ? "That window is elevated. The transcript is on the clipboard, paste it yourself"
+        : "Could not paste. The transcript is on the clipboard",
       "warn", 5000
     );
   }
@@ -552,7 +553,7 @@ async function saveAndTestKey(inputEl, statusEl) {
     await settings.setApiKey(key);
     statusEl("Valid", "ok");
     $("setup-card").hidden = true;
-    notice("Key saved — hold the button and speak", "ok");
+    notice("Key saved. Hold the button and speak", "ok");
   } else {
     statusEl(
       r.kind === "auth" ? "Key rejected by Deepgram" : r.kind === "offline" ? "You are offline" : "Could not reach Deepgram",
@@ -626,7 +627,7 @@ $("debug-wav").addEventListener("click", async () => {
   for (const c of chunks) { all.set(c, off); off += c.length; }
   status.textContent = "playing back…";
   const audio = new Audio(URL.createObjectURL(int16ToWav(all)));
-  audio.onended = () => { status.textContent = "done — correct pitch means the resampler is right"; };
+  audio.onended = () => { status.textContent = "done. Correct pitch means the resampler is right"; };
   audio.play();
 });
 
@@ -653,6 +654,14 @@ const installer = new Installer(
 // ---------------------------------------------------------------- boot
 
 async function boot() {
+  // Which build this is. The EXE ships with the web core, so its version
+  // normally matches; if someone has mixed the two, say both numbers rather
+  // than picking one and being wrong.
+  const mixed = bridge.hostVersion && bridge.hostVersion !== VERSION;
+  $("about-version").textContent =
+    mixed ? `web core ${VERSION} · windows app ${bridge.hostVersion}`
+      : `${VERSION} · ${bridge.isShell ? "windows app" : "web app"}`;
+
   // Windows shell: the DPAPI-held key wins over any cached one.
   if (bridge.isShell) {
     const hostKey = await bridge.fetchKey();
@@ -682,7 +691,7 @@ async function boot() {
   installer.start({ isShell: bridge.isShell });
 
   window.addEventListener("online", () => notice("Back online", "ok", 1600));
-  window.addEventListener("offline", () => notice("You are offline — history still works", "warn"));
+  window.addEventListener("offline", () => notice("You are offline. History still works", "warn"));
 
   if ("serviceWorker" in navigator && !bridge.isShell) {
     navigator.serviceWorker.register("sw.js").catch(() => {});

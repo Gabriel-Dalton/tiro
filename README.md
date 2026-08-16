@@ -37,9 +37,9 @@ gets full parity with the Mac.
 |---|---|---|
 | macOS | Upstream's, unchanged | `Sources/`, built by CI into `Tiro-macOS.zip` (universal: Apple Silicon + Intel) |
 | Web / iPhone PWA | **Built** (phases 0–2; deploy `web/` to any static host) | [`web/`](web/) |
-| Windows | **Built** — WebView2 shell around the same web core | [`windows/`](windows/), built by CI into `Tiro-Windows-x64.zip` and `Tiro-Windows-arm64.zip` |
-| Landing page | **Built** — download links for all three | [`landing/`](landing/) |
-| Native iOS keyboard | Deferred, phase 5 | — |
+| Windows | **Built**, a WebView2 shell around the same web core | [`windows/`](windows/), built by CI into `Tiro-Windows-x64.zip` and `Tiro-Windows-arm64.zip` |
+| Landing page | **Built**, with download links for all three | [`landing/`](landing/) |
+| Native iOS keyboard | Deferred, phase 5 | none yet |
 
 ### Getting the apps
 
@@ -47,7 +47,7 @@ gets full parity with the Mac.
   [latest release](https://github.com/Gabriel-Dalton/tiro/releases/latest) (or a `build`
   workflow artifact). Right-click the ZIP → Properties → tick **Unblock** before extracting,
   then run `Tiro.exe`. It sits in the tray; hold **Right Alt** in any app to dictate.
-  Unblocking is what keeps SmartScreen quiet — if it does interrupt, **More info → Run
+  Unblocking is what keeps SmartScreen quiet. If it does interrupt, choose **More info → Run
   anyway**. [`docs/SIGNING.md`](docs/SIGNING.md) explains why, and how releases get signed.
   On Windows 10 you may also need Microsoft's free
   [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/); Windows 11
@@ -55,7 +55,7 @@ gets full parity with the Mac.
   ARM machines (Snapdragon, Surface) can use `Tiro-Windows-arm64.zip` for a native build,
   though the x64 one also runs there under emulation.
 - **macOS**: `Tiro-macOS.zip` from the same release, or build locally with `./make-app.sh`.
-  It is a **universal binary** — one file for Apple Silicon and Intel. `make-app.sh` builds
+  It is a **universal binary**: one file for Apple Silicon and Intel. `make-app.sh` builds
   both slices and refuses to produce a single-architecture app, because that failure is
   invisible on the machine that builds it and total on the machine that doesn't match.
 - **Web / iPhone / Android / Linux / ChromeOS**: open the deployed site's `/app/` over
@@ -68,20 +68,20 @@ gets full parity with the Mac.
   `beforeinstallprompt`, which Tiro stashes so installing is one tap.
 
   **iOS has no install API at all.** Safari's Share → Add to Home Screen is the only path
-  Apple sanctions, and a page cannot open it — so iOS gets the most work rather than the
+  Apple sanctions, and a page cannot open it, so iOS gets the most work rather than the
   least, because guidance is the only lever there is:
 
   - the button opens a walkthrough that **draws Safari's own toolbar** with the Share
     button circled, so "tap Share" is something you can hold next to your screen and match
     rather than a name you have to already know. iPad puts that button top-right instead of
     bottom-centre, and gets its own drawing;
-  - it asks **after the first successful take**, not on arrival — the moment someone has
+  - it asks **after the first successful take**, not on arrival. The moment someone has
     just watched their voice become text is the moment the answer is not theoretical.
     Closing is remembered: it will not ask twice in a week, or more than twice ever, and
     the button stays regardless;
   - **other iOS browsers get a Copy link button.** Chrome, Firefox and Edge on iOS are
     Safari's engine without that row in the share sheet, so the fix is genuinely "open this
-    in Safari" — and retyping a URL on a phone is exactly where people give up;
+    in Safari", and retyping a URL on a phone is exactly where people give up;
   - because iOS fires no `appinstalled` event, the first launch from the home screen
     **confirms it worked**, once. That is the only signal either side gets.
 
@@ -95,7 +95,7 @@ gets full parity with the Mac.
   already open.
 
   Installing on iOS is worth this much effort: an installed PWA keeps its storage, while a
-  tab's `localStorage` — which is where the API key and settings live — can be cleared by
+  tab's `localStorage`, which is where the API key and settings live, can be cleared by
   Safari after seven days of not visiting. On the phone, installing is the difference
   between Tiro remembering you and asking for a key again next week.
 
@@ -106,7 +106,7 @@ gets full parity with the Mac.
 
 The landing page detects the visitor's platform and leads with the right download, folding
 the rest behind "Other platforms". Detection only reorders what is already on the page, so
-a wrong guess — or no JavaScript — still leaves every download visible. Mac CPU type is
+a wrong guess, or no JavaScript at all, still leaves every download visible. Mac CPU type is
 deliberately not detected: browsers cannot tell Apple Silicon from Intel reliably, which is
 exactly why the Mac build is universal.
 
@@ -133,12 +133,12 @@ comments of its own and the reasoning lives here instead:
   app directory, and the whole app 404s.
 - `sw.js` is served no-cache, or an old app shell gets pinned on people's phones.
 
-To deploy only the PWA instead, set the project's Root Directory to `web/` — that folder
+To deploy only the PWA instead, set the project's Root Directory to `web/`. That folder
 carries its own [`web/vercel.json`](web/vercel.json) with the equivalent headers.
 
 Every release is produced by [`.github/workflows/build.yml`](.github/workflows/build.yml).
 It builds the Windows EXE and the macOS app, then a single release job attaches both zips
-to a GitHub Release — which is where the landing page's `releases/latest/download/…` links
+to a GitHub Release, which is where the landing page's `releases/latest/download/…` links
 point. Publishing from one job rather than from each build is deliberate: two jobs
 attaching to the same release race each other.
 
@@ -152,10 +152,30 @@ git push origin HEAD:release/v1.1.0 # branch, for setups that cannot push tags
 or run the workflow manually and give it a version. The last two create the tag from the
 run, which matters in environments whose credentials cover branches but not tags.
 
+### Versions
+
+One number lives in [`VERSION`](VERSION) at the repository root, and every build reads
+from it, so anyone can tell you which version they are on:
+
+| Where it shows up | Stamped into |
+|---|---|
+| Settings → About, in the web app and the Windows app | `web/src/version.js` |
+| `Tiro.exe` file properties, the tray tooltip, `tiro.log` | `windows/Tiro.Windows/Version.props` |
+| `Tiro.app` in Finder's Get Info | `make-app.sh`, at build time |
+| The landing page footer | `landing/index.html` |
+| The cached app shell, so an upgrade evicts the old one | `web/sw.js` |
+
+The Windows app reports the EXE's own version as well as the web core's, which only
+differ if someone has hand-mixed a build.
+
+To cut 1.1.0: edit `VERSION`, run `node scripts/gen-version.mjs`, commit what it changed,
+then tag. CI fails if those stamps are stale, and refuses to publish a release whose tag
+disagrees with `VERSION`, so a download can never misreport itself.
+
 Design tokens, behavioural constants and the icon set are generated from one source,
-[`shared/design-tokens.json`](shared/design-tokens.json) — regenerate with
-`node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs`. CI regenerates them and fails
-if the committed files differ, so the palette cannot drift by hand-editing.
+[`shared/design-tokens.json`](shared/design-tokens.json). Regenerate with
+`node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs`. CI regenerates them and fails if
+the committed files differ, so the palette cannot drift by someone hand-editing the output.
 
 ### Testing the web core
 
@@ -169,33 +189,34 @@ that a full take streams audio, returns a transcript and lands in history over e
 socket; that the level halo tracks the microphone and eases rather than smearing; that the
 halo stays centred on the button across the 700 px breakpoint; that a take survives a user
 who releases the button before the microphone has finished opening; and that the install
-walkthrough says the right thing on desktop Chromium, iPhone Safari, iPad, and Chrome on
-iOS — including that it asks only after a take has succeeded, remembers being turned down,
-and fits a 667 pt screen. Deepgram is stubbed and the microphone is Chromium's synthetic
-device, so it needs no key, no network and no audio hardware. The `build` workflow runs it
-on every push.
+walkthrough says the right thing on desktop Chromium, iPhone Safari, iPad and Chrome on iOS,
+including that it asks only after a take has succeeded, remembers being turned down, and
+fits a 667 pt screen. Deepgram is stubbed and the microphone is Chromium's synthetic device,
+so it needs no key, no network and no audio hardware. The `build` workflow runs it on every
+push.
 
 One deliberate deviation from [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): the native host
-frame is WinForms rather than WinUI 3 — it provides the tray icon and WebView2 with a plain
+frame is WinForms rather than WinUI 3, because it provides the tray icon and WebView2 with a plain
 csproj and publishes to a genuine single self-contained EXE in CI, which the Windows App SDK
 still makes painful. The split the spec draws is unchanged: all product UI is the web core;
 native code is only the keyboard hook, `SendInput` paste, tray, and DPAPI key storage.
 
-- **[ROADMAP.md](ROADMAP.md)** — phases, scope and non-goals
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the three clients share one core
-- **[docs/RESEARCH.md](docs/RESEARCH.md)** — verified platform constraints, with sources. Read
+- [ROADMAP.md](ROADMAP.md): phases, scope and non-goals
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the three clients share one core
+- [docs/RESEARCH.md](docs/RESEARCH.md): verified platform constraints, with sources. Read
   this first; several obvious approaches are dead ends.
-- **[docs/SPEC-PWA.md](docs/SPEC-PWA.md)** and **[docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md)** —
-  build specs
+- [docs/SPEC-PWA.md](docs/SPEC-PWA.md) and [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): build specs
 
 Two findings from that research worth surfacing here, because they change the design:
 
 - Deepgram's **REST API is CORS-blocked** by design, so a browser cannot POST audio to it. The
-  **streaming WebSocket API** is built for client-side use and works. That is what the fork uses,
-  which also makes it cheaper: **$0.0048/min** streaming versus $0.0077/min pre-recorded.
-- Upstream's quoted $0.0043/min no longer matches Deepgram's published pricing. The savings
-  argument still holds easily; break-even against a $15/month subscription is about 52 hours of
-  dictation a month.
+  **streaming WebSocket API** is built for client-side use and works, so that is what every
+  client here uses. Streaming costs more than batch — **$0.0077/min** against $0.0043/min — and
+  it is the only option a browser has.
+- Upstream's quoted $0.0043/min is the *pre-recorded* rate, so it understates what dictation
+  actually costs. The real number is $0.0077/min, or about **46¢ an hour**. The savings argument
+  still holds easily: break-even against a $15/month subscription is about 32 hours of dictation
+  a month.
 
 Everything below this line is upstream's README, describing the macOS app.
 
@@ -212,13 +233,13 @@ Tiro is that direct call, wrapped in the UX you actually want:
 
 | | monthly cost at 1 h of dictation | at 10 h |
 |---|---|---|
-| **Tiro** (Deepgram nova-3, pay-as-you-go) | **~$0.26** | **~$2.58** |
+| **Tiro** (Deepgram nova-3 streaming, pay-as-you-go) | **~$0.46** | **~$4.62** |
 | Wispr Flow Pro | $15.00 | $15.00 |
 | superwhisper Pro | $8.49 | $8.49 |
 | Aqua Voice Pro | $8.00 | $8.00 |
 
-A new Deepgram account includes **$200 of free credit** — roughly **46,000 minutes** of
-dictation before you pay anything at all. Tiro's Settings page shows your live usage, real
+A new Deepgram account includes **$200 of free credit** — roughly **26,000 minutes**, about
+**430 hours**, of dictation before you pay anything at all. Tiro's Settings page shows your live usage, real
 cost, and what you're saving. *(Prices as of Aug 2026.)*
 
 ## What it does

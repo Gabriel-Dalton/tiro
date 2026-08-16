@@ -1,4 +1,4 @@
-/* Tiro PWA — "Forum" direction: warm paper, dark ink, one clay accent,
+/* Tiro PWA, "Forum" direction: warm paper, dark ink, one clay accent,
  * serif display, mono small-caps labels. Palette comes from tokens.css,
  * generated out of shared/design-tokens.json. */
 
@@ -49,6 +49,9 @@ a { color: var(--clay-600); }
   text-transform: uppercase;
   color: var(--ink-500);
 }
+/* which build this is, set from src/version.js in the About card */
+.version { color: var(--ink-400); letter-spacing: 0.08em; }
+
 #head-status { margin-left: auto; }
 .install-cta { align-self: center; flex: none; border-color: var(--clay-400); color: var(--clay-600); }
 /* iOS: this is the difference between a bookmark and an app, and between
@@ -162,7 +165,7 @@ select {
 /* ---------- the talk button ---------- */
 
 .stage {
-  /* the halo is positioned against this, so the two must never drift apart —
+  /* the halo is positioned against this, so the two must never drift apart:
      the breakpoint below changes the padding by changing the variable */
   --stage-pad: 26px;
   --talk-size: 176px;
