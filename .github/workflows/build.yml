@@ -38,6 +38,37 @@ permissions:
   contents: write # create the tag, the release, and upload assets
 
 jobs:
+  # The web core is the product on the phone and the whole UI inside the Windows
+  # app, so it gets a real browser rather than a linter. Fast, and it gates
+  # nothing: a red smoke test should not stop you shipping the Mac build.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+
+      - name: Check the generated files match their source
+        # tokens.css/tokens.js and the icons are generated from
+        # shared/design-tokens.json. If a commit edits one by hand they drift,
+        # and the drift only shows up as a wrong colour on someone's phone.
+        run: |
+          node scripts/gen-tokens.mjs
+          node scripts/gen-icons.mjs
+          git diff --exit-code -- web/ shared/ || {
+            echo "::error::Generated files are stale — run gen-tokens.mjs and gen-icons.mjs and commit the result."
+            exit 1; }
+
+      - name: Smoke-test the PWA in Chromium
+        run: node scripts/smoke-web.mjs
+
   windows:
     runs-on: windows-latest
     strategy:

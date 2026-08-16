@@ -9,6 +9,7 @@ import * as history from "./history.js";
 import { monthStats, fmtMoney, fmtMinutes } from "./usage.js";
 import * as settings from "./settings.js";
 import { bridge } from "./bridge.js";
+import { Installer } from "./install.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,6 +35,9 @@ function setState(next) {
   talk.classList.toggle("transcribing", next === "transcribing");
   head.classList.toggle("recording", next === "holdRecording" || next === "toggleRecording");
   $("timer").hidden = next !== "holdRecording" && next !== "toggleRecording";
+  // Drive the halo from the state itself, not from one branch below: a take
+  // that starts in toggle mode has to breathe too.
+  if (next === "holdRecording" || next === "toggleRecording") startHalo();
   if (next === "idle") {
     label.textContent = "Hold to talk";
     head.textContent = "ready";
@@ -62,7 +66,6 @@ function startTimer() {
     $("timer").textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
   }, 200);
   $("timer").textContent = "0:00";
-  animateLevel();
 }
 
 function stopTimer() {
@@ -70,16 +73,71 @@ function stopTimer() {
   timerHandle = null;
 }
 
-function animateLevel() {
+// ---------------------------------------------------------------- level halo
+//
+// The ring behind the button breathes with your voice. Three things make or
+// break how it feels, and all three were wrong before:
+//
+//  1. The CSS carried `transition: opacity` while this loop rewrote opacity
+//     every frame. Each write restarted a 200 ms transition that the next frame
+//     replaced, so the ring never reached any value it was told to — it smeared
+//     and lagged behind the voice. The transition is gone; smoothing happens
+//     here, on the number, where it can be tuned.
+//  2. Raw RMS through automatic gain control sits around 0.05–0.15 for ordinary
+//     speech, so the old `level * 3.2` never got near 1 and the ring barely
+//     moved. Normalising between a noise floor and a realistic ceiling, then
+//     bending the curve, uses the whole range.
+//  3. Nothing reset the transform when recording stopped, so the ring froze at
+//     whatever size the last word left it.
+
+const HALO_FLOOR = 0.012;   // below this is room tone, not speech
+const HALO_CEIL = 0.22;     // a firm speaking voice through AGC
+const HALO_ATTACK = 0.45;   // rise fast enough to feel like a response
+const HALO_DECAY = 0.12;    // fall slowly enough not to strobe between syllables
+
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let haloValue = 0;          // smoothed 0..1, the number actually drawn
+let haloRunning = false;
+
+function isRecordingState() {
+  return state === "holdRecording" || state === "toggleRecording";
+}
+
+function startHalo() {
+  if (haloRunning) return; // one loop only, however many times we are called
+  haloRunning = true;
   const halo = $("halo");
+
   const tick = () => {
-    if (state !== "holdRecording" && state !== "toggleRecording") {
+    const recording = isRecordingState();
+    // Target is the voice while recording, and zero once it stops — so the ring
+    // eases back down instead of snapping off mid-pulse.
+    let target = 0;
+    if (recording) {
+      const norm = (engine.level - HALO_FLOOR) / (HALO_CEIL - HALO_FLOOR);
+      // gamma < 1 opens up the quiet end, where normal speech actually lives
+      target = Math.pow(Math.max(0, Math.min(1, norm)), 0.6);
+    }
+    const rate = target > haloValue ? HALO_ATTACK : HALO_DECAY;
+    haloValue += (target - haloValue) * rate;
+
+    if (!recording && haloValue < 0.01) {
+      // settled: park it clean so the next take starts from a known state
+      haloValue = 0;
       halo.style.opacity = "0";
+      halo.style.transform = "scale(1)";
+      haloRunning = false;
       return;
     }
-    const l = Math.min(1, engine.level * 3.2);
-    halo.style.opacity = String(0.35 + l * 0.6);
-    halo.style.transform = `scale(${1 + l * 0.45})`;
+
+    if (reducedMotion.matches) {
+      // A steady ring still says "recording" without any motion at all.
+      halo.style.opacity = recording ? "0.6" : String(haloValue * 0.6);
+      halo.style.transform = "scale(1.1)";
+    } else {
+      halo.style.opacity = String((0.3 + haloValue * 0.55) * (recording ? 1 : haloValue));
+      halo.style.transform = `scale(${1 + haloValue * 0.42})`;
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -96,8 +154,18 @@ function notice(text, tone = "warn", ms = 3200) {
 
 // ---------------------------------------------------------------- recording
 
+// Opening the mic is asynchronous, and on first run it waits on a permission
+// prompt that can sit there for seconds. Everything between the press and
+// setState("holdRecording") is therefore a window in which a release can arrive
+// with nothing to release, and a second press can start a second take on top of
+// the first. `starting` closes both.
+let starting = false;
+let releasedWhileStarting = false;
+
 async function pressStart() {
+  if (starting) return;                    // one take may be opening at a time
   if (state === "transcribing") return;
+  if (state === "holdRecording") return;   // already running; a second stream would orphan the first
   if (state === "toggleRecording") return; // handled on release: stop-and-insert
 
   const key = settings.getApiKey();
@@ -112,9 +180,12 @@ async function pressStart() {
     return;
   }
 
+  starting = true;
+  releasedWhileStarting = false;
   try {
     await engine.start(); // no-op when already warm
   } catch {
+    starting = false;
     notice("Microphone unavailable — check permissions", "bad", 5000);
     return;
   }
@@ -139,6 +210,17 @@ async function pressStart() {
   engine.onChunk = (c) => stream && stream.send(c);
   engine.beginRecording();
   setState("holdRecording");
+  starting = false;
+
+  if (releasedWhileStarting) {
+    releasedWhileStarting = false;
+    // The press ended before the mic was open — the first run, where the
+    // permission prompt sits in front of everything. There is no audio yet, and
+    // the user gesture is long gone, so a stop here would transcribe silence and
+    // be refused the clipboard anyway. Hands-free mode is the useful landing.
+    setState("toggleRecording");
+    notice("Recording — tap the button when you're done", "warn", 4000);
+  }
 
   stream.start().catch((err) => {
     // The socket never opened; kill the take with a precise message.
@@ -156,6 +238,7 @@ async function pressStart() {
 }
 
 function pressEnd() {
+  if (starting) { releasedWhileStarting = true; return; }
   if (state === "holdRecording") {
     if (Date.now() - pressedAt < TAP_THRESHOLD_MS) {
       setState("toggleRecording"); // quick tap: stay recording hands-free
@@ -540,6 +623,22 @@ $("debug-wav").addEventListener("click", async () => {
   audio.play();
 });
 
+// ---------------------------------------------------------------- install
+
+const installer = new Installer(
+  {
+    button: $("install-btn"),
+    card: $("install-card"),
+    cardButton: $("install-card-btn"),
+    sheet: $("install-sheet"),
+    lede: $("install-lede"),
+    steps: $("install-steps"),
+    doButton: $("install-do"),
+    closeButton: $("install-close"),
+  },
+  notice
+);
+
 // ---------------------------------------------------------------- boot
 
 async function boot() {
@@ -569,16 +668,7 @@ async function boot() {
 
   history.requestPersistence();
 
-  // iOS install hint: Safari only, not already installed, not dismissed
-  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  if (isIos && !standalone && !localStorage.getItem("tiro.a2hsDismissed") && !bridge.isShell) {
-    $("a2hs").hidden = false;
-  }
-  $("a2hs-dismiss").addEventListener("click", () => {
-    localStorage.setItem("tiro.a2hsDismissed", "1");
-    $("a2hs").hidden = true;
-  });
+  installer.start({ isShell: bridge.isShell });
 
   window.addEventListener("online", () => notice("Back online", "ok", 1600));
   window.addEventListener("offline", () => notice("You are offline — history still works", "warn"));

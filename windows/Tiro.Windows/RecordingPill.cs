@@ -36,7 +36,35 @@ sealed class RecordingPill : Form
                 _label.Text = $"●  Recording  {t / 60}:{t % 60:D2}";
             }
         };
-        Region = System.Drawing.Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 22, 22));
+
+        // The rounded corners have to be recut whenever the form's real size
+        // changes. The app is PerMonitorV2 DPI-aware, so on a 150% display
+        // WinForms scales this form to 360x66 while Width/Height above still
+        // read 240x44 — a region cut once in the constructor would clip a third
+        // of the pill off, and would clip again when it moves to another monitor.
+        Resize += (_, _) => ApplyRoundedCorners();
+        DpiChanged += (_, _) => ApplyRoundedCorners();
+        ApplyRoundedCorners();
+    }
+
+    private void ApplyRoundedCorners()
+    {
+        if (Width <= 0 || Height <= 0) return;
+        // Corner radius as a proportion of the current height, so the shape is
+        // the same at 100% and at 200% scaling. Control.Region's setter disposes
+        // the region it replaces, so only the raw GDI handle is ours to free —
+        // and since this now runs on every resize, not freeing it would leak.
+        var ellipse = Height / 2;
+        var hrgn = CreateRoundRectRgn(0, 0, Width, Height, ellipse, ellipse);
+        if (hrgn == IntPtr.Zero) return;
+        try
+        {
+            Region = System.Drawing.Region.FromHrgn(hrgn); // copies the handle
+        }
+        finally
+        {
+            DeleteObject(hrgn);
+        }
     }
 
     protected override bool ShowWithoutActivation => true;
@@ -80,10 +108,19 @@ sealed class RecordingPill : Form
 
     private void Place()
     {
-        var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
+        // Follow the monitor the user is actually on. Pinning this to the primary
+        // screen puts the pill on the wrong display for anyone with two, which is
+        // most Windows desks — you dictate into a window over here and the only
+        // feedback that anything is happening appears over there.
+        var area = Screen.FromPoint(Cursor.Position)?.WorkingArea
+                   ?? Screen.PrimaryScreen?.WorkingArea
+                   ?? new Rectangle(0, 0, 1280, 720);
         Location = new Point(area.Left + (area.Width - Width) / 2, area.Bottom - Height - 48);
     }
 
     [System.Runtime.InteropServices.DllImport("gdi32.dll")]
     private static extern IntPtr CreateRoundRectRgn(int l, int t, int r, int b, int w, int h);
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr hObject);
 }

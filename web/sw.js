@@ -2,7 +2,7 @@
 // wss:// and never passes through here; sw.js itself is served no-cache (see
 // vercel.json) so shell updates are picked up on next load.
 
-const VERSION = "tiro-v1";
+const VERSION = "tiro-v2";
 const SHELL = [
   "./",
   "index.html",
@@ -14,6 +14,7 @@ const SHELL = [
   "src/bridge.js",
   "src/deepgram.js",
   "src/history.js",
+  "src/install.js",
   "src/settings.js",
   "src/tokens.js",
   "src/usage.js",

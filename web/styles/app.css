@@ -50,6 +50,7 @@ a { color: var(--clay-600); }
   color: var(--ink-500);
 }
 #head-status { margin-left: auto; }
+.install-cta { align-self: center; flex: none; border-color: var(--clay-400); color: var(--clay-600); }
 #head-status.recording { color: var(--clay-500); }
 
 /* ---------- layout ---------- */
@@ -152,24 +153,35 @@ select {
 /* ---------- the talk button ---------- */
 
 .stage {
+  /* the halo is positioned against this, so the two must never drift apart —
+     the breakpoint below changes the padding by changing the variable */
+  --stage-pad: 26px;
+  --talk-size: 176px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 26px 0 6px;
+  padding: var(--stage-pad) 0 6px;
   position: relative;
 }
 .halo {
   position: absolute;
-  top: 26px;
-  width: 176px;
-  height: 176px;
+  top: var(--stage-pad);
+  left: 50%;
+  /* centred with a margin, not a transform: the transform belongs to the pulse
+     and a second one here would silently overwrite it */
+  margin-left: calc(var(--talk-size) / -2);
+  width: var(--talk-size);
+  height: var(--talk-size);
   border-radius: 50%;
   background: var(--clay-100);
   transform: scale(1);
   opacity: 0;
-  transition: opacity 0.2s;
+  /* No CSS transition. app.js writes opacity and transform every animation
+     frame and smooths the value itself; a transition on top of that re-targets
+     60 times a second and never arrives, which is what made the pulse smear. */
   pointer-events: none;
+  will-change: transform, opacity;
 }
 .talk {
   position: relative;
@@ -337,7 +349,50 @@ select {
 }
 .tab.active { color: var(--clay-600); }
 
+/* ---------- install sheet ---------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(20, 17, 11, 0.42);
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.sheet-panel {
+  background: var(--paper-50);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 20px 20px 16px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 84vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(31, 26, 18, 0.22);
+}
+.sheet-panel h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 21px;
+  color: var(--ink-950);
+  margin-bottom: 6px;
+}
+.install-steps { margin: 14px 0 4px; padding-left: 20px; display: grid; gap: 10px; font-size: 14px; }
+.install-steps li { line-height: 1.5; }
+.install-steps .glyph {
+  width: 17px;
+  height: 17px;
+  vertical-align: -3px;
+  margin: 0 1px;
+  color: var(--clay-600);
+}
+.sheet .row { justify-content: flex-end; }
+
 @media (min-width: 700px) {
   .app-head { padding-top: 26px; }
-  .stage { padding-top: 40px; }
+  .stage { --stage-pad: 40px; }
+  .sheet { align-items: center; }
 }

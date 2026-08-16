@@ -59,9 +59,24 @@ gets full parity with the Mac.
   both slices and refuses to produce a single-architecture app, because that failure is
   invisible on the machine that builds it and total on the machine that doesn't match.
 - **Web / iPhone / Android / Linux / ChromeOS**: open the deployed site's `/app/` over
-  HTTPS, then Add to Home Screen. Everything (`getUserMedia`, service worker, install)
-  requires a secure origin, so the PWA cannot be tested from a file:// URL or from
-  `localhost` on a phone.
+  HTTPS and use the **Install** button in the top corner. Everything (`getUserMedia`,
+  service worker, install) requires a secure origin, so the PWA cannot be tested from a
+  file:// URL or from `localhost` on a phone.
+
+  That button does different things because the platforms genuinely differ, and the app
+  says so rather than hiding it. On Android, Windows and ChromeOS the browser fires
+  `beforeinstallprompt`, which Tiro stashes so installing is one tap. **iOS has no install
+  API at all** — Safari's Share → Add to Home Screen is the only path Apple sanctions and a
+  page cannot open it, so the button opens a short illustrated walkthrough instead of a
+  control that silently does nothing. Only Safari can do this: every other iPhone browser is
+  the same engine without that row in the share sheet, and Tiro tells those visitors to
+  switch rather than sending them looking for a menu item that is not there. The landing
+  page links iPhone and Android visitors straight to `/app/?install=1`, which arrives with
+  the walkthrough already open.
+
+  Installing on iOS is worth pressing for: an installed PWA keeps its storage, while a
+  tab's `localStorage` — which is where the API key and settings live — can be cleared by
+  Safari after seven days of not visiting.
 
   There is no native Linux build and none is planned: the Windows app's native layer is
   Win32 (keyboard hook, `SendInput`, DPAPI, registry) and Wayland deliberately blocks
@@ -118,7 +133,23 @@ run, which matters in environments whose credentials cover branches but not tags
 
 Design tokens, behavioural constants and the icon set are generated from one source,
 [`shared/design-tokens.json`](shared/design-tokens.json) — regenerate with
-`node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs`.
+`node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs`. CI regenerates them and fails
+if the committed files differ, so the palette cannot drift by hand-editing.
+
+### Testing the web core
+
+```bash
+npm install --no-save playwright && npx playwright install chromium
+node scripts/smoke-web.mjs
+```
+
+It drives the real app in Chromium and checks the things reading the code will not tell
+you: that the install affordance appears correctly on desktop and on an iPhone user agent,
+that the level halo actually tracks the microphone and eases rather than smearing, that the
+halo stays centred on the button across the 700 px breakpoint, and that a take survives a
+user who releases the button before the microphone has finished opening. Deepgram is stubbed
+and the microphone is Chromium's synthetic device, so it needs no key, no network and no
+audio hardware. The `build` workflow runs it on every push.
 
 One deliberate deviation from [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): the native host
 frame is WinForms rather than WinUI 3 — it provides the tray icon and WebView2 with a plain
