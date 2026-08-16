@@ -55,27 +55,28 @@ export function sectionFor(changelog, wanted) {
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
 const body = sectionFor(changelog, version);
 
-// A section written ahead of the release says "unreleased" in its heading,
-// which is correct right up until the moment it is not. Nothing else would
-// catch it: the heading is supplied by the release page and never appears in
-// these notes, so the wrong date would sit in the repository at the tagged
-// commit with nobody the wiser.
-// Only when a release is actually being cut. Every push runs this script too,
-// to prove the section exists at all, and a section marked unreleased is exactly
-// what a version in preparation is supposed to look like.
+if (!body) {
+  console.error(
+    `CHANGELOG.md has no "## [${version}]" section, so ${tag} has nothing to say for itself.\n` +
+      `Add one before releasing: it is what the release notes are made of.`
+  );
+  process.exit(1);
+}
+
+// A section written ahead of its release is headed "unreleased", which is
+// correct while it is being prepared and wrong the moment it ships. Nothing else
+// would catch that: the heading never appears in these notes, because the
+// release page supplies its own title, so the stale word would sit in the
+// repository at the tagged commit with nobody the wiser.
+//
+// Only when a release is actually being cut, though. Every push runs this script
+// as well, to prove the section exists at all, and "unreleased" is exactly what
+// a version in preparation is supposed to say.
 const heading = changelog.split("\n").find((l) => l.startsWith(`## [${version}]`)) || "";
 if (args.includes("--releasing") && /unreleased/i.test(heading)) {
   console.error(
     `CHANGELOG.md still calls ${version} unreleased:\n  ${heading}\n\n` +
       `Give it the release date before tagging.`
-  );
-  process.exit(1);
-}
-
-if (!body) {
-  console.error(
-    `CHANGELOG.md has no "## [${version}]" section, so ${tag} has nothing to say for itself.\n` +
-      `Add one before releasing: it is what the release notes are made of.`
   );
   process.exit(1);
 }
