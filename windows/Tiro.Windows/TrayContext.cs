@@ -19,6 +19,13 @@ sealed class TrayContext : ApplicationContext
         _settings = SettingsStore.Load();
         _mainForm = new MainForm(_settings);
         _mainForm.StateChanged += OnStateChanged;
+        _mainForm.RuntimeMissing += () =>
+        {
+            // Nothing can work without the WebView2 runtime, so show the blocked
+            // icon and say so on hover rather than looking idle and ready.
+            OnStateChanged("blocked");
+            _tray.Text = "Tiro — WebView2 runtime missing";
+        };
         _mainForm.HotkeyRebound += (code) => _hook!.SetHotkey(code);
 
         foreach (var state in new[] { "idle", "recording", "transcribing", "blocked" })

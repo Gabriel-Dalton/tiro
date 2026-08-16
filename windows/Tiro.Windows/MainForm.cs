@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -47,8 +48,60 @@ sealed class MainForm : Form
     private static string AssetPath(string name) =>
         Path.Combine(AppContext.BaseDirectory, "Assets", name);
 
+    /// <summary>
+    /// The WebView2 runtime ships with Windows 11, but on Windows 10 it arrives
+    /// only alongside Edge or Microsoft 365 and can genuinely be absent. Without
+    /// this check the app starts, fails deep inside EnsureCoreWebView2Async, and
+    /// leaves a tray icon that does nothing — say what is wrong and offer the fix.
+    /// </summary>
+    private bool WebViewRuntimeMissing()
+    {
+        try
+        {
+            var version = CoreWebView2Environment.GetAvailableBrowserVersionString();
+            if (!string.IsNullOrEmpty(version))
+            {
+                Log.Write($"WebView2 runtime {version}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"WebView2 runtime lookup failed: {ex.Message}");
+        }
+
+        const string url = "https://developer.microsoft.com/microsoft-edge/webview2/";
+        var answer = MessageBox.Show(
+            "Tiro needs the Microsoft Edge WebView2 runtime, which is not installed on this PC.\n\n" +
+            "It ships with Windows 11 and usually arrives with Edge on Windows 10. It is a free " +
+            "download from Microsoft and takes about a minute.\n\n" +
+            "Open the download page now?",
+            "Tiro — one component missing",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Information);
+
+        if (answer == DialogResult.Yes)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"could not open {url}: {ex.Message}");
+            }
+        }
+        return true;
+    }
+
     private async Task InitWebView()
     {
+        if (WebViewRuntimeMissing())
+        {
+            RuntimeMissing?.Invoke();
+            return;
+        }
+
         var env = await CoreWebView2Environment.CreateAsync(
             userDataFolder: Path.Combine(Log.AppDataDir, "WebView2"));
         await _webView.EnsureCoreWebView2Async(env);
@@ -143,6 +196,10 @@ sealed class MainForm : Form
     }
 
     public event Action<string>? HotkeyRebound;
+
+    /// <summary>Raised when the WebView2 runtime is absent, so the tray can show
+    /// the blocked state rather than pretending the app is ready.</summary>
+    public event Action? RuntimeMissing;
 
     public void PostHotkey(bool down) => PostToWeb(new { type = "hotkey", phase = down ? "down" : "up" });
 

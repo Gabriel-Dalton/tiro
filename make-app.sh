@@ -3,7 +3,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-swift build -c release
+# Universal binary: both slices in one app, so it runs on Apple Silicon and on
+# Intel Macs. Building on one architecture without these flags produces a binary
+# that simply will not launch on the other, and the failure only shows up on
+# hardware you may not own.
+ARCHS=(--arch arm64 --arch x86_64)
+swift build -c release "${ARCHS[@]}"
+BIN="$(swift build -c release "${ARCHS[@]}" --show-bin-path)/tiro"
 
 # stop any running instance before replacing the bundle on disk — a stale process
 # next to a new bundle makes LaunchServices spawn a second (crashing) instance
@@ -12,7 +18,7 @@ pkill -f "Tiro.app/Contents/MacOS/Tiro" 2>/dev/null || true
 APP=Tiro.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/tiro "$APP/Contents/MacOS/Tiro"
+cp "$BIN" "$APP/Contents/MacOS/Tiro"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -36,4 +42,17 @@ PLIST
 SIGN_ID=$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/{print $2; exit}')
 codesign --force -s "${SIGN_ID:--}" "$APP"
 echo "Signed as: ${SIGN_ID:-ad-hoc}"
+
+# Refuse to ship a single-architecture build. Without this the app silently
+# becomes Apple-Silicon-only whenever it is built on an Apple Silicon machine,
+# which is what happened to v1.0.0.
+SLICES=$(lipo -archs "$APP/Contents/MacOS/Tiro")
+echo "Architectures: $SLICES"
+for want in arm64 x86_64; do
+    case " $SLICES " in
+        *" $want "*) ;;
+        *) echo "error: $want slice missing — this build would not run on those Macs" >&2; exit 1 ;;
+    esac
+done
+
 echo "Built $APP — open it with: open $APP"
