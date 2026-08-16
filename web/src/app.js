@@ -223,11 +223,17 @@ async function pressStart() {
     notice("Recording. Tap the button when you're done", "warn", 4000);
   }
 
-  stream.start().catch((err) => {
-    // The socket never opened; kill the take with a precise message.
+  const take = stream;
+  take.start().catch((err) => {
+    // The socket never opened; kill the take with a precise message. Connecting
+    // can outlast the take itself, since the open timeout is longer than plenty
+    // of presses, so only clean up if this is still the take on screen. If it is
+    // not, stopAndInsert already owns it and is mid-transcribe.
+    if (stream !== take) return;
     engine.endRecording();
     engine.onChunk = null;
-    if (stream) { stream.abort(); stream = null; }
+    stream.abort();
+    stream = null;
     setState("idle");
     notice(
       err.kind === "auth" ? "Deepgram rejected your key. Check Settings"
