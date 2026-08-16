@@ -4,7 +4,7 @@
 
 // Stamped by scripts/gen-version.mjs. A version bump renames the cache, which
 // is what drops the previous shell on activate.
-const CACHE = "tiro-1.0.1";
+const CACHE = "tiro-1.1.0";
 const SHELL = [
   "./",
   "index.html",
@@ -30,8 +30,17 @@ const SHELL = [
   "icons/icon.svg",
 ];
 
+// No skipWaiting here, deliberately. A new worker that activates the moment it
+// finishes downloading swaps the shell under a page that is already running —
+// mid-take, with a socket open and a clipboard write pending — and the user is
+// told nothing. Instead the new version sits in `waiting` until the page offers
+// a Reload and the user takes it, which is what sends SKIP_WAITING below.
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+});
+
+self.addEventListener("message", (e) => {
+  if (e.data === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {

@@ -83,6 +83,25 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   mic, so activate the existing window instead of starting a second process.
 - A small always-on-top status pill near the cursor while recording, matching the macOS one.
 - Log to `%APPDATA%\Tiro\tiro.log`.
+- **Update check.** Nothing installs this app, so nothing updates it. Once a week at most, and
+  never during launch, ask GitHub for the latest release tag and compare it numerically with
+  the running version. If it is newer, show it in the tray menu and offer the release page;
+  otherwise say nothing. The check is the tightest thing in this spec, because it is the only
+  outbound request the app makes that is not dictation:
+  - an anonymous `GET` of a public URL, identical to opening the releases page in a browser;
+  - **no identifiers of any kind** — no account, install ID, device ID, usage or transcript
+    data. The `User-Agent` names the app and version because GitHub's API rejects requests
+    without one, and that is the whole of it;
+  - nothing is reported to us, because there is nothing to report to: this app has no server,
+    and the check reads a public endpoint rather than checking in;
+  - off is a menu item away, and is remembered;
+  - failure is silent. Offline is not worth an interruption.
+
+  Compare versions as three numbers, never as strings: `1.10.0` is newer than `1.9.0`, and a
+  string compare says the opposite, which would silently stop every user hearing about
+  updates. Anything unparseable means "no update", so a tag named something unexpected cannot
+  nag everyone every week. `Tiro.exe --self-test` asserts all of that, and CI runs it against
+  the EXE that ships.
 
 ### 4.4 Storage
 

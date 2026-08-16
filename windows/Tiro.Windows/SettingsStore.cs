@@ -11,6 +11,16 @@ class AppSettings
     // crash-dump keystroke armed on this machine.
     public string HotkeyCode { get; set; } = "AltRight";
     public bool Autostart { get; set; } = false;
+
+    // Nothing installs this app, so nothing updates it either. On by default,
+    // because a portable app that never mentions its own releases leaves people
+    // running a version with a fixed bug still in it. What the check does and
+    // does not send is documented in full in UpdateCheck.cs, and the tray menu
+    // turns it off for anyone who would rather it did not.
+    public bool CheckForUpdates { get; set; } = true;
+
+    // UTC, so a laptop crossing a timezone does not check twice or skip a week.
+    public DateTime? LastUpdateCheckUtc { get; set; }
 }
 
 static class SettingsStore

@@ -152,11 +152,22 @@ function startHalo() {
 // with an attribute rather than `hidden`. A region added to the page at the
 // moment it gains text is one a screen reader is entitled to ignore.
 let toastTimer = null;
-function notice(text, tone = "warn", ms = 3200) {
+/**
+ * @param {object} [action]  {label, onClick} turns the toast into an offer: it
+ *   gains a button and stops timing out, because something you are being asked
+ *   to decide must not disappear while you are reading it.
+ */
+function notice(text, tone = "warn", ms = 3200, action = null) {
   $("toast-text").textContent = text;
   $("toast-dot").className = "dot " + (tone === "ok" ? "ok" : tone === "bad" ? "bad" : "");
+  const button = $("toast-action");
+  button.hidden = !action;
+  button.onclick = action ? action.onClick : null;
+  if (action) button.textContent = action.label;
   $("toast").dataset.open = "true";
   if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = null;
+  if (action) return;
   toastTimer = setTimeout(() => {
     $("toast").dataset.open = "false";
     $("toast-text").textContent = "";
@@ -830,8 +841,86 @@ async function boot() {
   window.addEventListener("offline", () => notice("You are offline. History still works", "warn"));
 
   if ("serviceWorker" in navigator && !bridge.isShell) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js").then(watchForUpdate).catch(() => {});
   }
+}
+
+// ---------------------------------------------------------------- updates
+//
+// An installed web app has no App Store to tell you it is out of date, and the
+// service worker updates it silently, so before this the only way to know you
+// were a version behind was to notice something looked different. Now the new
+// version downloads in the background exactly as it did, waits instead of
+// taking over, and says so.
+//
+// Nothing here talks to anything but Tiro's own origin: the browser re-fetches
+// the same files it is already serving. No version endpoint, no check-in, no
+// request that says a copy of Tiro exists on this device.
+
+const UPDATE_CHECK_MS = 60 * 60 * 1000; // hourly at most, and only while in use
+let lastUpdateCheck = Date.now();
+let reloading = false;
+
+function watchForUpdate(reg) {
+  if (!reg) return;
+
+  // Already downloaded, from a previous visit that did not take the offer.
+  if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+
+  reg.addEventListener("updatefound", () => {
+    const incoming = reg.installing;
+    if (!incoming) return;
+    incoming.addEventListener("statechange", () => {
+      // `controller` is null on the very first visit, when "installed" means
+      // "Tiro is now available offline" rather than "there is a new version".
+      if (incoming.state === "installed" && navigator.serviceWorker.controller) {
+        offerUpdate(incoming);
+      }
+    });
+  });
+
+  // The browser checks for a new worker on navigation, which an installed app
+  // does rarely — it is opened and left. Ask again when it comes back to the
+  // foreground, no more than hourly.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (Date.now() - lastUpdateCheck < UPDATE_CHECK_MS) return;
+    lastUpdateCheck = Date.now();
+    reg.update().catch(() => {});
+  });
+
+  // The new worker took over: everything on screen is now the old version's.
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!reloading) return; // only ever reload for an update the user asked for
+    location.reload();
+  });
+}
+
+let updateOffered = false;
+function offerUpdate(worker) {
+  if (updateOffered) return;
+  updateOffered = true;
+
+  const ask = () =>
+    notice(`Tiro ${VERSION} is running. A newer version is ready.`, "ok", 0, {
+      label: "Reload",
+      onClick: () => {
+        reloading = true;
+        worker.postMessage("SKIP_WAITING");
+        // If the worker never answers, the reload still gets us the new shell.
+        setTimeout(() => location.reload(), 1500);
+      },
+    });
+
+  // Never interrupt a take. The transcript is not on the clipboard yet, and a
+  // reload button under a thumb that is mid-press is the worst possible offer.
+  if (state === "idle") ask();
+  else setTimeout(() => offerWhenIdle(ask), 1200);
+}
+
+function offerWhenIdle(ask) {
+  if (state === "idle") ask();
+  else setTimeout(() => offerWhenIdle(ask), 1200);
 }
 
 boot();

@@ -8,6 +8,13 @@ static class Program
     [STAThread]
     static void Main()
     {
+        // CI runs this after the build. It touches no window, no hook and no
+        // mutex, so it must come before all of them.
+        if (Environment.GetCommandLineArgs().Contains("--self-test"))
+        {
+            Environment.Exit(SelfTest.Run());
+        }
+
         // Single instance via a named mutex: two copies fighting over the mic
         // crashed upstream on macOS. Second launch pokes the first and exits.
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out bool isFirst);

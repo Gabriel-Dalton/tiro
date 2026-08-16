@@ -13,6 +13,7 @@ sealed class TrayContext : ApplicationContext
     private readonly AppSettings _settings;
     private readonly Dictionary<string, Icon> _stateIcons = new();
     private readonly RegisteredWaitHandle _showWait;
+    private ToolStripMenuItem? _updateItem;
 
     public TrayContext(EventWaitHandle showEvent, bool startHidden)
     {
@@ -60,6 +61,28 @@ sealed class TrayContext : ApplicationContext
         {
             try { System.Diagnostics.Process.Start("notepad.exe", Log.PathOnDisk); } catch { }
         });
+
+        // Updates. The "new version" item is hidden until there is one, so the
+        // menu says nothing when there is nothing to say.
+        menu.Items.Add(new ToolStripSeparator());
+        _updateItem = new ToolStripMenuItem("", null, (_, _) => OpenReleases()) { Visible = false };
+        _updateItem.Font = new Font(_updateItem.Font, FontStyle.Bold);
+        menu.Items.Add(_updateItem);
+        menu.Items.Add($"Version {Build.Version}", null, (_, _) => CheckForUpdatesNow());
+        var updates = new ToolStripMenuItem("Check for updates weekly")
+        {
+            Checked = _settings.CheckForUpdates,
+            CheckOnClick = true,
+            ToolTipText = "Asks GitHub whether there is a newer release. Sends no identifiers.",
+        };
+        updates.CheckedChanged += (_, _) =>
+        {
+            _settings.CheckForUpdates = updates.Checked;
+            SettingsStore.Save(_settings);
+            Log.Write($"update check {(updates.Checked ? "enabled" : "disabled")} by the user");
+        };
+        menu.Items.Add(updates);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit", null, (_, _) => Quit());
         _tray.ContextMenuStrip = menu;
@@ -80,6 +103,86 @@ sealed class TrayContext : ApplicationContext
         if (startHidden) _mainForm.Hide();
 
         Log.Write("tray ready");
+
+        // After the app is up, never during launch: an update check must not be
+        // something the first dictation of the day waits on.
+        _ = MaybeCheckForUpdatesAsync();
+    }
+
+    // ---------------------------------------------------------------- updates
+
+    /// <summary>The scheduled check: only if it is switched on, and only weekly.</summary>
+    private async Task MaybeCheckForUpdatesAsync()
+    {
+        if (!_settings.CheckForUpdates) return;
+        var last = _settings.LastUpdateCheckUtc;
+        if (last.HasValue && DateTime.UtcNow - last.Value < UpdateCheck.Interval) return;
+        await RunUpdateCheckAsync(announce: false).ConfigureAwait(false);
+    }
+
+    /// <summary>The menu item: checks now, and says so either way, because a
+    /// check you asked for that answers nothing looks broken.</summary>
+    private void CheckForUpdatesNow() => _ = RunUpdateCheckAsync(announce: true);
+
+    private async Task RunUpdateCheckAsync(bool announce)
+    {
+        var latest = await UpdateCheck.LatestVersionAsync().ConfigureAwait(false);
+
+        // Only a check that reached GitHub resets the clock. Recording a failed
+        // one would make a fortnight offline cost you a fortnight of checks.
+        if (latest != null)
+        {
+            _settings.LastUpdateCheckUtc = DateTime.UtcNow;
+            SettingsStore.Save(_settings);
+        }
+
+        var newer = UpdateCheck.IsNewer(latest, Build.Version);
+        Log.Write($"update check: latest={latest ?? "unknown"} running={Build.Version} newer={newer}");
+
+        // Back to the UI thread: NotifyIcon and its menu are not thread-safe.
+        if (_mainForm.IsHandleCreated)
+        {
+            _mainForm.BeginInvoke(() => ShowUpdateResult(latest, newer, announce));
+        }
+    }
+
+    private void ShowUpdateResult(string? latest, bool newer, bool announce)
+    {
+        if (newer && latest != null)
+        {
+            if (_updateItem != null)
+            {
+                _updateItem.Text = $"New version {latest} — download";
+                _updateItem.Visible = true;
+            }
+            _tray.Text = $"Tiro {Build.Version}. Version {latest} is available.";
+            // One balloon, when the news is new. Windows collapses these into the
+            // notification centre, so it does not steal focus mid-sentence.
+            _tray.BalloonTipTitle = $"Tiro {latest} is out";
+            _tray.BalloonTipText = "You are running " + Build.Version + ". Open the tray menu to download it.";
+            _tray.ShowBalloonTip(8000);
+        }
+        else if (announce)
+        {
+            _tray.BalloonTipTitle = latest == null ? "Could not check for updates" : "Tiro is up to date";
+            _tray.BalloonTipText = latest == null
+                ? "GitHub could not be reached. Nothing was sent."
+                : $"{Build.Version} is the latest release.";
+            _tray.ShowBalloonTip(5000);
+        }
+    }
+
+    private static void OpenReleases()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(UpdateCheck.ReleasesPage) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"opening the releases page failed: {ex.Message}");
+        }
     }
 
     private void OnStateChanged(string state)

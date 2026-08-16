@@ -19,12 +19,26 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml" };
 
+// Set to deploy a "new version": the worker comes back one byte different,
+// which is exactly what the browser compares to decide there is an update. It
+// is the only way to test the update prompt without publishing something.
+let deployedVersion = "";
+
 const server = createServer((req, res) => {
   let p = join(ROOT, decodeURIComponent(req.url.split("?")[0]));
   if (p.endsWith("/")) p = join(p, "index.html");
   if (!existsSync(p)) { res.writeHead(404); res.end("no"); return; }
-  res.writeHead(200, { "content-type": TYPES[extname(p)] || "application/octet-stream" });
-  res.end(readFileSync(p));
+  let body = readFileSync(p);
+  if (deployedVersion && p.endsWith("sw.js")) {
+    body = Buffer.concat([body, Buffer.from(`\n// deployed ${deployedVersion}\n`)]);
+  }
+  res.writeHead(200, {
+    "content-type": TYPES[extname(p)] || "application/octet-stream",
+    // sw.js is served no-cache in production too (web/vercel.json); without it
+    // the browser can answer registration.update() from its own cache.
+    "cache-control": "no-cache",
+  });
+  res.end(body);
 });
 await new Promise((r) => server.listen(8099, r));
 
@@ -661,6 +675,62 @@ for (const scheme of ["light", "dark"]) {
   check("closing the sheet gives focus back to the button that opened it",
     await page.evaluate(() => document.activeElement === document.getElementById("install-btn")));
 
+  await ctx.close();
+}
+
+// ------------------------------------------- being told there is a new version
+//
+// An installed web app has no App Store to tell it it is out of date, and the
+// service worker used to swap the new shell in under a running page without
+// saying anything. Three things have to hold: the new version waits rather than
+// taking over, the app offers a reload, and taking the offer actually reloads.
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.goto("http://localhost:8099/");
+
+  const controlled = await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    // `ready` resolves on activation, which on a first load can be a beat before
+    // the page is controlled.
+    for (let i = 0; i < 40 && !navigator.serviceWorker.controller; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return !!navigator.serviceWorker.controller;
+  });
+  check("the service worker takes control on first load", controlled);
+  check("no update offer when there is no update",
+    await page.locator("#toast-action").isHidden());
+
+  deployedVersion = "1.99.0"; // "ship" a new version while the app is open
+  const waiting = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.update();
+    for (let i = 0; i < 60 && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 100));
+    return { waiting: !!reg.waiting, stillControlledByOld: !!navigator.serviceWorker.controller };
+  });
+  check("a new version installs but waits instead of taking over",
+    waiting.waiting && waiting.stillControlledByOld, JSON.stringify(waiting));
+
+  await page.waitForSelector("#toast-action:not([hidden])", { timeout: 5000 }).catch(() => {});
+  const toast = await page.locator("#toast").innerText();
+  check("the app says a new version is ready", /newer version is ready/i.test(toast), toast.replace(/\n/g, " "));
+  check("the offer is a button, not a message that scrolls away",
+    (await page.locator("#toast-action").innerText()).trim() === "Reload");
+  check("an offer does not time out while you are reading it",
+    await page.evaluate(async () => {
+      await new Promise((r) => setTimeout(r, 4000)); // longer than any notice()
+      return document.getElementById("toast").dataset.open === "true";
+    }));
+
+  await page.evaluate(() => { window.__beforeReload = true; });
+  await page.locator("#toast-action").click();
+  await page.waitForTimeout(2500);
+  check("Reload actually reloads onto the new version",
+    await page.evaluate(() => window.__beforeReload === undefined));
+
+  deployedVersion = "";
   await ctx.close();
 }
 

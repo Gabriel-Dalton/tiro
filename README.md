@@ -117,6 +117,33 @@ a wrong guess, or no JavaScript at all, still leaves every download visible. Mac
 deliberately not detected: browsers cannot tell Apple Silicon from Intel reliably, which is
 exactly why the Mac build is universal.
 
+### Staying up to date
+
+All three apps carry the same version number, from the [`VERSION`](VERSION) file, and every
+release publishes all three. [`CHANGELOG.md`](CHANGELOG.md) says what changed in each one, in
+plain terms, including the things that were broken — and the release notes on GitHub are
+generated from it, so the two cannot drift. CI fails a release whose version the changelog
+does not describe.
+
+How you find out there is a new one differs by platform, because what each can do differs:
+
+| | How you hear about it | Off switch |
+|---|---|---|
+| **Web / installed PWA** | The new version downloads in the background, **waits**, and the app offers a **Reload**. Nothing changes under you mid-take. | n/a — it only ever re-fetches Tiro's own files from the site already serving it |
+| **Windows** | Once a week the tray menu checks GitHub for a newer release and says so if there is one. `winget upgrade` also works. | **Check for updates weekly** in the tray menu |
+| **macOS** | Nothing checks. Compare the About box against the [releases page](https://github.com/Gabriel-Dalton/tiro/releases/latest). | n/a |
+
+The Windows check is the only request either app makes that is not dictation, so it is worth
+being exact about: it is an anonymous `GET` of a public GitHub URL, the same one your browser
+fetches opening the releases page. **No account, no install or device ID, no usage, nothing
+about what you dictate, and nothing reported back to us** — there is no "us" to report to,
+since this fork runs no server. The `User-Agent` names the app and version because GitHub's
+API rejects requests without one. That is the whole of it, and it is switchable off.
+
+macOS is unchanged on purpose: that app is upstream's and this fork does not modify it, so it
+gets no updater. `docs/SPEC-WINDOWS.md` §4.3 and the roadmap's Phase 5 cover the reasoning and
+what a Mac version would have to look like.
+
 ### The interface
 
 The web core and the Windows app share one stylesheet, and it follows three rules.
@@ -204,9 +231,12 @@ from it, so anyone can tell you which version they are on:
 The Windows app reports the EXE's own version as well as the web core's, which only
 differ if someone has hand-mixed a build.
 
-To cut 1.1.0: edit `VERSION`, run `node scripts/gen-version.mjs`, commit what it changed,
-then tag. CI fails if those stamps are stale, and refuses to publish a release whose tag
-disagrees with `VERSION`, so a download can never misreport itself.
+To cut 1.2.0: edit `VERSION`, run `node scripts/gen-version.mjs`, add the section to
+[`CHANGELOG.md`](CHANGELOG.md), commit what changed, then tag. CI fails if those stamps are
+stale, refuses to publish a release whose tag disagrees with `VERSION`, and — since the
+release notes are generated from the changelog by `scripts/release-notes.mjs` — fails any
+push whose `VERSION` the changelog does not describe. So a download can never misreport
+itself, and a release can never arrive without notes.
 
 Design tokens, behavioural constants and the icon set are generated from one source,
 [`shared/design-tokens.json`](shared/design-tokens.json). Regenerate with
@@ -246,6 +276,7 @@ It is upstream's format, so `~/Library/Application Support/Tiro/history.jsonl` f
 imports into the PWA and the Windows app unchanged. There is no sync, because that would need a
 server, and there is deliberately no server.
 
+- [CHANGELOG.md](CHANGELOG.md): what changed in each release, and what was broken
 - [ROADMAP.md](ROADMAP.md): phases, scope and non-goals
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the three clients share one core
 - [docs/PACKAGING.md](docs/PACKAGING.md): the winget manifest, and how a release is submitted
