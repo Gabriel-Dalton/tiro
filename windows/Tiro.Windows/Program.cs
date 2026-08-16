@@ -18,7 +18,7 @@ static class Program
             return;
         }
 
-        Log.Write("Tiro starting");
+        Log.Write($"Tiro {Build.Version} starting");
         ApplicationConfiguration.Initialize();
         // --tray is what the autostart Run entry passes: start minimised to the tray
         bool startHidden = Environment.GetCommandLineArgs().Contains("--tray");

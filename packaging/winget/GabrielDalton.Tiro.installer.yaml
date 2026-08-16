@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 #
 # TEMPLATE. The __PLACEHOLDERS__ are filled in by scripts/gen-winget.mjs, which
-# hashes the actual release ZIPs — never edit a version or a hash in here by hand.
+# hashes the actual release ZIPs. Never edit a version or a hash in here by hand.
 #
 # Tiro ships as a portable ZIP rather than an installer. winget supports that
 # directly: it unpacks the archive and puts a shim for the nested EXE on PATH.
-# There is nothing an installer would do for this app that this does not — no
+# There is nothing an installer would do for this app that this does not: no
 # services, no file associations, and autostart is a toggle in the tray menu
 # (SettingsStore.SetAutostart), not something to decide at install time.
 
@@ -26,7 +26,7 @@ Dependencies:
 
 Installers:
   # Every Intel and AMD PC. Also runs on ARM under emulation, which is why this
-  # one is listed first — winget prefers the native match, and falls back here.
+  # one is listed first, because winget prefers the native match and falls back here.
   - Architecture: x64
     InstallerUrl: https://github.com/Gabriel-Dalton/tiro/releases/download/__TAG__/Tiro-Windows-x64.zip
     InstallerSha256: __SHA256_X64__
@@ -34,7 +34,7 @@ Installers:
       - RelativeFilePath: Tiro.exe
         PortableCommandAlias: tiro
 
-  # Snapdragon and Surface. Built natively; unsigned by design — SignPath
+  # Snapdragon and Surface. Built natively; unsigned by design, because SignPath
   # Foundation's free tier is metered per request and x64 is what almost
   # everyone downloads (docs/SIGNING.md).
   - Architecture: arm64

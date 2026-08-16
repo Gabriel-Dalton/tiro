@@ -55,8 +55,8 @@ export class AudioEngine {
     this.ringPos = 0;
     /** called with Int16Array chunks while recording (first call = pre-roll) */
     this.onChunk = null;
-    /** called when the set of inputs changes — one unplugged, or a new one
-     * plugged in and now the default — and a rebuild starts */
+    /** called when the set of inputs changes, one unplugged or a new one
+     * plugged in and now the default, and a rebuild starts */
     this.onDeviceChange = null;
     this._visHandler = () => this._onVisibility();
     document.addEventListener("visibilitychange", this._visHandler);
@@ -102,7 +102,7 @@ export class AudioEngine {
     this._source = source;
 
     // Headphones unplugged / device gone: the track ends. Rebuild instead of
-    // dying — this crashed upstream on macOS, treat it as expected.
+    // dying. This crashed upstream on macOS, so treat it as expected.
     const track = this.stream.getAudioTracks()[0];
     track.addEventListener("ended", () => this._rebuild());
 
@@ -208,7 +208,7 @@ export class AudioEngine {
    * without a rebuild you keep recording from the laptop. The `ended` handler
    * above only covers the opposite case, the device going away. */
   _onDeviceListChanged() {
-    // These arrive in bursts — one event per endpoint on a single USB dock.
+    // These arrive in bursts: one event per endpoint on a single USB dock.
     clearTimeout(this._devTimer);
     this._devTimer = setTimeout(async () => {
       if (!this.running) return;

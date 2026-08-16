@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Tiro — dictation scratchpad</title>
-  <meta name="description" content="Hold, speak, release — the transcript is on your clipboard. Powered by your own Deepgram key.">
+  <title>Tiro: dictation scratchpad</title>
+  <meta name="description" content="Hold, speak, release, and the transcript is on your clipboard. Runs on your own Deepgram key.">
   <meta name="theme-color" content="#F6F1E7">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon-32.png" type="image/png">
@@ -39,7 +39,7 @@
         dictation costs about half a cent per minute.</p>
         <ol>
           <li>Create a free key at <a href="https://console.deepgram.com" target="_blank" rel="noopener">console.deepgram.com</a></li>
-          <li>Paste it below — it is stored <strong>on this device only</strong>, never on a server</li>
+          <li>Paste it below. It is stored <strong>on this device only</strong>, never on a server</li>
         </ol>
         <div class="row">
           <input type="password" id="setup-key" placeholder="Deepgram API key"
@@ -116,8 +116,9 @@
         <div id="compare-bars"></div>
         <p class="hint" id="usage-note"></p>
       </div>
-      <p class="hint">Computed from local history — this is an estimate, not your account balance.
-        The real number lives in the <a href="https://console.deepgram.com" target="_blank" rel="noopener">Deepgram console</a>.</p>
+      <p class="hint">Worked out from local history, so it is an estimate rather than your account
+        balance. The real number lives in the
+        <a href="https://console.deepgram.com" target="_blank" rel="noopener">Deepgram console</a>.</p>
     </section>
 
     <!-- ============================ settings ============================ -->
@@ -172,15 +173,21 @@
           <button class="btn-pill" id="settings-clear-history">Clear history</button>
           <button class="btn-pill danger" id="settings-clear-all">Clear everything</button>
         </div>
-        <p class="hint">History and key live in this browser's storage. Export before clearing
-          site data — iOS can evict PWA storage under pressure.</p>
+        <p class="hint">History and key live in this browser's storage. Export before you clear
+          site data, and keep in mind that iOS can evict PWA storage when space runs short.</p>
       </div>
 
       <div class="card">
-        <div class="result-head"><span class="caps">about</span></div>
+        <div class="result-head">
+          <span class="caps">about</span>
+          <span class="caps version" id="about-version"></span>
+        </div>
         <p class="hint">Tiro is a free, open dictation tool: hold, speak, and the transcript is on
-          your clipboard. No account, no telemetry, no server of ours — your key talks straight to
-          Deepgram. <a href="https://github.com/Gabriel-Dalton/tiro" target="_blank" rel="noopener">Source on GitHub</a>.</p>
+          your clipboard. There is no account and no server of ours in the middle; your key talks
+          straight to Deepgram.
+          <a href="https://github.com/Gabriel-Dalton/tiro" target="_blank" rel="noopener">Source on GitHub</a>.</p>
+        <p class="hint">Quote the version above if you report a problem, so we know which build
+          you are on.</p>
       </div>
     </section>
   </main>

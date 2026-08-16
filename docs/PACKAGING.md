@@ -34,9 +34,13 @@ encoding error.
 
 ## Cutting a release
 
-Nothing to do. The `release` job in [`build.yml`](../.github/workflows/build.yml) runs the
-generator against the ZIPs it is about to publish and attaches
-`Tiro-winget-manifests.zip` to the release. The download URLs inside the manifests point at
+Nothing to do beyond the normal release steps in the README: bump
+[`VERSION`](../VERSION), run `node scripts/gen-version.mjs`, commit, tag. The `release` job
+already refuses to publish a tag that disagrees with `VERSION`, so the `PackageVersion` in
+these manifests is the same number the apps report about themselves.
+
+The job in [`build.yml`](../.github/workflows/build.yml) then runs the generator against the
+ZIPs it is about to publish and attaches `Tiro-winget-manifests.zip` to the release. The download URLs inside the manifests point at
 that same release — they do not exist yet when the manifests are built, but they are
 deterministic, so this is safe.
 

@@ -15,9 +15,14 @@
 
 const webview = typeof window !== "undefined" && window.chrome && window.chrome.webview;
 
+// The host injects this before the page loads (MainForm.InitWebView), so the
+// About card can name the EXE version, not just the web core's.
+const host = (typeof window !== "undefined" && window.__tiroHost) || null;
+
 class Bridge {
   constructor() {
     this.isShell = !!webview;
+    this.hostVersion = host && host.version ? String(host.version) : "";
     this.onHotkey = null;       // (phase) => {}
     this.onPasteResult = null;  // ({ok, reason}) => {}
     this._keyWaiters = [];

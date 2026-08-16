@@ -1,4 +1,4 @@
-// GENERATED from shared/design-tokens.json — do not edit by hand.
+// GENERATED from shared/design-tokens.json. Do not edit by hand.
 // Regenerate with: node scripts/gen-tokens.mjs
 
 export const TAP_THRESHOLD_MS = 350;

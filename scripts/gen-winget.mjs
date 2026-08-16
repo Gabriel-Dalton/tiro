@@ -7,7 +7,7 @@
 //
 // The hashes come from the ZIPs themselves rather than from anything a human
 // typed, because a wrong InstallerSha256 is the single most common way a winget
-// submission fails — and it fails at install time, on someone else's machine.
+// submission fails, and it fails at install time, on someone else's machine.
 //
 // Output lands in the layout winget-pkgs expects, so submitting is: copy the
 // manifests/ tree into a clone of microsoft/winget-pkgs and open a PR.
