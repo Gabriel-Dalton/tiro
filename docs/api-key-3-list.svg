@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300" role="img"
+     aria-label="Placeholder for a screenshot of the API Keys list showing the new key, with the project ID and email redacted">
+  <rect width="640" height="300" fill="#111214"/>
+  <rect x="1" y="1" width="638" height="298" fill="none" stroke="#2f3237" stroke-width="2" stroke-dasharray="10 7"/>
+  <text x="320" y="126" text-anchor="middle" fill="#8b9097"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="2">
+    SCREENSHOT PLACEHOLDER
+  </text>
+  <text x="320" y="162" text-anchor="middle" fill="#e6e8ea"
+        font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="19">
+    API Keys list — the new key, with the secret revealed
+  </text>
+  <text x="320" y="196" text-anchor="middle" fill="#c8792f"
+        font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="15">
+    crop out the project ID, the account email and the real secret
+  </text>
+</svg>

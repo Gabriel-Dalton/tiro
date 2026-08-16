@@ -304,6 +304,8 @@ Tiro walks you through these in a setup window:
 1. **Deepgram API key** — sign up free at [console.deepgram.com](https://console.deepgram.com)
    (no card needed, $200 credit included), create an API key, paste it into Tiro's Settings.
    "Save & test" validates it against the API and shows your credit balance.
+   [`docs/API-KEY.md`](docs/API-KEY.md) walks through it with screenshots if the console is
+   unfamiliar territory.
 2. **Microphone** — allow the standard macOS prompt.
 3. **Accessibility** — System Settings → Privacy & Security → Accessibility → enable Tiro,
    then relaunch. This is what lets Tiro see the hotkey from any app and paste for you.
