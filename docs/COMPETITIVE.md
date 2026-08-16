@@ -212,6 +212,71 @@ And three findings that are **marketing, not engineering** — all already true 
 currently said anywhere on the landing page: no screen capture, no LLM rewriting your words, and
 Linux and iPad both covered by the PWA.
 
+## 6. The selling points, and which ones we can make today
+
+Split by whether the claim is true **now**. A landing page may only carry the first list. The
+second is a roadmap, and putting any of it in the shipping chart before it lands would be a lie
+that a reader can catch in about thirty seconds.
+
+### Live — true of Tiro today, and now on the landing page
+
+Ordered by how hard they are for Wispr Flow to answer, not by how loud they sound.
+
+1. **You own the key, so you pay cost.** 46¢ an hour against $15 a month. Not a discount, a
+   different business model: they resell Deepgram-class inference with a margin, we hand you the
+   API. They cannot match this without unbuilding the company.
+2. **No account.** Nothing to sign into, nothing to cancel, nothing to lose access to.
+3. **Nothing reads your screen.** Audio, only while the key is held, only to Deepgram. Their
+   context-awareness feature captures the active window by design, and that is the single most
+   damaging thing attached to their name.
+4. **No model rewrites your words.** The transcript is what Deepgram heard. Their AI cleanup is
+   their most-cited accuracy complaint — it is a feature that makes the product worse for anyone
+   who meant what they said.
+5. **MIT, all of it.** Every claim above is checkable in the repo, which is the only reason
+   anyone should believe claims 2 to 4.
+6. **A free tier that is actually free.** $200 of Deepgram credit is around 430 hours. Their free
+   plan is 2,000 words a week — about thirteen minutes, and dictation stops when you hit it.
+7. **Linux and iPad.** They ship neither. We already have both through the PWA and had never
+   mentioned it.
+8. **It is a small app.** 2,000 lines of Swift on the Mac; a WinForms host around WebView2 on
+   Windows; no Electron. Their resource use is a recurring complaint, though the specific numbers
+   circulating are vendor-authored and we should not quote them.
+
+Two rows on the chart are ones we **lose**, and they stay there: dictating straight into another
+iPhone app needs a native keyboard extension (Phase 5, deferred), and neither product works
+offline. A comparison table with no losing rows is an advertisement, and readers grade it as one.
+
+### Not yet — do not put these on the landing page
+
+- **Canadian English, on by default.** The strongest one we do not have. Phase 6.3. When it
+  lands, the chart gets a row reading roughly "Canadian spelling — On by default in Canada /
+  Available, but off unless you find the setting", which is defensible because their onboarding
+  demonstrably does not select it for Canadians. Not before.
+- **A custom dictionary.** Phase 6.1. Today this is a row we would lose, which is why the chart
+  does not have one.
+- **Snippets and replacements.** Phase 6.2.
+- **Bilingual English/French in one stream.** Phase 6.4, and the sharpest Canadian angle after
+  6.3.
+- **Transcribing a recording you already have.** Phase 6.6. Something they cannot do at all, so
+  it is worth a row the day it works.
+
+### Claims to keep away from
+
+Not because they are necessarily false — because we cannot stand them up, and a comparison chart
+survives on being unfalsifiable in every row:
+
+- **Accuracy or latency numbers.** Every figure in circulation was published by someone selling a
+  rival. We have run no benchmark. Say nothing.
+- **Their RAM and CPU use.** Same problem. "No Electron" is our claim and is checkable; "they use
+  800 MB" is theirs to answer.
+- **Anything about their current data handling beyond what they document.** The May 2026 incident
+  is a matter of record and their CTO's apology is public, but whether the architecture changed
+  afterwards is contested. Describe what Tiro does; let the reader draw it.
+- **"We're Canadian."** A statement about who makes the software, not what it does, and nothing
+  in this repo establishes it. The defensible version is Canadian *output*, which is 6.3.
+- **PIPEDA or Law 25 compliance.** A smaller disclosure surface is true and useful to say.
+  Compliance is a claim about a deployment, and Deepgram is still a US processor.
+
 ---
 
 ## Sources

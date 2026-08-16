@@ -289,12 +289,27 @@ one socket a live take uses.
   here: Deepgram is the fork's whole value proposition. The right response is to fail gracefully
   without a network, not to ship a local model.
 
-#### Three things to say rather than build
+#### Things to say rather than build — done
 
-All already true of Tiro, none currently on the landing page: Tiro takes **no screenshots** (the
-May 2026 incident is the single most damaging thing attached to Wispr Flow's name); Tiro runs
-**no LLM over your transcript**; and **Linux and iPad are already covered** by the PWA, while
-Wispr Flow has neither.
+Several of the strongest differentiators needed no engineering at all: no account, no screen
+capture, no LLM rewriting your words, MIT source, a free tier measured in hundreds of hours
+rather than thirteen minutes a week, and Linux and iPad both already covered by the PWA. All were
+true and none were said anywhere. They are now a side-by-side table on the landing page, in the
+`value` section under the cost comparison.
+
+Two rules govern that table, and anything added to it later has to hold them:
+
+- **Every competitor cell is something the competitor publishes about itself.** No third-party
+  benchmarks, no accuracy or latency figures, no RAM numbers — those all trace back to vendors
+  selling a rival, and one falsifiable row discredits the whole chart. `docs/COMPETITIVE.md §6`
+  lists the specific claims to stay away from and why.
+- **The rows we lose stay in.** Dictating straight into another iPhone app, and working offline.
+  A chart that wins every row is read as an advertisement.
+
+**Which Phase 6 items earn a new row.** 6.3 adds "Canadian spelling — on by default in Canada",
+against their setting that exists but does not select itself. 6.6 adds transcribing a recording
+you already have, which they cannot do at all. 6.1 and 6.2 do not add rows — they *remove* two we
+would currently lose, which is why the chart has no dictionary row today.
 
 ## Non-goals
 

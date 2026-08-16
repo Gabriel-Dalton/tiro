@@ -217,6 +217,30 @@
     .compare tbody .me :is(th, td) { color: var(--clay-600); font-weight: 600; }
     .compare-note { margin-top: 10px; }
 
+    /* The feature table compares words rather than figures, so it ranges left and is
+       allowed to wrap. Here it is a whole column that is ours, not a row: the highlight
+       is only a signpost, and every cell still says which product it means in words,
+       so nothing depends on seeing the colour. */
+    .compare-feat { margin-top: clamp(14px, 2.6vw, 20px); }
+    /* These need to out-specify `.compare tbody td`, which sets nowrap for the figures in
+       the cost table above. `:is()` takes its most specific argument, so a bare
+       `:is(th, td)` loses that battle and the answers run into the next column. */
+    .compare-feat thead th,
+    .compare-feat tbody th,
+    .compare-feat tbody td { text-align: left; white-space: normal; }
+    /* Widths come from the colgroup, not from content: left to itself the table gives the
+       row labels whatever the longest answer does not want, and they end up in a column
+       four words wide. */
+    /* min-width keeps the three columns readable on a phone; the wrapper's overflow-x
+       turns the overflow into a scroll inside the card rather than widening the page. */
+    .compare-feat table { table-layout: fixed; min-width: 580px; }
+    .compare-feat :is(thead th, tbody td):first-of-type { background: var(--clay-100); }
+    .compare-feat tbody td:first-of-type { color: var(--clay-600); font-weight: 600; }
+    .compare-feat tbody td { font-variant-numeric: normal; }
+    /* A row where the honest answer is "they do, we don't". Marked so it reads as
+       deliberate rather than as an oversight. */
+    .compare-feat tbody .theirs td:first-of-type { color: var(--ink-500); font-weight: 500; }
+
     /* ---- how it works ---- */
     .how { padding-block: clamp(34px, 6.5vw, 56px) clamp(24px, 5vw, 40px); }
     .how h3, .facts h3, .value h3 {
@@ -366,6 +390,51 @@
     <p class="fine compare-note">Deepgram streaming nova-3 at $0.0077 a minute, August 2026.
       Past about 32 hours a month — an hour of solid dictation every single day — a $15
       subscription becomes the cheaper way to buy it.</p>
+
+    <!-- Ground rules for this table, so it stays defensible as both products move:
+         every claim in the Wispr Flow column is something Wispr Flow documents about
+         itself — its price, its free-plan cap, its context awareness, its AI cleanup,
+         the platforms it ships on. Nothing here rests on a third-party benchmark or on
+         a disputed report, and no row describes a competitor's behaviour that they
+         have not published themselves. The last two rows are ones we lose; they stay.
+         See docs/COMPETITIVE.md for the sources and the confidence grading. -->
+    <div class="compare compare-feat">
+      <table>
+        <caption>Everything else, side by side</caption>
+        <colgroup><col style="width:25%"><col style="width:39%"><col style="width:36%"></colgroup>
+        <thead>
+          <tr><td></td><th scope="col">Tiro</th><th scope="col">Wispr Flow Pro</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">What you pay</th>
+            <td>46¢ an hour, at cost</td><td>$15 a month, whether you speak or not</td></tr>
+          <tr><th scope="row">Before you pay anything</th>
+            <td>$200 of Deepgram credit, around 430 hours</td><td>2,000 words a week, about 13 minutes</td></tr>
+          <tr><th scope="row">Account</th>
+            <td>None. There is nothing to sign into</td><td>Required</td></tr>
+          <tr><th scope="row">Whose API key</th>
+            <td>Yours, and it never leaves your device</td><td>Not supported</td></tr>
+          <tr><th scope="row">Reads your screen</th>
+            <td>Never. Audio goes to Deepgram, nothing else goes anywhere</td>
+            <td>Yes, for context awareness</td></tr>
+          <tr><th scope="row">Rewrites what you said</th>
+            <td>No. The transcript is what was heard</td><td>Yes, an AI cleanup pass</td></tr>
+          <tr><th scope="row">Source code</th>
+            <td>MIT, all of it, on GitHub</td><td>Closed</td></tr>
+          <tr><th scope="row">Linux and iPad</th>
+            <td>Both, through the web app</td><td>Neither</td></tr>
+          <tr class="theirs"><th scope="row">Types straight into any iPhone app</th>
+            <td>No — you get the transcript on your clipboard and paste it</td>
+            <td>Yes, through a keyboard extension</td></tr>
+          <tr class="theirs"><th scope="row">Works with no internet</th>
+            <td>No</td><td>No</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine compare-note">Every Wispr Flow column above is drawn from what Wispr Flow
+      publishes about itself, August 2026. The last two rows are the ones we lose: dictating
+      straight into another app on an iPhone needs a native keyboard extension, which the web
+      app cannot be, and neither product transcribes without a connection.</p>
   </section>
 
   <section class="how wrap">

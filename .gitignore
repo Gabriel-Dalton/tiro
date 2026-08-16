@@ -3,3 +3,7 @@ Tiro.app/
 .DS_Store
 public/
 .vercel/
+# README tells you to `npm install --no-save playwright` in the repo root to run
+# scripts/smoke-web.mjs, which leaves this behind. --no-save keeps it out of a
+# package.json we do not have; this keeps it out of a commit.
+node_modules/
