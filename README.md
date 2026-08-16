@@ -64,9 +64,45 @@ gets full parity with the Mac.
   both slices and refuses to produce a single-architecture app, because that failure is
   invisible on the machine that builds it and total on the machine that doesn't match.
 - **Web / iPhone / Android / Linux / ChromeOS**: open the deployed site's `/app/` over
-  HTTPS, then Add to Home Screen. Everything (`getUserMedia`, service worker, install)
-  requires a secure origin, so the PWA cannot be tested from a file:// URL or from
-  `localhost` on a phone.
+  HTTPS and use the **Install** button in the top corner. Everything (`getUserMedia`,
+  service worker, install) requires a secure origin, so the PWA cannot be tested from a
+  file:// URL or from `localhost` on a phone.
+
+  That button does different things because the platforms genuinely differ, and the app
+  says so rather than hiding it. On Android, Windows and ChromeOS the browser fires
+  `beforeinstallprompt`, which Tiro stashes so installing is one tap.
+
+  **iOS has no install API at all.** Safari's Share → Add to Home Screen is the only path
+  Apple sanctions, and a page cannot open it, so iOS gets the most work rather than the
+  least, because guidance is the only lever there is:
+
+  - the button opens a walkthrough that **draws Safari's own toolbar** with the Share
+    button circled, so "tap Share" is something you can hold next to your screen and match
+    rather than a name you have to already know. iPad puts that button top-right instead of
+    bottom-centre, and gets its own drawing;
+  - it asks **after the first successful take**, not on arrival. The moment someone has
+    just watched their voice become text is the moment the answer is not theoretical.
+    Closing is remembered: it will not ask twice in a week, or more than twice ever, and
+    the button stays regardless;
+  - **other iOS browsers get a Copy link button.** Chrome, Firefox and Edge on iOS are
+    Safari's engine without that row in the share sheet, so the fix is genuinely "open this
+    in Safari", and retyping a URL on a phone is exactly where people give up;
+  - because iOS fires no `appinstalled` event, the first launch from the home screen
+    **confirms it worked**, once. That is the only signal either side gets.
+
+  <div align="center">
+  <img src="docs/install-iphone-safari.png" width="300" alt="Tiro's install walkthrough in Safari on iPhone, drawing Safari's toolbar with the Share button circled">
+  <img src="docs/install-iphone-other-browser.png" width="300" alt="Tiro's install sheet in Chrome on iPhone, offering a Copy link button and directing the user to Safari">
+  </div>
+
+  The landing page leads iPhone and Android visitors with an Install button rather than
+  "Open the web app", pointing at `/app/?install=1`, which arrives with the walkthrough
+  already open.
+
+  Installing on iOS is worth this much effort: an installed PWA keeps its storage, while a
+  tab's `localStorage`, which is where the API key and settings live, can be cleared by
+  Safari after seven days of not visiting. On the phone, installing is the difference
+  between Tiro remembering you and asking for a key again next week.
 
   There is no native Linux build and none is planned: the Windows app's native layer is
   Win32 (keyboard hook, `SendInput`, DPAPI, registry) and Wayland deliberately blocks
@@ -143,7 +179,26 @@ disagrees with `VERSION`, so a download can never misreport itself.
 
 Design tokens, behavioural constants and the icon set are generated from one source,
 [`shared/design-tokens.json`](shared/design-tokens.json). Regenerate with
-`node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs`.
+`node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs`. CI regenerates them and fails if
+the committed files differ, so the palette cannot drift by someone hand-editing the output.
+
+### Testing the web core
+
+```bash
+npm install --no-save playwright && npx playwright install chromium
+node scripts/smoke-web.mjs
+```
+
+It drives the real app in Chromium and checks the things reading the code will not tell you:
+that a full take streams audio, returns a transcript and lands in history over exactly one
+socket; that the level halo tracks the microphone and eases rather than smearing; that the
+halo stays centred on the button across the 700 px breakpoint; that a take survives a user
+who releases the button before the microphone has finished opening; and that the install
+walkthrough says the right thing on desktop Chromium, iPhone Safari, iPad and Chrome on iOS,
+including that it asks only after a take has succeeded, remembers being turned down, and
+fits a 667 pt screen. Deepgram is stubbed and the microphone is Chromium's synthetic device,
+so it needs no key, no network and no audio hardware. The `build` workflow runs it on every
+push.
 
 One deliberate deviation from [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): the native host
 frame is WinForms rather than WinUI 3, because it provides the tray icon and WebView2 with a plain

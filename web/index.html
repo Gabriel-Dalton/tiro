@@ -27,6 +27,7 @@
     </svg>
     <h1>Tiro</h1>
     <span class="caps" id="head-status">ready</span>
+    <button class="btn-pill install-cta" id="install-btn" hidden>Install</button>
   </header>
 
   <main>
@@ -80,10 +81,6 @@
         </div>
       </div>
 
-      <div class="a2hs" id="a2hs" hidden>
-        <p>Install Tiro: tap <strong>Share</strong> → <strong>Add to Home Screen</strong></p>
-        <button class="btn-pill" id="a2hs-dismiss">Got it</button>
-      </div>
     </section>
 
     <!-- ============================ history ============================ -->
@@ -177,6 +174,15 @@
           site data, and keep in mind that iOS can evict PWA storage when space runs short.</p>
       </div>
 
+      <div class="card" id="install-card" hidden>
+        <div class="result-head"><span class="caps">install</span></div>
+        <p class="hint">Put Tiro on your home screen or taskbar: its own icon, full screen, and
+          storage the browser will not clear out from under it.</p>
+        <div class="row">
+          <button class="btn-clay" id="install-card-btn">Add Tiro to my device</button>
+        </div>
+      </div>
+
       <div class="card">
         <div class="result-head">
           <span class="caps">about</span>
@@ -193,6 +199,23 @@
   </main>
 
   <div class="toast" id="toast" hidden><span class="dot" id="toast-dot"></span><span id="toast-text"></span></div>
+
+  <!-- Install sheet. One tap on Chromium; the honest Share → Add to Home Screen
+       walkthrough on iOS, where no install API exists. Filled in by src/install.js. -->
+  <div class="sheet" id="install-sheet" hidden>
+    <div class="sheet-panel" id="install-panel" tabindex="-1" role="dialog" aria-modal="true"
+         aria-labelledby="install-title">
+      <h2 id="install-title">Add Tiro to your device</h2>
+      <p class="hint" id="install-lede"></p>
+      <div id="install-visual" hidden></div>
+      <ol class="install-steps" id="install-steps"></ol>
+      <div class="row">
+        <button class="btn-clay" id="install-do" hidden>Install</button>
+        <button class="btn-clay" id="install-copy" hidden>Copy link</button>
+        <button class="btn-pill" id="install-close">Close</button>
+      </div>
+    </div>
+  </div>
 
   <nav class="tabbar">
     <button class="tab active" data-view="record">

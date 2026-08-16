@@ -315,6 +315,8 @@
         clipboard before you lift your thumb. Installs to the home screen.</p>
       <a class="btn ghost" href="/app/" id="web-link">Open the web app</a>
       <span class="detected"></span>
+      <span class="fine" id="web-install-note">Nothing to download. Open it, then use the
+        <strong>Install</strong> button in the top corner to add it to your home screen.</span>
       <span class="fine">It cannot type into other apps, so you paste. Browsers do not allow anything else.</span>
     </div>
   </section>
@@ -463,6 +465,27 @@
                  : isMac ? "Detected macOS. One file for Apple Silicon and Intel"
                  : isWindows ? "Detected Windows"
                  : "";
+
+      // On a phone the web app is not a consolation prize, it is the product, and
+      // "Open the web app" buries the thing people actually want. Lead with the
+      // install, and hand over to /app/?install=1 so the walkthrough is already
+      // open when they land. On iOS that walkthrough is the only install path
+      // there is, since Apple exposes no API for it.
+      if (isIOS || isAndroid) {
+        var webLink = document.getElementById("web-link");
+        if (webLink) {
+          webLink.href = "/app/?install=1";
+          webLink.className = "btn";
+          webLink.textContent = isIOS ? "Install on your iPhone" : "Install on your phone";
+        }
+        var installNote = document.getElementById("web-install-note");
+        if (installNote) {
+          installNote.innerHTML = isIOS
+            ? "Two taps: <strong>Share</strong>, then <strong>Add to Home Screen</strong>. Tiro shows " +
+              "you where. Use <strong>Safari</strong>, the only iPhone browser Apple lets add apps."
+            : "One tap. Your browser will ask to add Tiro to your home screen.";
+        }
+      }
 
       if (!pick) return;
 

@@ -16,6 +16,7 @@ const SHELL = [
   "src/bridge.js",
   "src/deepgram.js",
   "src/history.js",
+  "src/install.js",
   "src/settings.js",
   "src/tokens.js",
   "src/usage.js",

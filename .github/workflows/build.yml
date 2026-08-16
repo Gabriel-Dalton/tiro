@@ -86,6 +86,42 @@ jobs:
           fi
           echo "Generated files match VERSION and shared/design-tokens.json."
 
+  # The web core is the product on the phone and the whole UI inside the Windows
+  # app, so it gets a real browser rather than a linter. Fast, and it gates
+  # nothing: a red smoke test should not stop you shipping the Mac build.
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+
+      - name: Check the generated tokens and icons match their source
+        # The palette, the behavioural constants and the icon set all come out of
+        # shared/design-tokens.json. Hand-edit one of the generated files and the
+        # drift shows up as a wrong colour on someone's phone, nowhere else.
+        # (The version stamps have their own job above.)
+        run: |
+          set -euo pipefail
+          node scripts/gen-tokens.mjs
+          node scripts/gen-icons.mjs
+          git diff --exit-code -- web/ shared/ windows/ || {
+            echo "::error::Generated files are stale. Run gen-tokens.mjs and gen-icons.mjs, then commit the result."
+            exit 1
+          }
+
+      - name: Smoke-test the PWA in Chromium
+        run: node scripts/smoke-web.mjs
+
   windows:
     runs-on: windows-latest
     strategy:
