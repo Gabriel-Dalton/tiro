@@ -2,87 +2,225 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F6F1E7">
   <title>Tiro: hold a key, speak, done</title>
   <meta name="description" content="Free, open dictation for Mac, Windows and your phone. Hold a key, speak, and punctuated text lands where your cursor is. Runs on your own Deepgram key at about half a cent per minute, with no subscription.">
   <link rel="icon" href="favicon-32.png" type="image/png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <style>
-    /* Forum palette; keep in sync with shared/design-tokens.json */
+    /* Forum palette; keep in sync with shared/design-tokens.json. The mono face in
+       that file is for the apps, and this page is serif and sans only. */
     :root {
       --paper-50: #FCFAF4; --paper-100: #F6F1E7; --paper-200: #EFE8D9; --paper-300: #E4DAC6;
       --ink-950: #14110B; --ink-900: #1F1A12; --ink-500: #756B57; --ink-400: #948A74; --ink-300: #B4AB96;
       --clay-600: #9C3126; --clay-500: #B23A2E; --clay-400: #C85A4C; --clay-100: #F3E1DC;
-      --green-600: #3F6B47; --border: rgba(31, 26, 18, 0.16);
+      --green-600: #3F6B47; --green-100: #E1EBDF;
+      --border: rgba(31, 26, 18, 0.16); --border-subtle: rgba(31, 26, 18, 0.09);
       --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
       --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+      /* One gutter, one gap, one section rhythm, all three scaling with the viewport
+         so the phone layout is the same design, not a squeezed desktop. */
+      --gutter: clamp(20px, 5.5vw, 32px);
+      --gap: clamp(12px, 2.4vw, 16px);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--paper-100); color: var(--ink-900); font-family: var(--sans); line-height: 1.55; }
-    a { color: var(--clay-600); }
-    .wrap { max-width: 880px; margin: 0 auto; padding: 0 22px; }
 
-    header { padding: 20px 0; }
-    header .wrap { display: flex; align-items: center; gap: 10px; }
-    .mark { width: 26px; height: 26px; color: var(--clay-500); }
-    .brand { font-family: var(--serif); font-size: 22px; color: var(--ink-950); }
-    header nav { margin-left: auto; display: flex; gap: 18px; font-size: 13.5px; }
+    *, *::before, *::after { box-sizing: border-box; }
+    * { margin: 0; padding: 0; }
 
-    .hero { padding: 52px 0 30px; text-align: center; }
-    .hero h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 6vw, 54px); color: var(--ink-950); line-height: 1.12; }
-    .hero h1 em { font-style: normal; color: var(--clay-500); }
-    .hero p.lede { max-width: 560px; margin: 18px auto 0; font-size: 17px; color: var(--ink-500); }
-    .price { display: inline-block; margin-top: 16px; font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.08em;
-             text-transform: uppercase; color: var(--green-600); background: #E1EBDF; border-radius: 12px; padding: 4px 14px; }
-
-    .downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; padding: 34px 0 8px; }
-    .dl { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 22px 20px; text-align: center;
-          display: flex; flex-direction: column; gap: 8px; }
-    .dl.suggested { outline: 2px solid var(--clay-400); outline-offset: -1px; }
-    .dl .caps { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-400); }
-    .dl h2 { font-family: var(--serif); font-weight: 500; font-size: 21px; color: var(--ink-950); }
-    .dl p { font-size: 13px; color: var(--ink-500); flex: 1; }
-    .btn { display: inline-block; margin-top: 6px; background: var(--clay-500); color: var(--paper-50); text-decoration: none;
-           font-weight: 600; font-size: 14px; border-radius: 8px; padding: 11px 18px; }
-    .btn:hover { background: var(--clay-600); }
-    .btn.ghost { background: #fff; color: var(--ink-900); border: 1px solid var(--border); }
-    .dl .fine { font-size: 11.5px; color: var(--ink-400); margin-top: 8px; }
-    .dl .detected:empty { display: none; }
-    .dl .detected { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
-                    color: var(--green-600); margin-top: 2px; }
-
-    .others { padding: 6px 0 30px; }
-    .others > summary { cursor: pointer; font-size: 13.5px; color: var(--ink-500); padding: 6px 0; }
-    .others > summary:hover { color: var(--clay-600); }
-    .others .other-grid { padding-top: 10px; }
+    html {
+      -webkit-text-size-adjust: 100%;   /* stop iOS inflating text in landscape */
+      scroll-behavior: smooth;
+      color-scheme: light;
+    }
+    body {
+      background: var(--paper-100); color: var(--ink-900);
+      font-family: var(--sans); font-size: 16px; line-height: 1.55;
+      overflow-wrap: break-word;        /* long URLs must never widen the page */
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: rgba(178, 58, 46, 0.12);
+    }
+    svg { max-width: 100%; }
+    a { color: var(--clay-600); text-underline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--clay-500); outline-offset: 2px; border-radius: 4px; }
     [hidden] { display: none !important; }
 
-    .how { padding: 44px 0; }
-    .how h3, .facts h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; color: var(--ink-950); text-align: center; margin-bottom: 22px; }
-    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-    .step { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
-    .step .n { font-family: var(--mono); font-size: 11px; color: var(--clay-500); letter-spacing: 0.12em; }
-    .step strong { display: block; font-size: 15px; color: var(--ink-950); margin: 6px 0 4px; }
-    .step p { font-size: 13px; color: var(--ink-500); }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      * { transition: none !important; }
+    }
 
-    .facts { padding: 8px 0 40px; }
-    .facts ul { max-width: 620px; margin: 0 auto; list-style: none; display: grid; gap: 10px; }
-    .facts li { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-size: 14px; }
+    /* The container owns the horizontal gutter and nothing else. Sections set only
+       padding-block, so a section rule can never wipe out the side margin. */
+    .wrap {
+      width: 100%; max-width: 920px; margin-inline: auto;
+      padding-inline: var(--gutter);
+      padding-inline: max(var(--gutter), env(safe-area-inset-left)) max(var(--gutter), env(safe-area-inset-right));
+    }
+
+    /* ---- header ---- */
+    .site-header { padding-block: 14px; }
+    .site-header .wrap { display: flex; align-items: center; gap: 10px; }
+    .mark { width: 26px; height: 26px; flex: none; color: var(--clay-500); }
+    .brand { font-family: var(--serif); font-size: 21px; color: var(--ink-950); }
+    .site-nav { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+    .site-nav a {
+      display: inline-flex; align-items: center; min-height: 44px; padding-inline: 8px;
+      font-size: 14px; color: var(--ink-500); text-decoration: none; border-radius: 8px;
+    }
+    .site-nav a:hover { color: var(--clay-600); }
+
+    /* ---- hero ---- */
+    .hero { padding-block: clamp(26px, 7vw, 54px) clamp(4px, 2vw, 14px); text-align: center; }
+    .hero h1 {
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(29px, 7.2vw, 52px); line-height: 1.1; letter-spacing: -0.01em;
+      color: var(--ink-950); text-wrap: balance;
+    }
+    .hero h1 em { font-style: normal; color: var(--clay-500); }
+    .hero .lede {
+      max-width: 33em; margin: clamp(14px, 3vw, 20px) auto 0;
+      font-size: clamp(15.5px, 1.7vw, 17.5px); color: var(--ink-500); text-wrap: pretty;
+    }
+    .price {
+      display: inline-block; margin-top: clamp(14px, 3vw, 18px);
+      font-size: 12.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+      color: var(--green-600); background: var(--green-100); border-radius: 999px; padding: 6px 14px;
+    }
+
+    /* ---- download cards ---- */
+    #downloads { padding-block: clamp(26px, 5.5vw, 36px) 4px; scroll-margin-top: 12px; }
+
+    .dl-grid { display: grid; gap: var(--gap); grid-template-columns: 1fr; }
+    /* once detection folds the rest away, the one card left should not stretch
+       the full 920px, because a lone wide card reads as a banner rather than a choice */
+    .dl-grid > .dl:only-child { max-width: 460px; margin-inline: auto; }
+    @media (min-width: 600px) {
+      .dl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      /* an odd card left alone on the last row spans it rather than sitting half-empty */
+      .dl-grid > .dl:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    }
+    @media (min-width: 880px) {
+      .dl-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+      .dl-grid > .dl:last-child:nth-child(odd) { grid-column: auto; }
+    }
+
+    .dl {
+      min-width: 0; background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: clamp(20px, 4.5vw, 24px); text-align: center;
+      display: flex; flex-direction: column; gap: 7px;
+      box-shadow: 0 1px 2px rgba(31, 26, 18, 0.04);
+    }
+    .dl.suggested {
+      border-color: var(--clay-400);
+      box-shadow: 0 0 0 1px var(--clay-400), 0 8px 22px rgba(178, 58, 46, 0.10);
+    }
+    .dl .caps {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--ink-400);
+    }
+    .dl h2 {
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(20px, 2.4vw, 23px); line-height: 1.2; color: var(--ink-950);
+    }
+    .dl p { font-size: 14.5px; color: var(--ink-500); flex: 1; text-wrap: pretty; }
+    .dl .detected { font-size: 12px; font-weight: 500; color: var(--green-600); }
+    .dl .detected:empty { display: none; }
+    .dl .fine { margin-top: 2px; }
+    .fine { font-size: 12.5px; line-height: 1.5; color: var(--ink-400); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 100%; min-height: 48px; margin-top: 6px; padding: 12px 18px;
+      background: var(--clay-500); color: var(--paper-50);
+      font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 10px;
+      transition: background 0.15s ease;
+    }
+    .btn:hover { background: var(--clay-600); }
+    .btn.ghost { background: #fff; color: var(--ink-900); border: 1px solid var(--border); }
+    .btn.ghost:hover { background: var(--paper-50); border-color: var(--ink-300); }
+
+    /* ---- disclosures: other platforms, first-launch notes ---- */
+    .others { padding-block: 10px 0; }
+    .notes { padding-block: clamp(16px, 3.5vw, 22px) 0; }
+
+    summary { cursor: pointer; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
+      content: ""; width: 7px; height: 7px; flex: none;
+      border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
+      transform: translateY(-2px) rotate(45deg); transition: transform 0.15s ease;
+    }
+    details[open] > summary::after { transform: translateY(1px) rotate(225deg); }
+
+    .others > summary {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 48px; font-size: 14px; color: var(--ink-500);
+    }
+    .others > summary:hover { color: var(--clay-600); }
+    .others .dl-grid { padding-top: 4px; }
+
+    .notes details { background: #fff; border: 1px solid var(--border); border-radius: 14px; }
+    .notes summary {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      min-height: 52px; padding: 12px clamp(16px, 4vw, 20px);
+      font-size: 14.5px; font-weight: 600; color: var(--ink-900);
+    }
+    .notes .note-body {
+      display: grid; gap: 14px;
+      padding: 2px clamp(16px, 4vw, 20px) clamp(16px, 4vw, 18px);
+      border-top: 1px solid var(--border-subtle); margin-top: 2px; padding-top: 14px;
+    }
+    .notes .note-body > div { font-size: 13.5px; line-height: 1.55; color: var(--ink-500); }
+    .notes .note-body strong { display: block; color: var(--ink-950); font-size: 13px; margin-bottom: 2px; }
+
+    /* ---- how it works ---- */
+    .how { padding-block: clamp(34px, 6.5vw, 56px) clamp(24px, 5vw, 40px); }
+    .how h3, .facts h3 {
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(22px, 3.4vw, 28px); color: var(--ink-950);
+      text-align: center; margin-bottom: clamp(18px, 3.4vw, 26px); text-wrap: balance;
+    }
+    .steps { display: grid; gap: var(--gap); grid-template-columns: 1fr; }
+    @media (min-width: 520px) { .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (min-width: 880px) { .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .step {
+      min-width: 0; background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: clamp(16px, 3.6vw, 20px);
+    }
+    .step .n { font-family: var(--serif); font-size: 15px; color: var(--clay-400); }
+    .step strong { display: block; font-size: 15px; color: var(--ink-950); margin: 4px 0 4px; }
+    .step p { font-size: 13.5px; color: var(--ink-500); text-wrap: pretty; }
+
+    /* ---- fine print ---- */
+    .facts { padding-block: 0 clamp(36px, 7vw, 56px); }
+    .facts ul { max-width: 660px; margin-inline: auto; list-style: none; display: grid; gap: 10px; }
+    .facts li {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: clamp(13px, 3vw, 15px) clamp(16px, 3.6vw, 20px);
+      font-size: 14.5px; color: var(--ink-500); text-wrap: pretty;
+    }
     .facts li strong { color: var(--ink-950); }
 
-    footer { border-top: 1px solid var(--border); padding: 22px 0 40px; margin-top: 20px; }
-    footer .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;
-                   font-size: 12.5px; color: var(--ink-400); }
-    footer a { color: var(--ink-500); }
-    /* stamped by scripts/gen-version.mjs; pushed to the far end of the row, and
-       dropping under the links rather than crowding them on a narrow screen */
-    footer .version { margin-left: auto; font-family: var(--mono); font-size: 11.5px;
-                      letter-spacing: 0.06em; }
+    /* ---- footer ---- */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding-block: clamp(18px, 4vw, 26px) clamp(30px, 6vw, 44px);
+    }
+    .site-footer .wrap {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+      font-size: 13px; color: var(--ink-400);
+    }
+    .site-footer a { color: var(--ink-500); text-decoration: none; padding-block: 6px; }
+    .site-footer a:hover { color: var(--clay-600); }
+    /* stamped by scripts/gen-version.mjs; sits at the far end of the row, and wraps
+       under the links rather than crowding them on a narrow screen */
+    .site-footer .version { margin-left: auto; font-size: 12.5px; letter-spacing: 0.04em; }
   </style>
 </head>
 <body>
-  <header>
+  <header class="site-header">
     <div class="wrap">
       <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
         <g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round">
@@ -90,7 +228,7 @@
         </g>
       </svg>
       <span class="brand">Tiro</span>
-      <nav>
+      <nav class="site-nav">
         <a href="#downloads">Download</a>
         <a href="https://github.com/Gabriel-Dalton/tiro">GitHub</a>
       </nav>
@@ -100,91 +238,111 @@
   <section class="hero">
     <div class="wrap">
       <h1>Hold a key. Speak.<br><em>Punctuated text</em>, where your cursor is.</h1>
-      <p class="lede">Tiro is a free, open dictation tool for Mac, Windows and your phone.
-        It runs on your own Deepgram API key, so there is no account to make and no
-        server of ours in the middle. Your voice goes straight to the transcription API.</p>
-      <span class="price">≈ $0.005 per minute · no subscription</span>
+      <p class="lede">A free, open dictation tool for Mac, Windows and your phone.
+        It runs on your own Deepgram key, so there is no account to make and no
+        server of ours in the middle.</p>
+      <span class="price">≈ $0.005 a minute · no subscription</span>
     </div>
   </section>
 
-  <section class="wrap downloads" id="downloads">
+  <section class="wrap dl-grid" id="downloads">
     <div class="dl" id="dl-windows">
       <span class="caps">Windows 10 &amp; 11</span>
       <h2>Tiro for Windows</h2>
-      <p>Tray app. Hold <strong>Right&nbsp;Alt</strong> in any application and the transcript
-        is pasted into the focused text box. Single EXE, no installer.</p>
+      <p>A tray app. Hold <strong>Right&nbsp;Alt</strong> in any application and the transcript
+        is pasted into the box you were already typing in. One file, no installer.</p>
       <a class="btn" id="win-download" href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-Windows-x64.zip">Download for Windows</a>
       <span class="detected"></span>
-      <span class="fine" id="win-arm-note" hidden>Your PC is ARM-based, so this is the native ARM64 build,
-        with no emulation. The <a href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-Windows-x64.zip">x64 build</a>
-        also works if you prefer it.</span>
-      <span class="fine" id="win10-note" hidden>On Windows 10 you may also need Microsoft's free
-        <a href="https://developer.microsoft.com/microsoft-edge/webview2/">WebView2 runtime</a>.
-        Tiro checks on first run and offers it if it is missing. Windows 11 already has it.</span>
-      <span class="fine">Right-click the ZIP → Properties → <strong>Unblock</strong> before extracting, and
-        Windows starts it quietly. If SmartScreen does ask:
-        <a href="https://github.com/Gabriel-Dalton/tiro/blob/main/docs/SIGNING.md">More info → Run anyway</a>.</span>
+      <span class="fine">Right-click the ZIP → Properties → <strong>Unblock</strong> before extracting.</span>
     </div>
 
     <div class="dl" id="dl-mac">
       <span class="caps">macOS 13+</span>
       <h2>Tiro for Mac</h2>
-      <p>Menu-bar app by <a href="https://github.com/mypip-io/tiro">MyPip</a>. Hold
-        <strong>Fn</strong> anywhere and dictate into any app. The original that this
-        project grew from.</p>
+      <p>A menu-bar app by <a href="https://github.com/mypip-io/tiro">MyPip</a>. Hold
+        <strong>Fn</strong> anywhere and dictate into any app. One universal file for
+        Apple Silicon and Intel.</p>
       <a class="btn" href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-macOS.zip">Download for Mac</a>
       <span class="detected"></span>
-      <span class="fine">Universal: one file for Apple Silicon and Intel. Unsigned, so the first
-        launch needs System&nbsp;Settings → Privacy&nbsp;&amp;&nbsp;Security → <strong>Open Anyway</strong>
-        (on macOS 14 and earlier, right-click the app → Open).</span>
+      <span class="fine">Unsigned, so the first launch needs <strong>Open&nbsp;Anyway</strong> in System Settings.</span>
     </div>
 
     <div class="dl" id="dl-web">
       <span class="caps">iPhone, Android, Linux</span>
       <h2>Tiro Web</h2>
-      <p>A dictation scratchpad: hold the button, speak, and the transcript is on your
-        clipboard before you lift your thumb. Installs to the iPhone home screen.</p>
+      <p>A dictation scratchpad. Hold the button, speak, and the transcript is on your
+        clipboard before you lift your thumb. Installs to the home screen.</p>
       <a class="btn ghost" href="/app/" id="web-link">Open the web app</a>
       <span class="detected"></span>
-      <span class="fine">Works on Linux, ChromeOS, Android and any older machine. It cannot type into
-        other apps, so you paste. Browsers do not allow anything else.</span>
+      <span class="fine">It cannot type into other apps, so you paste. Browsers do not allow anything else.</span>
     </div>
   </section>
 
   <details class="wrap others" id="other-platforms" hidden>
     <summary>Other platforms</summary>
-    <div class="other-grid downloads"></div>
+    <div class="other-grid dl-grid"></div>
   </details>
+
+  <section class="wrap notes">
+    <details>
+      <summary>Notes for the first launch</summary>
+      <div class="note-body">
+        <div id="win-arm-note" hidden>
+          <strong>Your PC is ARM-based</strong>
+          The button now offers the native ARM64 build, with no emulation. The
+          <a href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-Windows-x64.zip">x64 build</a>
+          also works if you prefer it.
+        </div>
+        <div id="win10-note" hidden>
+          <strong>Windows 10</strong>
+          You may also need Microsoft's free
+          <a href="https://developer.microsoft.com/microsoft-edge/webview2/">WebView2 runtime</a>.
+          Tiro checks on first run and offers it if it is missing. Windows 11 already has it.
+        </div>
+        <div>
+          <strong>Windows: SmartScreen</strong>
+          Unblocking the ZIP is usually enough. If the dialog still appears, choose
+          More info → Run anyway, or read
+          <a href="https://github.com/Gabriel-Dalton/tiro/blob/main/docs/SIGNING.md">why it shows up</a>.
+        </div>
+        <div>
+          <strong>Mac: opening an unsigned app</strong>
+          System Settings → Privacy &amp; Security → Open Anyway. On macOS 14 and earlier,
+          right-click the app and choose Open.
+        </div>
+      </div>
+    </details>
+  </section>
 
   <section class="how wrap">
     <h3>How it works</h3>
     <div class="steps">
       <div class="step"><span class="n">01</span><strong>Get a Deepgram key</strong>
-        <p>Free at console.deepgram.com. New accounts include enough credit for hundreds of hours.</p></div>
+        <p>Free from Deepgram's console. New accounts include credit for hundreds of hours.</p></div>
       <div class="step"><span class="n">02</span><strong>Paste it into Tiro</strong>
         <p>The key stays on your device. Tiro has no server, so nobody else ever holds it.</p></div>
       <div class="step"><span class="n">03</span><strong>Hold, speak, release</strong>
         <p>The mic is always warm, so even the first word is caught. A quick tap records hands-free.</p></div>
       <div class="step"><span class="n">04</span><strong>Text lands finished</strong>
-        <p>Punctuation, capitalisation, emails and numbers all come out formatted, pasted where you were typing.</p></div>
+        <p>Punctuation, capitalisation, emails and numbers formatted, pasted where you were typing.</p></div>
     </div>
   </section>
 
   <section class="facts wrap">
     <h3>The honest fine print</h3>
     <ul>
-      <li><strong>You pay Deepgram, not us.</strong> Streaming nova-3 is $0.0048/min. What a
+      <li><strong>You pay Deepgram, not us.</strong> Streaming nova-3 is $0.0048 a minute. What a
         $15/month subscription costs, about 52 hours of dictation costs here.</li>
       <li><strong>No Electron.</strong> The Mac app is native Swift; Windows uses the Edge WebView
-        already in Windows 11. Small binaries, no bundled browser.</li>
+        already on the machine. Small binaries, no bundled browser.</li>
       <li><strong>Your history stays local.</strong> One plain JSONL file you can grep, export,
         and carry between the Mac, Windows and web versions.</li>
-      <li><strong>Open source, MIT.</strong> Fork of <a href="https://github.com/mypip-io/tiro">mypip-io/tiro</a>
+      <li><strong>Open source, MIT.</strong> A fork of <a href="https://github.com/mypip-io/tiro">mypip-io/tiro</a>,
         extended to Windows and the web.</li>
     </ul>
   </section>
 
-  <footer>
+  <footer class="site-footer">
     <div class="wrap">
       <span>MIT licensed</span>
       <a href="https://github.com/Gabriel-Dalton/tiro">Source</a>
@@ -217,8 +375,8 @@
 
       var reason = isIOS ? "Detected iPhone or iPad"
                  : isAndroid ? "Detected Android"
-                 : isLinux ? "Detected Linux or ChromeOS, where the web app is the best option"
-                 : isMac ? "Detected macOS. This one file runs on Apple Silicon and Intel"
+                 : isLinux ? "Detected Linux or ChromeOS"
+                 : isMac ? "Detected macOS. One file for Apple Silicon and Intel"
                  : isWindows ? "Detected Windows"
                  : "";
 
