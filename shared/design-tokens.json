@@ -52,7 +52,7 @@
     "preRollSec": 0.7,
     "tailSec": 0.5,
     "sampleRate": 16000,
-    "deepgramStreamingPerMin": 0.0048,
+    "deepgramStreamingPerMin": 0.0077,
     "keepAliveIntervalSec": 5,
     "competitors": [
       { "name": "Wispr Flow Pro", "perMonth": 15.0 },
