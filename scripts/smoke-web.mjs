@@ -270,6 +270,7 @@ const FAKE_SOCKET = () => {
       this.readyState = 0;
       this.sentBytes = 0;
       window.__wsCount = (window.__wsCount || 0) + 1;
+      window.__wsOpen = (window.__wsOpen || 0) + 1;
       setTimeout(() => { this.readyState = 1; this.onopen && this.onopen(); }, 30);
     }
     send(data) {
@@ -288,7 +289,11 @@ const FAKE_SOCKET = () => {
       this.sentBytes += data.byteLength || 0;
       window.__audioBytes = (window.__audioBytes || 0) + (data.byteLength || 0);
     }
-    close() { this.readyState = 3; setTimeout(() => this.onclose && this.onclose({ code: 1000 }), 0); }
+    close() {
+      if (this.readyState !== 3) window.__wsOpen--;
+      this.readyState = 3;
+      setTimeout(() => this.onclose && this.onclose({ code: 1000 }), 0);
+    }
   }
   FakeWS.OPEN = 1;
   FakeWS.CLOSED = 3;
@@ -344,7 +349,20 @@ const FAKE_SOCKET = () => {
     (await page.evaluate(() => window.__audioBytes || 0)) > 0,
     `${await page.evaluate(() => window.__audioBytes || 0)} bytes`);
 
+  const bytesAtRelease = await page.evaluate(() => window.__audioBytes || 0);
   await page.mouse.up();
+  // Inside TAIL_SEC (0.5 s). The tail exists so the last word is not clipped,
+  // and for a long time it did not work: stopAndInsert nulls the module-level
+  // `stream` before sleeping, and the engine's chunk handler closed over exactly
+  // that variable, so every chunk in the tail evaluated to `null && …`. The
+  // audio was captured and billed and never sent. Nothing noticed, because the
+  // transcript still arrives — just without whatever you said last.
+  await page.waitForTimeout(380);
+  const bytesInTail = await page.evaluate(() => window.__audioBytes || 0);
+  check("the tail actually streams, rather than just delaying CloseStream",
+    bytesInTail > bytesAtRelease,
+    `${bytesAtRelease} bytes at release, ${bytesInTail} during the tail`);
+
   await page.waitForTimeout(2000);
   check("halo settles back to invisible after the take",
     (await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById("halo")).opacity))) < 0.02);
@@ -414,6 +432,14 @@ const FAKE_SOCKET = () => {
   await page.waitForTimeout(120);
   check("Discard is still offered while transcribing", await page.locator("#discard").isVisible());
   await page.locator("#discard").click();
+  // Straight after the click, well inside TAIL_SEC. Discarding while
+  // transcribing has to close the socket itself: the take's own tail is asleep,
+  // and the stream is no longer reachable through `stream`. Miss it and the
+  // socket stays open with its keepalive armed for as long as the page lives.
+  await page.waitForTimeout(120);
+  check("discarding mid-transcribe closes the socket rather than orphaning it",
+    (await page.evaluate(() => window.__wsOpen)) === 0,
+    `${await page.evaluate(() => window.__wsOpen)} still open`);
   await page.waitForTimeout(2200);     // past the tail and the fake finals
   check("discarding mid-transcribe drops the result", await page.locator("#result-card").isHidden());
   check("no page errors across two discards", errors.length === 0, errors.join(" | "));
@@ -444,6 +470,12 @@ const FAKE_SOCKET = () => {
   await page.addInitScript(() => {
     localStorage.setItem("tiro.apiKey", "test-key-not-real");
     window.__sent = [];
+    // The Windows app's normal state is a tray icon with its window hidden, and
+    // a hidden WebView2 produces no frames, so requestAnimationFrame never
+    // fires. Kill it outright here: the halo is allowed to stop, the pill's
+    // level feed is not, and the first version of this shipped with the feed
+    // riding on the halo's loop.
+    window.requestAnimationFrame = () => 0;
     window.chrome = {
       webview: {
         addEventListener: (type, fn) => { if (type === "message") window.__hostSend = (m) => fn({ data: m }); },
@@ -464,7 +496,8 @@ const FAKE_SOCKET = () => {
 
   const levels = await page.evaluate(() =>
     window.__sent.filter((m) => m.type === "level").map((m) => m.value));
-  check("the mic level reaches the host at all", levels.length > 0, `${levels.length} messages`);
+  check("the mic level reaches the host with requestAnimationFrame dead",
+    levels.length > 0, `${levels.length} messages`);
   check("the level is a real signal, not a stuck number",
     new Set(levels).size > 3, `${new Set(levels).size} distinct values`);
   check("the level stays inside 0..1",

@@ -102,8 +102,27 @@ sealed class MainForm : Form
             return;
         }
 
+        // This app's normal state is a tray icon with no window on screen, and
+        // Chromium treats a hidden page as a background tab: timers clamp to one
+        // per second and the renderer is deprioritised. That is wrong for every
+        // clock in a take. The pill's 20 Hz waveform would tick once a second,
+        // and the 0.5 s tail that keeps the last word from being clipped would
+        // stretch past a second. None of it shows up while the window is open,
+        // which is the only way anyone tests it.
+        //
+        // rAF is a separate matter and no flag brings it back: an invisible page
+        // produces no frames at all. That is why the level feed is on a timer
+        // rather than on the halo's animation loop.
+        var options = new CoreWebView2EnvironmentOptions
+        {
+            AdditionalBrowserArguments =
+                "--disable-background-timer-throttling " +
+                "--disable-renderer-backgrounding " +
+                "--disable-backgrounding-occluded-windows",
+        };
         var env = await CoreWebView2Environment.CreateAsync(
-            userDataFolder: Path.Combine(Log.AppDataDir, "WebView2"));
+            userDataFolder: Path.Combine(Log.AppDataDir, "WebView2"),
+            options: options);
         await _webView.EnsureCoreWebView2Async(env);
         var core = _webView.CoreWebView2;
 
@@ -127,6 +146,26 @@ sealed class MainForm : Form
         // page loads. It shows up in the About card as the Windows build number.
         await core.AddScriptToExecuteOnDocumentCreatedAsync(
             $"window.__tiroHost = {{ version: \"{Build.Version}\" }};");
+
+        // WIN-05. A dead render process used to mean a live-looking tray icon
+        // that did nothing. It now means more than that: the state it was last
+        // told is what arms the global Escape hook, so a crash mid-take would
+        // leave Escape swallowed system-wide until the user quit from the tray.
+        // Nothing else can un-arm it, because the only thing that ever does is a
+        // state message from the page that just died.
+        core.ProcessFailed += (_, e) =>
+        {
+            Log.Write($"WebView2 process failed: {e.ProcessFailedKind}");
+            _webReady = false;
+            StateChanged?.Invoke("blocked");
+        };
+        core.NavigationCompleted += (_, e) =>
+        {
+            if (e.IsSuccess) return;
+            Log.Write($"navigation failed: {e.WebErrorStatus}");
+            _webReady = false;
+            StateChanged?.Invoke("blocked");
+        };
 
         core.WebMessageReceived += OnWebMessage;
         core.Navigate($"https://{VirtualHost}/index.html");

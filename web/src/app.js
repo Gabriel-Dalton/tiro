@@ -21,6 +21,12 @@ const $ = (id) => document.getElementById(id);
 let state = "idle";
 let pressedAt = 0;
 let stream = null;      // DeepgramStream for the current take
+// The same take once stopAndInsert has taken it off `stream` and is draining
+// finals. It has to stay reachable: discarding while transcribing otherwise has
+// nothing to close, and the socket stays open with its keepalive armed for as
+// long as the page lives. That is the orphaned billed socket of PWA-02, reached
+// by a different road.
+let finishing = null;
 let timerHandle = null;
 let recordStartedAt = 0;
 
@@ -60,8 +66,9 @@ function setState(next) {
   // reflow under a thumb that is mid-press.
   $("talk-hint").classList.toggle("is-faded", live);
   // Drive the halo from the state itself, not from one branch below: a take
-  // that starts in toggle mode has to breathe too.
-  if (next === "holdRecording" || next === "toggleRecording") startHalo();
+  // that starts in toggle mode has to breathe too. The pill's feed starts with
+  // it and stops itself once the bars have fallen.
+  if (next === "holdRecording" || next === "toggleRecording") { startHalo(); startLevelFeed(); }
   if (next === "idle") {
     label.textContent = "Hold to talk";
     head.textContent = "ready";
@@ -127,6 +134,57 @@ function isRecordingState() {
   return state === "holdRecording" || state === "toggleRecording";
 }
 
+/** RMS as the meter should draw it: 0 at room tone, 1 at a firm speaking voice,
+ * with the curve bent to open up the quiet end where normal speech lives.
+ * Shared, because the halo and the Windows pill must agree. */
+function normaliseLevel(rms) {
+  const norm = (rms - HALO_FLOOR) / (HALO_CEIL - HALO_FLOOR);
+  return Math.pow(Math.max(0, Math.min(1, norm)), 0.6);
+}
+
+// ------------------------------------------------- level feed for the host
+//
+// The halo's own loop cannot carry this. It runs on requestAnimationFrame, and
+// the Windows app's normal state is a tray icon with its window hidden: WebView2
+// marks a hidden host window invisible, Chromium stops producing frames for an
+// invisible page, and rAF stops being called. The take itself is unaffected,
+// because the AudioWorklet runs on the audio thread, so everything would look
+// fine and the pill's waveform would simply never move for anyone who had closed
+// the window. Which is everyone.
+//
+// So the pill gets its own clock. setInterval survives an invisible page, though
+// only because MainForm passes --disable-background-timer-throttling; without
+// that flag Chromium clamps hidden-page timers to one second and the waveform
+// would tick once a second instead of twenty times.
+const LEVEL_HZ_MS = 50;
+// Per-tick equivalents of the halo's per-frame rates at 60 Hz: three frames fit
+// in 50 ms, so 1-(1-0.45)^3 and 1-(1-0.12)^3. Same feel, different clock.
+const LEVEL_ATTACK = 0.83;
+const LEVEL_DECAY = 0.32;
+let levelTimer = null;
+let levelValue = 0;
+
+function startLevelFeed() {
+  if (levelTimer || !bridge.isShell) return;
+  levelValue = 0;
+  levelTimer = setInterval(() => {
+    const target = isRecordingState() ? normaliseLevel(engine.level) : 0;
+    levelValue += (target - levelValue) * (target > levelValue ? LEVEL_ATTACK : LEVEL_DECAY);
+    bridge.setLevel(levelValue);
+    // Stop once it has settled, not the moment recording stops, so the bars fall
+    // rather than snapping flat.
+    if (!isRecordingState() && levelValue < 0.01) stopLevelFeed();
+  }, LEVEL_HZ_MS);
+}
+
+function stopLevelFeed() {
+  if (!levelTimer) return;
+  clearInterval(levelTimer);
+  levelTimer = null;
+  levelValue = 0;
+  bridge.setLevel(0);
+}
+
 function startHalo() {
   if (haloRunning) return; // one loop only, however many times we are called
   haloRunning = true;
@@ -136,19 +194,9 @@ function startHalo() {
     const recording = isRecordingState();
     // Target is the voice while recording, and zero once it stops, so the ring
     // eases back down instead of snapping off mid-pulse.
-    let target = 0;
-    if (recording) {
-      const norm = (engine.level - HALO_FLOOR) / (HALO_CEIL - HALO_FLOOR);
-      // gamma < 1 opens up the quiet end, where normal speech actually lives
-      target = Math.pow(Math.max(0, Math.min(1, norm)), 0.6);
-    }
+    const target = recording ? normaliseLevel(engine.level) : 0;
     const rate = target > haloValue ? HALO_ATTACK : HALO_DECAY;
     haloValue += (target - haloValue) * rate;
-
-    // The Windows pill draws the same number as a waveform. It gets the
-    // smoothed, normalised value rather than engine.level so the two meters
-    // cannot disagree; bridge.setLevel throttles it down to 20 Hz.
-    bridge.setLevel(haloValue);
 
     if (!recording && haloValue < 0.01) {
       // settled: park it clean so the next take starts from a known state
@@ -156,10 +204,6 @@ function startHalo() {
       halo.style.opacity = "0";
       halo.style.transform = "scale(1)";
       haloRunning = false;
-      // Park the host's bars too. Without this the last thing the pill heard is
-      // a value just under the settle threshold, and the bars freeze there
-      // rather than flattening.
-      bridge.setLevel(0);
       return;
     }
 
@@ -313,8 +357,17 @@ function stopAndInsert() {
   if (!stream) { setState("idle"); return; }
   const s = stream;
   stream = null;
+  finishing = s;
   setState("transcribing");
   const token = takeToken;
+
+  // Re-point the engine at the take we just took off `stream`. The chunk handler
+  // set up in pressStart closes over the module-level `stream`, which the line
+  // above just set to null, so for the whole of TAIL_SEC it evaluated to
+  // `null && …` and sent nothing. The tail existed but was empty: the last half
+  // second of speech was captured, counted as billable, and then dropped on the
+  // floor, which is precisely the clipped last word it was added to prevent.
+  engine.onChunk = (c) => s.send(c);
 
   const transcriptPromise = (async () => {
     // keep streaming through the tail so the last word is not clipped
@@ -324,10 +377,11 @@ function stopAndInsert() {
     // user may well have started a fresh take. Checking only at the end meant
     // this stale tail called endRecording() and nulled onChunk on the take that
     // replaced it, which killed the next take's audio silently.
-    if (token !== takeToken) throw new Error("discarded");
+    if (token !== takeToken) { s.abort(); throw new Error("discarded"); }
     const sec = Math.round(engine.endRecording() * 10) / 10;
     engine.onChunk = null;
     const text = await s.finish();
+    if (finishing === s) finishing = null; // finish() closed it
     // Discarded while the finals were still draining. Drop the text on the
     // floor: no result card, no history, no clipboard, no paste. cancelTake has
     // already put the UI back to idle, so there is nothing to undo here.
@@ -367,8 +421,13 @@ function cancelTake() {
   // stale token before it reaches endRecording, so if this does not release the
   // mic nothing will: it stays flagged as recording and keeps billing samples to
   // a take nobody will ever read.
-  const s = stream;   // null while transcribing; stopAndInsert took it
+  // `stream` while recording, `finishing` while transcribing. Closing it here
+  // rather than leaving it to the stale tail matters: the tail is asleep in
+  // TAIL_SEC, so waiting for it keeps a live socket open for half a second after
+  // the user has already been told the take is gone.
+  const s = stream || finishing;
   stream = null;
+  finishing = null;
   engine.endRecording();
   engine.onChunk = null;
   if (s) s.abort();
@@ -507,13 +566,20 @@ window.addEventListener("keyup", (e) => {
 });
 
 // Escape discards the take, anywhere in the app, including from inside a text
-// field: nothing else in Tiro binds it, and reaching for it mid-dictation means
-// one thing. In the Windows shell this only fires when the Tiro window itself
-// has focus, which it usually does not; the host hooks Escape globally and
-// sends {type:"cancel"} instead, landing on the same function below.
+// field: reaching for it mid-dictation means one thing.
+//
+// The install sheet also binds Escape (install.js), and both would fire if it
+// were open during a take, so this stands down while it is up. That ordering is
+// the conventional one and the safer one: dismissing the sheet is undoable, and
+// throwing a take away is not.
+//
+// In the Windows shell this only fires when the Tiro window itself has focus,
+// which it usually does not. The host hooks Escape globally and sends
+// {type:"cancel"} instead, landing on the same function.
 window.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (state === "idle" && !starting) return;
+  if (!$("install-sheet").hidden) return;
   e.preventDefault();
   cancelTake();
 });

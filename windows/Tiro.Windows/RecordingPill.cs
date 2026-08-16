@@ -45,7 +45,12 @@ sealed class RecordingPill : Form
 
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 50 };
     private readonly float[] _bars = new float[Bars];
-    private DateTime _startedAt;
+    // Stopwatch, not DateTime.UtcNow. Elapsed time from a wall clock goes
+    // negative the moment an NTP correction steps the clock back, and this one
+    // does more than print: the pulse alpha is 140 * (1 - phase), so a negative
+    // phase pushes the argument past 255 and Color.FromArgb throws where nothing
+    // catches it. A monotonic clock cannot produce the input at all.
+    private readonly System.Diagnostics.Stopwatch _elapsed = new();
     private string _mode = "";
     private float _level;
     private int _hot = -1;      // 0 = cancel, 1 = stop, -1 = neither
@@ -147,7 +152,7 @@ sealed class RecordingPill : Form
         _hot = -1;
         if (state == "recording")
         {
-            _startedAt = DateTime.UtcNow;
+            _elapsed.Restart();
             Array.Fill(_bars, 0.08f);
             _level = 0;
             ApplySize(RecordingWidth);
@@ -220,7 +225,7 @@ sealed class RecordingPill : Form
         var dotX = DotX * s;
         var dotR = 5 * s;
         // A 1.6 s breath, matching the macOS pill's CALayer animation.
-        var phase = (float)((DateTime.UtcNow - _startedAt).TotalSeconds % 1.6 / 1.6);
+        var phase = (float)(_elapsed.Elapsed.TotalSeconds % 1.6 / 1.6);
         using (var ring = new SolidBrush(Color.FromArgb((int)(140 * (1 - phase)), Clay400)))
         {
             var rr = dotR * (1 + phase * 1.1f);
@@ -248,7 +253,7 @@ sealed class RecordingPill : Form
             g.FillPath(brush, path);
         }
 
-        var t = (int)(DateTime.UtcNow - _startedAt).TotalSeconds;
+        var t = (int)_elapsed.Elapsed.TotalSeconds;
         using (var font = new Font("Consolas", 11.5f * s, GraphicsUnit.Pixel))
         using (var brush = new SolidBrush(Ink300))
         {
