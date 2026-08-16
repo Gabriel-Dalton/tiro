@@ -103,6 +103,47 @@ Two CI checks guard it, in opposite directions, and both exist because of a real
 So `VERSION` may equal the latest release, or run ahead of it while the next one is being
 prepared. It may never trail it.
 
+### Which digit to bump, and why it is not a formality
+
+**The number you choose decides who gets interrupted.** Both apps read it and compare, and
+they interrupt for a minor or major bump and stay quiet for a patch (`updateWorth` in
+`web/src/app.js`, `Classify` in `windows/Tiro.Windows/UpdateCheck.cs`). So getting this wrong
+has two failure modes, and they are not symmetrical:
+
+- Bump the **patch** digit for a release that added something, and nobody is told. They keep
+  using the old one and never learn the thing they wanted exists.
+- Bump the **minor** for a typo fix, and every user on every platform is interrupted to be
+  told about a typo. Do that twice and they stop reading update prompts, which costs you the
+  next release that mattered.
+
+Decide by asking **what a user would notice**, not by how large the diff is:
+
+| Bump | When | From this repository's own history |
+|---|---|---|
+| **major** `2.0.0` | Something people rely on is gone or works differently. History or the key needs migrating. Nothing yet has earned this. | — |
+| **minor** `1.3.0` | Anything a user would notice on purpose: a feature, a new control, a visible interface change, a new platform, a fix to something that was **visibly broken for everyone** | the interface rebuild (1.1.0); update notifications (1.2.0) |
+| **patch** `1.2.1` | They would never notice unless they had hit the bug: a crash on one device, a wrong number in a tooltip, a fix in a code path most people never reach | the stuck-first-press and iOS zoom fixes, had they shipped alone |
+| **no bump** | Nothing in `web/`, `windows/` or `Sources/` changed. Documentation, the landing page, CI, the roadmap. | the API key guide, the competitive analysis |
+
+Two rules that resolve most of the hard cases:
+
+- **A fix everyone must see is a minor bump**, not a patch, and the changelog says why in its
+  first line. There is no severity flag and no "critical" switch — deliberately, because one
+  more lever is one more thing to get wrong. If a fix genuinely needs to reach every user
+  today, the honest way to say so is to release it as something they are told about.
+- **A release with nothing user-visible in it does not need a version at all.** The website
+  redeploys on every push to `main` regardless, and the web app handles that silently: a
+  worker whose version has not moved produces no banner. Bumping `VERSION` for a docs change
+  is how you end up interrupting people over a docs change.
+
+When you genuinely cannot decide between minor and patch, **write the changelog entry first**.
+If the entry reads like something worth reading, it is a minor. If it reads like housekeeping,
+it is a patch. That is the same question the user is being asked when the banner appears, so
+answering it in the changelog first keeps the two consistent.
+
+The whole policy, including what each platform does with the answer, is in
+[docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md) §4.3 and in the README's "Staying up to date".
+
 ## Tests
 
 ```bash
