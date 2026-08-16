@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F6F1E7">
+  <title>Getting your Deepgram API key — Tiro</title>
+  <meta name="description" content="A step-by-step walkthrough, with pictures, of getting the free Deepgram API key that Tiro runs on. About two minutes, and no credit card.">
+  <link rel="icon" href="/favicon-32.png" type="image/png">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <style>
+    /* Same Forum palette as the landing page; keep in sync with shared/design-tokens.json. */
+    :root {
+      --paper-50: #FCFAF4; --paper-100: #F6F1E7; --paper-200: #EFE8D9;
+      --ink-950: #14110B; --ink-900: #1F1A12; --ink-500: #756B57; --ink-400: #948A74; --ink-300: #B4AB96;
+      --clay-600: #9C3126; --clay-500: #B23A2E; --clay-400: #C85A4C; --clay-100: #F3E1DC;
+      --green-600: #3F6B47; --green-100: #E1EBDF;
+      --border: rgba(31, 26, 18, 0.16); --border-subtle: rgba(31, 26, 18, 0.09);
+      --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --gutter: clamp(20px, 5.5vw, 32px);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    * { margin: 0; padding: 0; }
+
+    html { -webkit-text-size-adjust: 100%; color-scheme: light; scroll-behavior: smooth; }
+    body {
+      background: var(--paper-100); color: var(--ink-900);
+      font-family: var(--sans); font-size: 16.5px; line-height: 1.6;
+      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: rgba(178, 58, 46, 0.12);
+    }
+    a { color: var(--clay-600); text-underline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--clay-500); outline-offset: 2px; border-radius: 4px; }
+    img, svg { max-width: 100%; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+
+    /* One column, always. This page is read top to bottom on a phone more often
+       than not, so there is no second column to collapse. */
+    .wrap {
+      width: 100%; max-width: 680px; margin-inline: auto;
+      padding-inline: max(var(--gutter), env(safe-area-inset-left)) max(var(--gutter), env(safe-area-inset-right));
+    }
+
+    /* ---- header ---- */
+    .site-header { padding-block: 14px; }
+    .site-header .wrap { display: flex; align-items: center; gap: 10px; }
+    .site-header .home { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .mark { width: 26px; height: 26px; flex: none; color: var(--clay-500); }
+    .brand { font-family: var(--serif); font-size: 21px; color: var(--ink-950); }
+    .site-nav { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+    .site-nav a {
+      display: inline-flex; align-items: center; min-height: 44px; padding-inline: 8px;
+      font-size: 14px; color: var(--ink-500); text-decoration: none; border-radius: 8px;
+    }
+    .site-nav a:hover { color: var(--clay-600); }
+
+    /* ---- intro ---- */
+    .intro { padding-block: clamp(18px, 4vw, 30px) clamp(22px, 5vw, 34px); }
+    h1 {
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(30px, 7vw, 42px); line-height: 1.1;
+      color: var(--ink-950); text-wrap: balance;
+    }
+    .lede { margin-top: 14px; font-size: clamp(16px, 2vw, 17.5px); color: var(--ink-500); text-wrap: pretty; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .badge {
+      font-size: 13px; font-weight: 500; color: var(--green-600);
+      background: var(--green-100); border-radius: 999px; padding: 6px 14px;
+    }
+
+    /* ---- steps ---- */
+    /* The steps are an <ol> so the order survives without CSS, but the numeral is
+       drawn in the card head, so the browser's own marker would double it up. */
+    .steps { list-style: none; display: flex; flex-direction: column; gap: clamp(14px, 3vw, 20px); }
+    .step {
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: clamp(18px, 4vw, 26px);
+    }
+    .step-head { display: flex; align-items: baseline; gap: 12px; }
+    .step-head .n {
+      font-family: var(--serif); font-size: clamp(26px, 5vw, 32px); line-height: 1;
+      color: var(--clay-500); flex: none;
+    }
+    .step-head h2 {
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(20px, 3.4vw, 25px); line-height: 1.2; color: var(--ink-950);
+    }
+    .step p { margin-top: 12px; color: var(--ink-900); text-wrap: pretty; }
+    .step p + p { margin-top: 10px; }
+    .step .aside { font-size: 14.5px; color: var(--ink-500); }
+
+    /* Settings that matter, called out so they are not buried in a sentence. */
+    .picks { list-style: none; margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .picks li {
+      padding-left: 16px; border-left: 3px solid var(--clay-100);
+      font-size: 15.5px; color: var(--ink-500);
+    }
+    .picks strong { color: var(--ink-950); }
+
+    figure { margin-top: 16px; }
+    figure img {
+      display: block; width: 100%; height: auto;
+      border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--paper-50);
+    }
+    /* The sidebar shot is a tall, narrow strip. Stretched to the column width it
+       would be a wall of nothing; at its own size it reads as a menu. */
+    figure img.narrow { max-width: 260px; margin-inline: auto; }
+    figcaption { margin-top: 8px; font-size: 13px; color: var(--ink-400); }
+
+    /* The one irreversible step on the page earns a different colour. */
+    .warn {
+      margin-top: 16px; padding: 14px 16px;
+      background: var(--clay-100); border-radius: 10px;
+      font-size: 15.5px; color: var(--ink-900);
+    }
+    .warn strong { display: block; margin-bottom: 3px; color: var(--clay-600); }
+
+    /* ---- sections ---- */
+    section { padding-block: clamp(22px, 5vw, 36px); }
+    h3 {
+      font-family: var(--serif); font-weight: 500;
+      font-size: clamp(22px, 4vw, 27px); color: var(--ink-950); margin-bottom: 14px;
+    }
+
+    /* Answers collapsed by default: nobody should have to scroll past six
+       problems they do not have to reach the end of the page. */
+    .faq { display: flex; flex-direction: column; gap: 10px; }
+    .faq details { background: #fff; border: 1px solid var(--border); border-radius: 12px; }
+    .faq summary {
+      list-style: none; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      min-height: 52px; padding: 10px clamp(14px, 3vw, 18px);
+      font-size: 15.5px; font-weight: 600; color: var(--ink-900);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after {
+      content: ""; margin-left: auto; flex: none;
+      width: 9px; height: 9px; border-right: 2px solid var(--ink-300); border-bottom: 2px solid var(--ink-300);
+      transform: rotate(45deg) translate(-2px, -2px); transition: transform .15s ease;
+    }
+    .faq details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+    .faq .body {
+      padding: 0 clamp(14px, 3vw, 18px) 16px;
+      font-size: 15px; color: var(--ink-500); text-wrap: pretty;
+    }
+    .faq .body p + p { margin-top: 8px; }
+
+    /* ---- closing call to action ---- */
+    .cta {
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: clamp(20px, 4vw, 28px); text-align: center;
+    }
+    .cta p { color: var(--ink-500); margin-bottom: 16px; text-wrap: pretty; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 48px; padding-inline: 22px; border-radius: 10px;
+      background: var(--clay-500); color: var(--paper-50);
+      font-size: 15.5px; font-weight: 600; text-decoration: none;
+    }
+    .btn:hover { background: var(--clay-600); }
+
+    /* ---- footer ---- */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding-block: clamp(18px, 4vw, 26px) clamp(30px, 6vw, 44px);
+    }
+    .site-footer .wrap {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+      font-size: 13px; color: var(--ink-400);
+    }
+    .site-footer a { color: var(--ink-500); text-decoration: none; padding-block: 6px; }
+    .site-footer a:hover { color: var(--clay-600); }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="home" href="/">
+        <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round">
+            <path d="M11 14 H37"/><path d="M30 14 C30 26 30 34 19 37"/>
+          </g>
+        </svg>
+        <span class="brand">Tiro</span>
+      </a>
+      <nav class="site-nav">
+        <a href="/#downloads">Download</a>
+        <a href="/app/">Open the app</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="intro wrap">
+      <h1>Getting your Deepgram API key</h1>
+      <p class="lede">Tiro has no accounts and no subscription. It talks straight to Deepgram, the
+        service that turns your speech into text, using a key that belongs to you. Here is how to
+        get one.</p>
+      <div class="badges">
+        <span class="badge">About two minutes</span>
+        <span class="badge">No credit card</span>
+        <span class="badge">You only do it once</span>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <ol class="steps">
+        <li class="step">
+          <div class="step-head"><span class="n">1</span><h2>Make a Deepgram account</h2></div>
+          <p>Go to <a href="https://console.deepgram.com" target="_blank" rel="noopener">console.deepgram.com</a>
+            and sign up. It is free and it does not ask for a card.</p>
+          <p class="aside">Partway through, it asks <strong>“What would you like to explore
+            first?”</strong> and offers Speech to Text, Text to Speech and Voice agent. Choose
+            <strong>Speech to Text</strong> — that is the one Tiro uses. It only decides what your
+            dashboard shows first, so it is not a choice you can get wrong.</p>
+        </li>
+
+        <li class="step">
+          <div class="step-head"><span class="n">2</span><h2>Open the API Keys page</h2></div>
+          <p>Look at the menu down the left-hand side. There is a section called
+            <strong>Manage</strong>, and <strong>API Keys</strong> sits in it, directly under
+            Dashboard.</p>
+          <figure>
+            <img class="narrow" src="api-key-1-nav.svg" width="260" height="452"
+                 alt="The Deepgram console menu, with API Keys highlighted under the Manage heading">
+            <figcaption>The left-hand menu. API Keys is the second item under Manage.</figcaption>
+          </figure>
+        </li>
+
+        <li class="step">
+          <div class="step-head"><span class="n">3</span><h2>Create a key</h2></div>
+          <p>Click the green <strong>Create a New API Key</strong> button.</p>
+          <ul class="picks">
+            <li><strong>Name it</strong> anything you will recognise later. “Tiro” is fine.</li>
+            <li><strong>Expiration: Never.</strong> A key that expires will stop Tiro working on a
+              random Tuesday for no visible reason.</li>
+            <li><strong>Ignore “Advanced”.</strong> Nothing under it matters here.</li>
+          </ul>
+          <p>Then press <strong>Create Key</strong>.</p>
+          <figure>
+            <img src="api-key-2-create.svg" width="576" height="604"
+                 alt="The Create an API Key dialog, with a name filled in and expiration set to Never">
+            <figcaption>Name, expiration Never, and nothing else to decide.</figcaption>
+          </figure>
+        </li>
+
+        <li class="step">
+          <div class="step-head"><span class="n">4</span><h2>Copy it straight away</h2></div>
+          <div class="warn">
+            <strong>Deepgram shows you the key once.</strong>
+            It cannot show it to you again — in the console’s own words, “secrets are not
+            recoverable”. Copy it the moment it appears.
+          </div>
+          <p>It is a 40-character jumble of letters and numbers. That is what a key looks like;
+            nothing has gone wrong.</p>
+          <figure>
+            <img src="api-key-3-list.svg" width="900" height="470"
+                 alt="The list of API keys, showing the newly created key">
+            <figcaption>Your new key, listed with the name you gave it.</figcaption>
+          </figure>
+          <p class="aside">Closed the page too soon? Nothing is broken and nothing is lost. Delete
+            that key with the bin icon on the right and make another. Keys are free and you can
+            have as many as you like.</p>
+        </li>
+
+        <li class="step">
+          <div class="step-head"><span class="n">5</span><h2>Paste it into Tiro</h2></div>
+          <p>Open Tiro, put the key into the field that asks for it, and press
+            <strong>Save &amp; test</strong>.</p>
+          <figure>
+            <img src="api-key-4-paste.svg" width="640" height="392"
+                 alt="Tiro's setup card with the key pasted into the field, ready to save and test">
+            <figcaption>Tiro checks the key with Deepgram there and then.</figcaption>
+          </figure>
+          <p>If it worked, Tiro tells you your credit balance. Hold the button, say something, and
+            you are done.</p>
+        </li>
+      </ol>
+    </div>
+
+    <section class="wrap">
+      <h3>If something goes wrong</h3>
+      <div class="faq">
+        <details>
+          <summary>Tiro says the key was rejected</summary>
+          <div class="body">
+            <p>Usually the copy grabbed a stray space or missed a character off the end. Paste it
+              again, carefully.</p>
+            <p>If that does not fix it, check in the Deepgram console that the key is still in your
+              list and has not expired.</p>
+          </div>
+        </details>
+        <details>
+          <summary>There is already a key in my list — can I use that one?</summary>
+          <div class="body">
+            <p>If it is called <strong>“Auto-generated Playground API key”</strong>, no. Deepgram
+              makes that one for you when you try their Playground, and it expires within hours. It
+              sits there looking exactly as usable as a real key and then quietly stops working.</p>
+            <p>Make your own, as in step 3.</p>
+          </div>
+        </details>
+        <details>
+          <summary>I have lost my key</summary>
+          <div class="body">
+            <p>Delete it in the console and make a new one. It takes ten seconds and costs nothing.</p>
+            <p>That is also the fix if your key ever ends up somewhere public — deleting it stops it
+              working immediately.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <h3>The things people reasonably worry about</h3>
+      <div class="faq">
+        <details>
+          <summary>What is this going to cost me?</summary>
+          <div class="body">
+            <p>A new Deepgram account comes with $200 of credit, which is roughly 430 hours of
+              dictation. After that it is about 46 cents an hour, charged by Deepgram for the
+              seconds you actually speak.</p>
+            <p>There is no subscription and nothing renews. Tiro takes no cut — we never see your
+              money or your key.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Where does my key actually live?</summary>
+          <div class="body">
+            <p>On your own device. The Mac app keeps it in a file only you can read, Windows in
+              encrypted storage, and the web app in your browser’s local storage.</p>
+            <p>It goes to Deepgram and nowhere else. Tiro has no server to send it to.</p>
+          </div>
+        </details>
+        <details>
+          <summary>How careful do I need to be with it?</summary>
+          <div class="body">
+            <p>Treat it like a password: it is how Deepgram knows the spending is yours. Keep it out
+              of screenshots, chat messages and public posts.</p>
+            <p>If it does get out, delete it in the console and make another. That is the whole
+              recovery process.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <div class="cta">
+        <p>Got your key? That was the only fiddly part.</p>
+        <a class="btn" href="/app/">Open Tiro and paste it in</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <a href="/">Home</a>
+      <a href="/#downloads">Downloads</a>
+      <a href="https://github.com/Gabriel-Dalton/tiro">Source</a>
+      <span>MIT licensed</span>
+    </div>
+  </footer>
+</body>
+</html>

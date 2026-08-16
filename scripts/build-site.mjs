@@ -18,6 +18,15 @@ import { execFileSync } from "node:child_process";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "public");
 
+// Listed rather than globbed: if one is renamed, the build should stop, not
+// quietly ship a page with a hole where a step used to be.
+const API_KEY_SHOTS = [
+  "api-key-1-nav.svg",
+  "api-key-2-create.svg",
+  "api-key-3-list.svg",
+  "api-key-4-paste.svg",
+];
+
 for (const script of ["gen-version.mjs", "gen-tokens.mjs", "gen-icons.mjs"]) {
   execFileSync(process.execPath, [join(root, "scripts", script)], { stdio: "inherit" });
 }
@@ -31,6 +40,14 @@ cpSync(join(root, "landing"), out, { recursive: true });
 // the PWA under /app. index.html, manifest, sw.js and every asset path in the
 // web core is relative, so it works unchanged from a subdirectory
 cpSync(join(root, "web"), join(out, "app"), { recursive: true });
+
+// The API-key walkthrough is written twice over — once as docs/API-KEY.md for
+// GitHub, once as landing/api-key/ for everyone who has never used GitHub — but
+// the pictures exist once, in docs/, and are copied to sit beside the web page.
+// Anything else means two sets of screenshots drifting apart.
+for (const shot of API_KEY_SHOTS) {
+  cpSync(join(root, "docs", shot), join(out, "api-key", shot));
+}
 
 // web/vercel.json only applies when web/ is deployed as its own project;
 // the root vercel.json carries the headers for this combined deploy
