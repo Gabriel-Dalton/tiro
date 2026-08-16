@@ -1,5 +1,5 @@
 // Settings and key storage. In a browser everything lives in localStorage on
-// this device only — the key never touches a server (load-bearing decision,
+// this device only. The key never touches a server (load-bearing decision,
 // see ROADMAP.md non-goals). Inside the Windows shell the API key is instead
 // held by the host in DPAPI, brokered over the bridge; localStorage there is
 // only a cache the host refreshes at startup.

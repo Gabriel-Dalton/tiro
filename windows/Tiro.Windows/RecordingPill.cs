@@ -2,7 +2,7 @@ namespace Tiro.Windows;
 
 /// <summary>
 /// Small always-on-top status pill near the bottom of the screen while
-/// recording or transcribing, matching the macOS one. Never takes focus —
+/// recording or transcribing, matching the macOS one. It never takes focus,
 /// the user is mid-keystroke in another app.
 /// </summary>
 sealed class RecordingPill : Form

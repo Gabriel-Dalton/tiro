@@ -1,6 +1,6 @@
 # Builds the two downloadable apps the landing page links to:
-#   Tiro-Windows-x64.zip — self-contained single EXE (WebView2 shell + web core)
-#   Tiro-macOS.zip       — upstream's Swift menu-bar app, ad-hoc signed
+#   Tiro-Windows-x64.zip   self-contained single EXE (WebView2 shell + web core)
+#   Tiro-macOS.zip         upstream's Swift menu-bar app, ad-hoc signed
 #
 # Every push builds both and uploads them as workflow artifacts.
 #
@@ -12,6 +12,10 @@
 # The last two create the tag from the run. They exist because pushing a tag
 # needs credentials that some environments do not have, and without them a
 # release cannot be cut from those environments at all.
+#
+# Whichever route is taken, the version has to match the VERSION file, which is
+# what the apps themselves report. The `version` job below enforces that, so a
+# release can never ship apps that name a different version than the tag.
 #
 # Publishing happens in one job that waits for both builds, so a release always
 # carries both assets. Attaching from each build job separately would race, with
@@ -38,6 +42,24 @@ permissions:
   contents: write # create the tag, the release, and upload assets
 
 jobs:
+  # Cheap, and it runs on every push, so a stale stamp is caught long before
+  # anyone tries to cut a release with it.
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the stamped versions match VERSION
+        run: |
+          set -euo pipefail
+          node scripts/gen-version.mjs
+          git diff --exit-code || {
+            echo "::error::VERSION was bumped without running node scripts/gen-version.mjs"
+            exit 1
+          }
+
   windows:
     runs-on: windows-latest
     strategy:
@@ -57,7 +79,7 @@ jobs:
       actions: read # SignPath reads back the artifact this job uploads
     env:
       # Signing is opt-in and configured entirely from repository settings, so a fork
-      # or a pull request — neither of which can see the secret — still builds a working
+      # or a pull request, neither of which can see the secret, still builds a working
       # (unsigned) EXE instead of failing. See docs/SIGNING.md for the setup.
       SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
       SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -95,7 +117,7 @@ jobs:
           "sign=$($sign.ToString().ToLower())" >> $env:GITHUB_OUTPUT
           if ($sign) { "Signing this build with SignPath." }
           elseif ($isRelease -and -not $isPrimary) { "${{ matrix.rid }} ships unsigned by design; see docs/SIGNING.md." }
-          elseif ($isRelease) { "::warning::Releasing an unsigned Windows build — SignPath is not configured (docs/SIGNING.md)." }
+          elseif ($isRelease) { "::warning::Releasing an unsigned Windows build. SignPath is not configured (docs/SIGNING.md)." }
           else { "Not a release build; skipping signing." }
 
       - name: Upload the unsigned build for SignPath
@@ -136,7 +158,7 @@ jobs:
         run: |
           $source = if (Test-Path signed) { 'signed' } else { 'publish' }
           if (-not (Test-Path (Join-Path $source 'Tiro.exe'))) {
-            throw "$source/Tiro.exe is missing — the ZIP layout would be wrong."
+            throw "$source/Tiro.exe is missing, so the ZIP layout would be wrong."
           }
           Compress-Archive -Path "$source/*" -DestinationPath ${{ matrix.asset }}.zip
 
@@ -154,7 +176,7 @@ jobs:
         run: ./make-app.sh
 
       # make-app.sh already refuses a single-architecture build, but the runner is
-      # Apple Silicon and an Intel-less binary is invisible here — it fails only on
+      # Apple Silicon and an Intel-less binary is invisible here. It fails only on
       # a user's Intel Mac. Assert it again on the artifact that actually ships.
       - name: Check the binary is universal
         run: |
@@ -172,13 +194,16 @@ jobs:
           path: Tiro-macOS.zip
 
   release:
-    needs: [windows, macos]
+    needs: [version, windows, macos]
     if: >
       startsWith(github.ref, 'refs/tags/v') ||
       startsWith(github.ref, 'refs/heads/release/') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
     runs-on: ubuntu-latest
     steps:
+      # checkout first: it cleans the workspace, which would take the artifacts with it
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -206,6 +231,13 @@ jobs:
             v*) ;;
             *) echo "version '$version' must start with v" >&2; exit 1 ;;
           esac
+          # The apps report VERSION, so a tag that disagrees with it would
+          # publish downloads that name a version nobody can look up.
+          expected="v$(tr -d '[:space:]' < VERSION)"
+          if [ "$version" != "$expected" ]; then
+            echo "::error::releasing $version, but VERSION says $expected" >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Publishing $version"
 
@@ -218,7 +250,7 @@ jobs:
           make_latest: true
           body: |
             Hold a key, speak, and punctuated text lands where your cursor is.
-            Bring your own Deepgram API key — about half a cent per minute, no subscription.
+            Bring your own Deepgram API key, at about half a cent per minute with no subscription.
 
             Not sure which one? The [download page](https://github.com/Gabriel-Dalton/tiro#getting-the-apps)
             picks it for you.
@@ -226,8 +258,8 @@ jobs:
             | Download | For |
             |---|---|
             | `Tiro-Windows-x64.zip` | Windows 10 and 11 on any Intel or AMD PC. Unzip and run `Tiro.exe`. It lives in the tray; hold **Right Alt** in any app to dictate. |
-            | `Tiro-Windows-arm64.zip` | Windows 11 on ARM — Snapdragon and Surface. The x64 build also runs there under emulation; this one is native. |
-            | `Tiro-macOS.zip` | macOS 13+, **universal** — the same file runs on Apple Silicon and Intel. Move `Tiro.app` to Applications and hold **Fn**. |
+            | `Tiro-Windows-arm64.zip` | Windows 11 on ARM: Snapdragon and Surface. The x64 build also runs there under emulation; this one is native. |
+            | `Tiro-macOS.zip` | macOS 13+, **universal**, so the same file runs on Apple Silicon and Intel. Move `Tiro.app` to Applications and hold **Fn**. |
 
             Linux, ChromeOS, Android and anything older: open `/app/` on the site. The web app
             needs no download and installs to a home screen.
@@ -236,12 +268,12 @@ jobs:
             [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which
             Windows 11 already includes. Tiro checks on first run and offers it if it is missing.
 
-            If Windows SmartScreen stops the app, unblock the ZIP **before** extracting it —
-            right-click it → Properties → tick **Unblock** → OK — or, from the dialog itself,
+            If Windows SmartScreen stops the app, unblock the ZIP **before** extracting it:
+            right-click it → Properties → tick **Unblock** → OK. Or, from the dialog itself,
             choose **More info → Run anyway**. On macOS the first launch needs
             System Settings → Privacy & Security → **Open Anyway**; on macOS 14 and earlier,
             right-click the app and choose **Open**.
 
             First run asks for a Deepgram API key, free at
             [console.deepgram.com](https://console.deepgram.com). It is stored on your device
-            and sent only to Deepgram — there is no server in between.
+            and sent only to Deepgram. There is no server in between.
