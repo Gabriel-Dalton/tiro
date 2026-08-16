@@ -33,7 +33,7 @@ export function monthStats(entries, now = new Date()) {
     today: now.getDate(),
     savedVsCheapest: Math.max(0, cheapest - cost),
     // hours of dictation at which streaming nova-3 costs as much as the
-    // cheapest subscription — the argument for the whole project
+    // cheapest subscription, which is the argument for the whole project
     breakEvenHours: cheapest / STREAMING_PER_MIN / 60,
   };
 }

@@ -24,7 +24,7 @@ sealed class TrayContext : ApplicationContext
             // Nothing can work without the WebView2 runtime, so show the blocked
             // icon and say so on hover rather than looking idle and ready.
             OnStateChanged("blocked");
-            _tray.Text = "Tiro — WebView2 runtime missing";
+            _tray.Text = $"Tiro {Build.Version}. WebView2 runtime missing.";
         };
         _mainForm.HotkeyRebound += (code) => _hook!.SetHotkey(code);
 
@@ -41,7 +41,7 @@ sealed class TrayContext : ApplicationContext
         }
 
         _tray.Icon = _stateIcons.GetValueOrDefault("idle") ?? SystemIcons.Application;
-        _tray.Text = "Tiro — hold the hotkey to dictate";
+        _tray.Text = $"Tiro {Build.Version}. Hold the hotkey to dictate.";
         _tray.Visible = true;
         _tray.DoubleClick += (_, _) => _mainForm.ShowAndFocus();
 
@@ -74,8 +74,8 @@ sealed class TrayContext : ApplicationContext
             (_, _) => _mainForm.BeginInvoke(() => _mainForm.ShowAndFocus()),
             null, -1, executeOnlyOnce: false);
 
-        // The window handle must exist from launch so the WebView2 — and with it
-        // the warm mic and the hotkey pipeline — is alive before it is ever shown.
+        // The window handle must exist from launch so the WebView2, and with it
+        // the warm mic and the hotkey pipeline, is alive before it is ever shown.
         _mainForm.Show();
         if (startHidden) _mainForm.Hide();
 

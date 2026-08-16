@@ -2,7 +2,7 @@
 // buffer locally until open (so connection latency can never clip speech),
 // flush pre-roll and stream live, then CloseStream and wait for finals.
 //
-// Auth is the subprotocol array — a browser cannot set headers on a WebSocket,
+// Auth goes in the subprotocol array, because a browser cannot set headers on a WebSocket,
 // and Deepgram's REST API is CORS-blocked on purpose (docs/RESEARCH.md #1).
 
 import { TARGET_SAMPLE_RATE, KEEPALIVE_INTERVAL_MS } from "./tokens.js";
@@ -110,7 +110,7 @@ export class DeepgramStream {
     });
   }
 
-  /** Safe to call before the socket is open — chunks buffer locally. */
+  /** Safe to call before the socket is open; chunks buffer locally. */
   send(int16) {
     if (this.closed) return;
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {

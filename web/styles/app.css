@@ -1,4 +1,4 @@
-/* Tiro PWA — "Forum" direction: warm paper, dark ink, one clay accent,
+/* Tiro PWA, "Forum" direction: warm paper, dark ink, one clay accent,
  * serif display, mono small-caps labels. Palette comes from tokens.css,
  * generated out of shared/design-tokens.json. */
 
@@ -49,6 +49,9 @@ a { color: var(--clay-600); }
   text-transform: uppercase;
   color: var(--ink-500);
 }
+/* which build this is, set from src/version.js in the About card */
+.version { color: var(--ink-400); letter-spacing: 0.08em; }
+
 #head-status { margin-left: auto; }
 #head-status.recording { color: var(--clay-500); }
 

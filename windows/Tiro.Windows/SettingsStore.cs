@@ -6,7 +6,7 @@ namespace Tiro.Windows;
 class AppSettings
 {
     // Right Alt by default. Fn is invisible to Windows (firmware-resolved, no
-    // scan code — RESEARCH.md #8) so upstream's default cannot port, and Right
+    // scan code, RESEARCH.md #8) so upstream's default cannot port, and Right
     // Ctrl is avoided deliberately: it is half of the Right Ctrl + Scroll Lock
     // crash-dump keystroke armed on this machine.
     public string HotkeyCode { get; set; } = "AltRight";

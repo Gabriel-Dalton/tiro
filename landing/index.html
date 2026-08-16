@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F6F1E7">
-  <title>Tiro — hold a key, speak, done</title>
-  <meta name="description" content="Free, open dictation for Mac, Windows, and your phone. Hold a key, speak, and punctuated text lands where your cursor is. Powered by your own Deepgram key — about half a cent per minute, no subscription.">
+  <title>Tiro: hold a key, speak, done</title>
+  <meta name="description" content="Free, open dictation for Mac, Windows and your phone. Hold a key, speak, and punctuated text lands where your cursor is. Runs on your own Deepgram key at about half a cent per minute, with no subscription.">
   <link rel="icon" href="favicon-32.png" type="image/png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <style>
-    /* Forum palette — keep in sync with shared/design-tokens.json. The mono face in
-       that file is for the apps; this page is serif and sans only. */
+    /* Forum palette; keep in sync with shared/design-tokens.json. The mono face in
+       that file is for the apps, and this page is serif and sans only. */
     :root {
       --paper-50: #FCFAF4; --paper-100: #F6F1E7; --paper-200: #EFE8D9; --paper-300: #E4DAC6;
       --ink-950: #14110B; --ink-900: #1F1A12; --ink-500: #756B57; --ink-400: #948A74; --ink-300: #B4AB96;
@@ -20,7 +20,7 @@
       --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
       --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
-      /* One gutter, one gap, one section rhythm — all three scale with the viewport
+      /* One gutter, one gap, one section rhythm, all three scaling with the viewport
          so the phone layout is the same design, not a squeezed desktop. */
       --gutter: clamp(20px, 5.5vw, 32px);
       --gap: clamp(12px, 2.4vw, 16px);
@@ -94,7 +94,7 @@
 
     .dl-grid { display: grid; gap: var(--gap); grid-template-columns: 1fr; }
     /* once detection folds the rest away, the one card left should not stretch
-       the full 920px — a lone wide card reads as a banner, not a choice */
+       the full 920px, because a lone wide card reads as a banner rather than a choice */
     .dl-grid > .dl:only-child { max-width: 460px; margin-inline: auto; }
     @media (min-width: 600px) {
       .dl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -214,7 +214,9 @@
     }
     .site-footer a { color: var(--ink-500); text-decoration: none; padding-block: 6px; }
     .site-footer a:hover { color: var(--clay-600); }
-    .site-footer .colophon { flex-basis: 100%; }
+    /* stamped by scripts/gen-version.mjs; sits at the far end of the row, and wraps
+       under the links rather than crowding them on a narrow screen */
+    .site-footer .version { margin-left: auto; font-size: 12.5px; letter-spacing: 0.04em; }
   </style>
 </head>
 <body>
@@ -236,9 +238,9 @@
   <section class="hero">
     <div class="wrap">
       <h1>Hold a key. Speak.<br><em>Punctuated text</em>, where your cursor is.</h1>
-      <p class="lede">A free, open dictation tool for Mac, Windows, and your phone.
-        It runs on your own Deepgram key, so there is no account, no telemetry,
-        and no server in between.</p>
+      <p class="lede">A free, open dictation tool for Mac, Windows and your phone.
+        It runs on your own Deepgram key, so there is no account to make and no
+        server of ours in the middle.</p>
       <span class="price">≈ $0.005 a minute · no subscription</span>
     </div>
   </section>
@@ -272,7 +274,7 @@
         clipboard before you lift your thumb. Installs to the home screen.</p>
       <a class="btn ghost" href="/app/" id="web-link">Open the web app</a>
       <span class="detected"></span>
-      <span class="fine">It cannot type into other apps, so you paste. That is a platform rule, not a gap.</span>
+      <span class="fine">It cannot type into other apps, so you paste. Browsers do not allow anything else.</span>
     </div>
   </section>
 
@@ -329,8 +331,8 @@
   <section class="facts wrap">
     <h3>The honest fine print</h3>
     <ul>
-      <li><strong>You pay Deepgram, not us.</strong> Streaming nova-3 is $0.0048 a minute, so a
-        $15/month subscription buys what about 52 hours of dictation costs here.</li>
+      <li><strong>You pay Deepgram, not us.</strong> Streaming nova-3 is $0.0048 a minute. What a
+        $15/month subscription costs, about 52 hours of dictation costs here.</li>
       <li><strong>No Electron.</strong> The Mac app is native Swift; Windows uses the Edge WebView
         already on the machine. Small binaries, no bundled browser.</li>
       <li><strong>Your history stays local.</strong> One plain JSONL file you can grep, export,
@@ -345,7 +347,7 @@
       <span>MIT licensed</span>
       <a href="https://github.com/Gabriel-Dalton/tiro">Source</a>
       <a href="https://github.com/Gabriel-Dalton/tiro/releases">All releases</a>
-      <span class="colophon">No cookies, no analytics. This page is one static file.</span>
+      <span class="version">v1.0.0</span>
     </div>
   </footer>
 
@@ -353,7 +355,7 @@
     // Lead with the download that fits the visitor's machine, and keep the rest
     // one click away. Detection only ever *reorders* what is already on the page:
     // if it guesses wrong, or JavaScript never runs, every download stays visible
-    // and reachable. Nothing here is sent anywhere — it is all local.
+    // and reachable. Nothing here is sent anywhere; it all stays in the browser.
     (function () {
       var ua = navigator.userAgent;
       var data = navigator.userAgentData;
@@ -374,7 +376,7 @@
       var reason = isIOS ? "Detected iPhone or iPad"
                  : isAndroid ? "Detected Android"
                  : isLinux ? "Detected Linux or ChromeOS"
-                 : isMac ? "Detected macOS — one file for Apple Silicon and Intel"
+                 : isMac ? "Detected macOS. One file for Apple Silicon and Intel"
                  : isWindows ? "Detected Windows"
                  : "";
 

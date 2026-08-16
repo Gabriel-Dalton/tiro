@@ -11,7 +11,7 @@ ARCHS=(--arch arm64 --arch x86_64)
 swift build -c release "${ARCHS[@]}"
 BIN="$(swift build -c release "${ARCHS[@]}" --show-bin-path)/tiro"
 
-# stop any running instance before replacing the bundle on disk — a stale process
+# stop any running instance before replacing the bundle on disk. A stale process
 # next to a new bundle makes LaunchServices spawn a second (crashing) instance
 pkill -f "Tiro.app/Contents/MacOS/Tiro" 2>/dev/null || true
 
@@ -21,7 +21,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Tiro"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+# same number the web app, the Windows EXE and the landing page report
+VERSION=$(tr -d '[:space:]' < VERSION)
+
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -30,7 +33,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleIdentifier</key><string>io.mypip.tiro</string>
     <key>CFBundleName</key><string>Tiro</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+    <key>CFBundleVersion</key><string>${VERSION}</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Tiro records your voice while you hold Fn, to transcribe it with Deepgram.</string>
@@ -51,8 +55,8 @@ echo "Architectures: $SLICES"
 for want in arm64 x86_64; do
     case " $SLICES " in
         *" $want "*) ;;
-        *) echo "error: $want slice missing — this build would not run on those Macs" >&2; exit 1 ;;
+        *) echo "error: $want slice missing, so this build would not run on those Macs" >&2; exit 1 ;;
     esac
 done
 
-echo "Built $APP — open it with: open $APP"
+echo "Built $APP. Open it with: open $APP"
