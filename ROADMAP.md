@@ -17,7 +17,7 @@ path (see [docs/RESEARCH.md](docs/RESEARCH.md)).
 
 So the PWA is deliberately scoped as a **fast dictation scratchpad**: open, hold, speak,
 transcript is on your clipboard before you lift your thumb. You paste it yourself. That is one
-extra step versus Flow, and it costs about $0.005/min instead of $15/month.
+extra step versus Flow, and it costs $0.0077/min instead of $15/month.
 
 Windows has no equivalent limit. Everything the Mac app does ports cleanly there.
 
