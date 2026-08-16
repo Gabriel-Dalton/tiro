@@ -124,6 +124,12 @@ sealed class TrayContext : ApplicationContext
         if (!_settings.CheckForUpdates) return;
         var last = _settings.LastUpdateCheckUtc;
         if (last.HasValue && DateTime.UtcNow - last.Value < UpdateCheck.Interval) return;
+        // And do not retry a check that failed on every launch: offline, blocked
+        // by a company proxy, or rate-limited behind a shared IP all look the
+        // same from here, and none of them get better by asking again in a
+        // minute.
+        var attempt = _settings.LastUpdateAttemptUtc;
+        if (attempt.HasValue && DateTime.UtcNow - attempt.Value < UpdateCheck.RetryAfterFailure) return;
         await RunUpdateCheckAsync(announce: false).ConfigureAwait(false);
     }
 
@@ -135,13 +141,13 @@ sealed class TrayContext : ApplicationContext
     {
         var latest = await UpdateCheck.LatestVersionAsync().ConfigureAwait(false);
 
-        // Only a check that reached GitHub resets the clock. Recording a failed
-        // one would make a fortnight offline cost you a fortnight of checks.
-        if (latest != null)
-        {
-            _settings.LastUpdateCheckUtc = DateTime.UtcNow;
-            SettingsStore.Save(_settings);
-        }
+        // Every attempt is recorded, so a machine that cannot reach GitHub backs
+        // off instead of asking on every launch. Only one that *reached* it
+        // resets the weekly clock, because a fortnight offline must not cost a
+        // fortnight of checks.
+        _settings.LastUpdateAttemptUtc = DateTime.UtcNow;
+        if (latest != null) _settings.LastUpdateCheckUtc = DateTime.UtcNow;
+        SettingsStore.Save(_settings);
 
         var newer = UpdateCheck.IsNewer(latest, Build.Version);
         Log.Write($"update check: latest={latest ?? "unknown"} running={Build.Version} newer={newer}");

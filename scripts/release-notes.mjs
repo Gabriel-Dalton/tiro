@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // CHANGELOG.md -> the body of a GitHub release.
 //
-//   node scripts/release-notes.mjs --tag v1.1.0 [--out notes.md]
+//   node scripts/release-notes.mjs --tag v1.1.0 [--out notes.md] [--releasing]
 //
 // The release job runs this and hands the result to the release as its body, so
 // the notes people read on the download page and the notes in the repository
@@ -54,6 +54,23 @@ export function sectionFor(changelog, wanted) {
 
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
 const body = sectionFor(changelog, version);
+
+// A section written ahead of the release says "unreleased" in its heading,
+// which is correct right up until the moment it is not. Nothing else would
+// catch it: the heading is supplied by the release page and never appears in
+// these notes, so the wrong date would sit in the repository at the tagged
+// commit with nobody the wiser.
+// Only when a release is actually being cut. Every push runs this script too,
+// to prove the section exists at all, and a section marked unreleased is exactly
+// what a version in preparation is supposed to look like.
+const heading = changelog.split("\n").find((l) => l.startsWith(`## [${version}]`)) || "";
+if (args.includes("--releasing") && /unreleased/i.test(heading)) {
+  console.error(
+    `CHANGELOG.md still calls ${version} unreleased:\n  ${heading}\n\n` +
+      `Give it the release date before tagging.`
+  );
+  process.exit(1);
+}
 
 if (!body) {
   console.error(

@@ -30,6 +30,11 @@ class AppSettings
     // The version we have already interrupted someone about. Once per version
     // means once, not once a week for as long as they decline it.
     public string? AnnouncedVersion { get; set; }
+
+    // A check that could not reach GitHub does not reset the weekly clock, so
+    // this is what stops a blocked or rate-limited machine trying again on every
+    // single launch.
+    public DateTime? LastUpdateAttemptUtc { get; set; }
 }
 
 static class SettingsStore

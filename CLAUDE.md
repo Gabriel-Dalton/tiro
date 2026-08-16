@@ -82,8 +82,13 @@ deliberate. Fix the pattern in the script; do not remove the check.
 Nothing infers it from tags, and nothing bumps it for you.
 
 To release 1.2.0: edit `VERSION`, run `node scripts/gen-version.mjs`, **add the matching
-section to [`CHANGELOG.md`](CHANGELOG.md)**, commit what changed, then push the tag `v1.2.0`
-(or a `release/v1.2.0` branch, or run the workflow manually).
+section to [`CHANGELOG.md`](CHANGELOG.md)**, commit what changed, then **date that section**
+and push the tag `v1.2.0` (or a `release/v1.2.0` branch, or run the workflow manually).
+
+A section written before the release is headed `## [1.2.0] — unreleased`, which is correct
+while it is being prepared and wrong the moment it ships. The release job refuses a tag whose
+section still says so; ordinary pushes do not, because in preparation is exactly what that
+heading means.
 
 The changelog is not optional paperwork: `scripts/release-notes.mjs` turns that section into
 the body of the GitHub release, so it is what users read on the download page. Every push

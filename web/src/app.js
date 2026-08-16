@@ -514,6 +514,15 @@ for (const t of document.querySelectorAll(".tab")) {
   t.addEventListener("click", () => showView(t.dataset.view));
 }
 
+// Escape closes the install sheet, so it closes a standing offer too. A thing
+// on screen that will not go away on the key everyone reaches for is a thing
+// people learn to work around.
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if ($("toast").dataset.open !== "true" || $("toast-dismiss").hidden) return;
+  $("toast-dismiss").click();
+});
+
 // The header keeps its hairline until something has actually scrolled under it.
 const appHead = document.querySelector(".app-head");
 addEventListener("scroll", () => {
@@ -962,9 +971,20 @@ function watchForUpdate(reg) {
   // foreground, no more than hourly.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
+    // A worker that is already waiting will not fire `updatefound` again, so a
+    // first attempt that failed — the version probe needs the network, and the
+    // most likely moment to be offline is the moment an update lands — would
+    // never be retried. Ask again for the worker that is sitting there.
+    if (reg.waiting && !updateOffered) offerUpdate(reg.waiting);
     if (Date.now() - lastUpdateCheck < UPDATE_CHECK_MS) return;
     lastUpdateCheck = Date.now();
     reg.update().catch(() => {});
+  });
+
+  // Same reason: coming back online is the other moment a failed probe becomes
+  // answerable, and it is a cheaper signal than waiting an hour.
+  addEventListener("online", () => {
+    if (reg.waiting && !updateOffered) offerUpdate(reg.waiting);
   });
 
   // The new worker took over: everything on screen is now the old version's.
@@ -1063,9 +1083,13 @@ bridge.onUpdate = ({ version, url }) => {
   else offerWhenIdle(ask);
 };
 
-function offerWhenIdle(ask) {
+/** Wait for the take to finish before interrupting, but not indefinitely: if
+ * the app never returns to idle, something else is wrong and a timer polling
+ * for the life of the page helps nobody. Ten minutes of takes is far past any
+ * real dictation. */
+function offerWhenIdle(ask, attemptsLeft = 500) {
   if (state === "idle") ask();
-  else setTimeout(() => offerWhenIdle(ask), 1200);
+  else if (attemptsLeft > 0) setTimeout(() => offerWhenIdle(ask, attemptsLeft - 1), 1200);
 }
 
 boot();

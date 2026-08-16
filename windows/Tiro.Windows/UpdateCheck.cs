@@ -40,6 +40,16 @@ static class UpdateCheck
     /// <summary>Weekly. Often enough to hear about a fix, rare enough not to be a heartbeat.</summary>
     public static readonly TimeSpan Interval = TimeSpan.FromDays(7);
 
+    /// <summary>
+    /// After a check that did not reach GitHub, wait this long rather than the
+    /// full week. Only a *successful* check resets the weekly clock — a fortnight
+    /// offline must not cost a fortnight of checks — but without a floor, an app
+    /// that is opened twenty times a day behind a rate-limited or blocked
+    /// connection would make twenty requests a day, which is neither polite nor
+    /// going to work any better on the twentieth attempt.
+    /// </summary>
+    public static readonly TimeSpan RetryAfterFailure = TimeSpan.FromHours(6);
+
     private static readonly HttpClient Http = CreateClient();
 
     private static HttpClient CreateClient()

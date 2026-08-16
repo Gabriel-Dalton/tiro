@@ -416,7 +416,7 @@ jobs:
       # repository cannot drift, and a version the CHANGELOG does not describe
       # fails the release rather than shipping without notes.
       - name: Build the release notes
-        run: node scripts/release-notes.mjs --tag "${{ steps.v.outputs.version }}" --out notes.md
+        run: node scripts/release-notes.mjs --tag "${{ steps.v.outputs.version }}" --releasing --out notes.md
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
