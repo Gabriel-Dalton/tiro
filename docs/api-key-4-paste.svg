@@ -1,13 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300" role="img"
-     aria-label="Placeholder for a screenshot of Tiro's setup card, with the key pasted into the field and Save and test ready">
-  <rect width="640" height="300" fill="#f6f1ea"/>
-  <rect x="1" y="1" width="638" height="298" fill="none" stroke="#d6cec2" stroke-width="2" stroke-dasharray="10 7"/>
-  <text x="320" y="132" text-anchor="middle" fill="#8a8175"
-        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="2">
-    SCREENSHOT PLACEHOLDER
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 392" width="640" height="392" role="img"
+     aria-label="Tiro's setup card, with the Deepgram key pasted into the field and the Save and test button beside it.">
+  <title>Tiro's setup card, with the key pasted in</title>
+  <rect width="640" height="392" fill="#F6F1E7"/>
+
+  <!-- app header -->
+  <g transform="translate(40 34)">
+    <svg x="0" y="-14" width="20" height="20" viewBox="0 0 48 48">
+      <g fill="none" stroke="#B23A2E" stroke-width="4.4" stroke-linecap="round">
+        <path d="M11 14 H37"/><path d="M30 14 C30 26 30 34 19 37"/>
+      </g>
+    </svg>
+    <text font-family="'Iowan Old Style', Palatino, Georgia, serif" font-size="21px" fill="#14110B" x="28" y="2">Tiro</text>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="10.5px" fill="#948A74" letter-spacing=".12em" x="452" y="0">READY</text>
+    <rect x="496" y="-14" width="64" height="28" rx="14" fill="#ffffff" stroke="#E0DACE" stroke-width="1"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13px" font-weight="500" fill="#1F1A12" x="528" y="4" text-anchor="middle">Install</text>
+  </g>
+
+  <!-- setup card -->
+  <rect x="40" y="66" width="560" height="288" rx="14" fill="#ffffff" stroke="#E0DACE" stroke-width="1"/>
+
+  <text font-family="'Iowan Old Style', Palatino, Georgia, serif" font-size="23px" fill="#14110B" x="68" y="106">Set up in one minute</text>
+
+  <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#756B57" x="68" y="136">
+    <tspan x="68" dy="0">Tiro turns speech into punctuated text using <tspan font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" font-weight="600" fill="#1F1A12">your own Deepgram</tspan></tspan>
+    <tspan x="68" dy="19"><tspan font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" font-weight="600" fill="#1F1A12">API key</tspan>. New Deepgram accounts include $200 of credit, which is</tspan>
+    <tspan x="68" dy="19">around 430 hours; after that, dictation costs about 46 cents an hour.</tspan>
   </text>
-  <text x="320" y="168" text-anchor="middle" fill="#2b2721"
-        font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="19">
-    Tiro’s setup card — key pasted, “Save &amp; test”
+
+  <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#756B57" x="86" y="212">
+    <tspan x="86" dy="0">1.  Create a free key at <tspan font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#9C3126">console.deepgram.com</tspan></tspan>
+    <tspan x="86" dy="21">2.  Paste it below. It is stored <tspan font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" font-weight="600" fill="#1F1A12">on this device only</tspan>, never on a</tspan>
+    <tspan x="104" dy="19">server</tspan>
   </text>
+
+  <!-- the field, with a key pasted in (it is a password field, so it shows dots) -->
+  <rect x="68" y="286" width="366" height="44" rx="10" fill="#FCFAF4" stroke="#B4AB96" stroke-width="1.4"/>
+  <text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15px" fill="#1F1A12" letter-spacing="1.5px" x="86" y="314">••••••••••••••••••••••••</text>
+
+  <rect x="446" y="286" width="126" height="44" rx="10" fill="#B23A2E"/>
+  <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="14px" font-weight="600" fill="#FCFAF4" x="509" y="314" text-anchor="middle">Save &amp; test</text>
 </svg>

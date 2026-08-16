@@ -1,5 +1,9 @@
 # Getting your Deepgram API key
 
+> There is a friendlier version of this page on the website, at **`/api-key/`**, for anyone who
+> would rather not be sent to GitHub to read documentation. Same steps, same pictures. Keep the
+> two in step when you change either.
+
 Tiro doesn't have accounts, servers or a subscription. It talks straight to
 [Deepgram](https://deepgram.com), the speech-to-text service, using a key that belongs to you.
 Getting that key takes about two minutes and needs no credit card.
