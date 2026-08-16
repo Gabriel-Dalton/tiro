@@ -85,6 +85,11 @@ gets full parity with the Mac.
   - because iOS fires no `appinstalled` event, the first launch from the home screen
     **confirms it worked**, once. That is the only signal either side gets.
 
+  <div align="center">
+  <img src="docs/install-iphone-safari.png" width="300" alt="Tiro's install walkthrough in Safari on iPhone, drawing Safari's toolbar with the Share button circled">
+  <img src="docs/install-iphone-other-browser.png" width="300" alt="Tiro's install sheet in Chrome on iPhone, offering a Copy link button and directing the user to Safari">
+  </div>
+
   The landing page leads iPhone and Android visitors with an Install button rather than
   "Open the web app", pointing at `/app/?install=1`, which arrives with the walkthrough
   already open.
