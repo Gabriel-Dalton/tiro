@@ -65,18 +65,34 @@ gets full parity with the Mac.
 
   That button does different things because the platforms genuinely differ, and the app
   says so rather than hiding it. On Android, Windows and ChromeOS the browser fires
-  `beforeinstallprompt`, which Tiro stashes so installing is one tap. **iOS has no install
-  API at all** — Safari's Share → Add to Home Screen is the only path Apple sanctions and a
-  page cannot open it, so the button opens a short illustrated walkthrough instead of a
-  control that silently does nothing. Only Safari can do this: every other iPhone browser is
-  the same engine without that row in the share sheet, and Tiro tells those visitors to
-  switch rather than sending them looking for a menu item that is not there. The landing
-  page links iPhone and Android visitors straight to `/app/?install=1`, which arrives with
-  the walkthrough already open.
+  `beforeinstallprompt`, which Tiro stashes so installing is one tap.
 
-  Installing on iOS is worth pressing for: an installed PWA keeps its storage, while a
+  **iOS has no install API at all.** Safari's Share → Add to Home Screen is the only path
+  Apple sanctions, and a page cannot open it — so iOS gets the most work rather than the
+  least, because guidance is the only lever there is:
+
+  - the button opens a walkthrough that **draws Safari's own toolbar** with the Share
+    button circled, so "tap Share" is something you can hold next to your screen and match
+    rather than a name you have to already know. iPad puts that button top-right instead of
+    bottom-centre, and gets its own drawing;
+  - it asks **after the first successful take**, not on arrival — the moment someone has
+    just watched their voice become text is the moment the answer is not theoretical.
+    Closing is remembered: it will not ask twice in a week, or more than twice ever, and
+    the button stays regardless;
+  - **other iOS browsers get a Copy link button.** Chrome, Firefox and Edge on iOS are
+    Safari's engine without that row in the share sheet, so the fix is genuinely "open this
+    in Safari" — and retyping a URL on a phone is exactly where people give up;
+  - because iOS fires no `appinstalled` event, the first launch from the home screen
+    **confirms it worked**, once. That is the only signal either side gets.
+
+  The landing page leads iPhone and Android visitors with an Install button rather than
+  "Open the web app", pointing at `/app/?install=1`, which arrives with the walkthrough
+  already open.
+
+  Installing on iOS is worth this much effort: an installed PWA keeps its storage, while a
   tab's `localStorage` — which is where the API key and settings live — can be cleared by
-  Safari after seven days of not visiting.
+  Safari after seven days of not visiting. On the phone, installing is the difference
+  between Tiro remembering you and asking for a key again next week.
 
   There is no native Linux build and none is planned: the Windows app's native layer is
   Win32 (keyboard hook, `SendInput`, DPAPI, registry) and Wayland deliberately blocks
@@ -143,13 +159,16 @@ npm install --no-save playwright && npx playwright install chromium
 node scripts/smoke-web.mjs
 ```
 
-It drives the real app in Chromium and checks the things reading the code will not tell
-you: that the install affordance appears correctly on desktop and on an iPhone user agent,
-that the level halo actually tracks the microphone and eases rather than smearing, that the
-halo stays centred on the button across the 700 px breakpoint, and that a take survives a
-user who releases the button before the microphone has finished opening. Deepgram is stubbed
-and the microphone is Chromium's synthetic device, so it needs no key, no network and no
-audio hardware. The `build` workflow runs it on every push.
+It drives the real app in Chromium and checks the things reading the code will not tell you:
+that a full take streams audio, returns a transcript and lands in history over exactly one
+socket; that the level halo tracks the microphone and eases rather than smearing; that the
+halo stays centred on the button across the 700 px breakpoint; that a take survives a user
+who releases the button before the microphone has finished opening; and that the install
+walkthrough says the right thing on desktop Chromium, iPhone Safari, iPad, and Chrome on
+iOS — including that it asks only after a take has succeeded, remembers being turned down,
+and fits a 667 pt screen. Deepgram is stubbed and the microphone is Chromium's synthetic
+device, so it needs no key, no network and no audio hardware. The `build` workflow runs it
+on every push.
 
 One deliberate deviation from [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): the native host
 frame is WinForms rather than WinUI 3 — it provides the tray icon and WebView2 with a plain

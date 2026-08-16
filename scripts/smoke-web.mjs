@@ -119,11 +119,101 @@ const check = (name, ok, extra = "") => {
   const glyphs = await page.locator("#install-steps .glyph").count();
   check("iPhone sheet draws the Share glyph", glyphs >= 1, `${glyphs} glyphs`);
 
+  // The toolbar drawing is the part that makes "tap Share" findable by someone
+  // who does not already know which icon that is.
+  check("iPhone sheet draws Safari's toolbar", await page.locator(".safari-bar").isVisible());
+  check("the Share slot is the one marked", await page.locator(".sb-slot.target").isVisible());
+  check("the arrow points down, at the real toolbar below",
+    await page.locator(".toolbar-figure .point.down").isVisible());
+  check("iPhone sheet offers no Copy link (it is already in Safari)",
+    await page.locator("#install-copy").isHidden());
+
   // the landing-page handoff
   await page.goto("http://localhost:8099/?install=1");
   await page.waitForTimeout(700);
   check("?install=1 opens the sheet on arrival", await page.locator("#install-sheet").isVisible());
   check("?install=1 is cleared from the URL", !page.url().includes("install=1"), page.url());
+
+  await ctx.close();
+}
+
+// ------------------------------------ the sheet has to fit a small iPhone too
+{
+  // iPhone SE: the shortest screen still sold. The walkthrough is the tallest
+  // thing in the app, and steps 2 and 3 being below an unscrollable fold would
+  // be worse than no walkthrough at all.
+  const ctx = await browser.newContext({
+    ...devices["iPhone 13"],
+    viewport: { width: 375, height: 667 },
+  });
+  const page = await ctx.newPage();
+  await page.goto("http://localhost:8099/?install=1");
+  await page.waitForTimeout(800);
+
+  const fit = await page.evaluate(() => {
+    const panel = document.getElementById("install-panel");
+    const r = panel.getBoundingClientRect();
+    return {
+      withinViewport: r.top >= -1 && r.bottom <= window.innerHeight + 1,
+      scrollable: panel.scrollHeight > panel.clientHeight,
+      lastStepReachable: (() => {
+        const steps = panel.querySelectorAll(".install-steps li");
+        const last = steps[steps.length - 1];
+        panel.scrollTop = panel.scrollHeight;
+        return last.getBoundingClientRect().bottom <= window.innerHeight + 1;
+      })(),
+    };
+  });
+  check("the sheet stays inside a 667pt screen", fit.withinViewport, JSON.stringify(fit));
+  check("the last step is reachable by scrolling", fit.lastStepReachable);
+  check("no horizontal overflow on the narrowest phone",
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+
+  await ctx.close();
+}
+
+// -------------------------------------------------- iPad puts Share elsewhere
+{
+  const ctx = await browser.newContext({ ...devices["iPad (gen 7)"] });
+  const page = await ctx.newPage();
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+  await page.locator("#install-btn").click();
+  await page.waitForTimeout(150);
+  check("iPad sheet points up, not down",
+    await page.locator(".toolbar-figure.ipad .point.up").isVisible());
+  check("iPad caption names the address bar",
+    /address bar/i.test(await page.locator(".toolbar-figure figcaption").innerText()));
+  await ctx.close();
+}
+
+// ------------------------------- Chrome on iOS cannot install, and says so
+{
+  const ctx = await browser.newContext({
+    ...devices["iPhone 13"],
+    userAgent: devices["iPhone 13"].userAgent.replace("Version/", "CriOS/120.0 Version/"),
+    permissions: ["clipboard-write", "clipboard-read"],
+  });
+  const page = await ctx.newPage();
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+  await page.locator("#install-btn").click();
+  await page.waitForTimeout(150);
+
+  check("Chrome-on-iPhone is told to switch to Safari",
+    /Safari/i.test(await page.locator("#install-title").innerText()),
+    await page.locator("#install-title").innerText());
+  check("Chrome-on-iPhone gets a Copy link escape hatch",
+    await page.locator("#install-copy").isVisible());
+  check("Chrome-on-iPhone is shown no Safari toolbar it cannot use",
+    await page.locator(".safari-bar").count() === 0);
+
+  await page.locator("#install-copy").click();
+  await page.waitForTimeout(250);
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  check("Copy link puts the app URL on the clipboard", copied === "http://localhost:8099/", copied);
+  check("the sheet closes once the link is copied",
+    await page.locator("#install-sheet").isHidden());
 
   await ctx.close();
 }
@@ -314,6 +404,78 @@ const FAKE_SOCKET = () => {
   check("only one socket was ever opened across the whole fumbled sequence",
     (await page.evaluate(() => window.__wsCount)) === 1,
     `${await page.evaluate(() => window.__wsCount)} sockets`);
+
+  await ctx.close();
+}
+
+// ------------------- iPhone: the ask arrives after the app has proved itself
+{
+  const ctx = await browser.newContext({ ...devices["iPhone 13"], permissions: ["microphone"] });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.addInitScript(FAKE_SOCKET);
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(600);
+
+  check("no install sheet on arrival — nothing has been proved yet",
+    await page.locator("#install-sheet").isHidden());
+
+  const box = await page.locator("#talk").boundingBox();
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(600);
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2); // stop
+  await page.waitForTimeout(2000);
+
+  check("the take produced a transcript",
+    /hello from the fake mic/.test(await page.locator("#result-text").innerText()));
+  await page.waitForTimeout(1600); // the deliberate pause before asking
+  check("the install sheet arrives after the first successful take",
+    await page.locator("#install-sheet").isVisible());
+
+  // Closing is "not now", and it must be remembered rather than asked again.
+  await page.locator("#install-close").click();
+  await page.waitForTimeout(150);
+  check("closing records the refusal",
+    (await page.evaluate(() => JSON.parse(localStorage.getItem("tiro.install.asked") || "{}").n)) === 1);
+
+  await page.reload();
+  await page.waitForTimeout(600);
+  const box2 = await page.locator("#talk").boundingBox();
+  await page.touchscreen.tap(box2.x + box2.width / 2, box2.y + box2.height / 2);
+  await page.waitForTimeout(600);
+  await page.touchscreen.tap(box2.x + box2.width / 2, box2.y + box2.height / 2);
+  await page.waitForTimeout(4200);
+  check("it does not ask again the same week",
+    await page.locator("#install-sheet").isHidden());
+  check("but the Install button is still right there",
+    await page.locator("#install-btn").isVisible());
+
+  await ctx.close();
+}
+
+// ------------------------------- once installed, the app confirms it worked
+{
+  // iOS fires no `appinstalled` event, so a launch in standalone display mode is
+  // the only signal either side gets that the home-screen icon exists.
+  const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    const mm = window.matchMedia.bind(window);
+    window.matchMedia = (q) =>
+      q.includes("standalone") ? { matches: true, addEventListener() {}, removeEventListener() {} } : mm(q);
+  });
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(1400);
+
+  check("installed: no Install button anywhere", await page.locator("#install-btn").isHidden());
+  check("installed: the app confirms it once",
+    /installed/i.test(await page.locator("#toast-text").innerText()),
+    await page.locator("#toast-text").innerText());
+
+  await page.reload();
+  await page.waitForTimeout(1400);
+  check("installed: it does not say so twice",
+    !/installed/i.test(await page.locator("#toast-text").innerText()));
 
   await ctx.close();
 }

@@ -293,6 +293,13 @@ function finishTake(text, sec) {
   const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   history.addEntry({ ts, text, sec }).catch(() => {});
   bridge.appendHistory(JSON.stringify({ ts, text, sec }));
+
+  // The one moment worth asking someone to install: they have just watched
+  // their own voice turn into text and the answer is not theoretical. Asking on
+  // arrival, before the app has proved anything, is how install prompts teach
+  // people to dismiss install prompts. No-op unless this is iOS Safari, where
+  // installing is the difference between keeping your key and losing it.
+  installer.offerAfterSuccess();
 }
 
 // Clipboard tiers (SPEC-PWA 1.4). Tier 3 — the visible Copy button on the
@@ -631,9 +638,13 @@ const installer = new Installer(
     card: $("install-card"),
     cardButton: $("install-card-btn"),
     sheet: $("install-sheet"),
+    panel: $("install-panel"),
+    title: $("install-title"),
     lede: $("install-lede"),
+    visual: $("install-visual"),
     steps: $("install-steps"),
     doButton: $("install-do"),
+    copyButton: $("install-copy"),
     closeButton: $("install-close"),
   },
   notice
