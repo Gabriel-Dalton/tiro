@@ -2,6 +2,6 @@
      Regenerate with: node scripts/gen-version.mjs -->
 <Project>
   <PropertyGroup>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 </Project>
