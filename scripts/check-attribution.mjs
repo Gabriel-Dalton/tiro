@@ -19,12 +19,19 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const range = process.argv[2] || null;
 
-// Written split so this file does not trip its own check.
+// Trailers and footers are anchored to the start of a line, because that is the
+// only place they ever really appear: a git trailer is line-initial by
+// definition, and a footer sits on its own line under a rule. Matching them
+// anywhere would fail this file, the commit that added it, and any future commit
+// message that has to *name* what it is removing — a check that punishes you for
+// explaining yourself is a check people delete.
+//
+// Links are matched anywhere, because a session URL has no innocent reading.
 const MARKERS = [
-  { name: "Co-Authored-By: Claude trailer", re: /co-authored-by:\s*claude/i },
-  { name: "Claude-Session trailer", re: /claude-session\s*:/i },
-  { name: "a claude.ai/code session link", re: /claude\.ai\/code\/session/i },
-  { name: "a 'Generated with/by Claude Code' footer", re: /generated (with|by) \[?claude/i },
+  { name: "a Co-Authored-By trailer naming an assistant", re: /^\s*co-authored-by:\s*claude/im },
+  { name: "a session trailer", re: /^\s*claude-session\s*:/im },
+  { name: "a 'Generated with/by' footer", re: /^\s*(?:[_*>-]|🤖)?\s*generated (with|by) \[?claude/im },
+  { name: "a session link", re: /claude\.ai\/code\/session/i },
   { name: "a claude.com/claude-code badge", re: /claude\.com\/claude-code/i },
 ];
 
@@ -71,7 +78,10 @@ for (const file of tracked) {
   try { text = readFileSync(join(root, file), "utf8"); } catch { continue; }
   for (const { name, re } of MARKERS) {
     if (re.test(text)) {
-      const line = text.split("\n").findIndex((l) => re.test(l)) + 1;
+      // `re` is anchored with /m for whole-file text; test line by line so the
+      // number reported is the offending line rather than always the first.
+      const single = new RegExp(re.source, re.flags.replace("m", ""));
+      const line = text.split("\n").findIndex((l) => single.test(l)) + 1;
       problems.push(`${file}:${line} contains ${name}`);
     }
   }
