@@ -9,10 +9,16 @@
 > though `DEEPGRAM_PER_MIN` in `main.swift` is still 0.0043 and now disagrees with it).
 > Those are marked inline. The rest were re-checked against the merged tree and stand, but
 > this document has not had a full second pass and should get one.
+>
+> **Since then**, the interface rebuild in #20 has resolved **PWA-08** in full, and added
+> **PWA-13**, which is new and cosmetic. **PWA-09** was re-checked against that rebuild and
+> still stands: `app.js:348` still queues the fallback badge off the transcript promise
+> rather than off the clipboard write, so the happy path still flashes "tap copy" first.
 
 A read of every source file in the three clients: the macOS Swift app (`Sources/`), the
 Windows WebView2 shell (`windows/`), and the PWA (`web/`), plus the shared build scripts
-and CI. 26 findings, none of them cosmetic-only.
+and CI. 26 findings from that pass, none of them cosmetic-only. PWA-13 was added afterwards
+and is the one exception.
 
 Findings carry a stable ID so they can be referenced in review. Every one names the file
 and line it comes from. Where a finding depends on device behaviour I could not test from
@@ -20,10 +26,10 @@ here, it says so rather than asserting.
 
 | | Critical | High | Medium | Low | Total |
 |---|---|---|---|---|---|
-| **PWA** (`web/`) | 2 | 2 | 4 | 4 | 12 |
+| **PWA** (`web/`) | 2 | 2 | 4 | 5 | 13 |
 | **Windows** (`windows/`) | 1 | 2 | 3 | 2 | 8 |
 | **macOS** (`Sources/`) | — | 1 | 2 | 3 | 6 |
-| **Total** | **3** | **5** | **9** | **9** | **26** |
+| **Total** | **3** | **5** | **9** | **10** | **27** |
 
 The macOS app is in the best shape of the three, which matches expectations — it is
 upstream's, and it has had real use. Its one serious finding is a stale pricing constant
@@ -190,6 +196,15 @@ device history is genuinely at risk of being evicted without warning.
 
 ### PWA-08 · Medium · Nothing is announced to VoiceOver, and the talk button is pointer-only
 
+> **Fixed** by the interface rebuild in #20. The status chip, the live transcript, the toast
+> and the setup result all carry `role="status"` or `aria-live="polite"`, so a take now
+> announces itself. The talk button takes Space and Enter, guarded against key repeat and
+> against a take outliving the focus that started it: `keydown` returns early on `e.repeat`,
+> and `blur` mid-hold ends the take rather than leaving it running. The current tab is marked
+> with `aria-current="page"` rather than by colour alone. `scripts/smoke-web.mjs` holds all of
+> it: it drives a full take from the keyboard, and fails if a control loses its accessible
+> name.
+
 **`web/index.html:54`, `web/index.html:188`, `web/src/app.js:249-266`**
 
 There are no `aria-live` regions anywhere in the document. The toast (`#toast`), the live
@@ -246,6 +261,22 @@ make the cleanup actually run.
 
 `DEFAULTS.seenSetup` is never read or written anywhere. The setup card is driven off the
 presence of an API key instead (`app.js:562-568`). Remove it or wire it up.
+
+### PWA-13 · Low · A dark-mode phone launches the app on a light screen
+
+**`web/manifest.webmanifest:9-10`**
+
+Added after this audit, when #20 made the app follow the system theme. `background_color` is
+`#FCFAF4` and `theme_color` is `#F6F1E7`, both from the light palette, and a manifest cannot
+branch on `prefers-color-scheme`. The document's per-scheme `<meta name="theme-color">` tags
+take over once the page has loaded, so the only window this affects is the one before the
+shell paints: on a phone in dark mode the launch screen and the task switcher card come up
+light, then the app resolves dark.
+
+Cosmetic, and there is no manifest-level fix. `apple-touch-startup-image` does accept a media
+query, so the flash can be removed on iOS, but it needs one exact-size asset per device and
+`scripts/gen-icons.mjs` would have to grow the whole matrix. Not worth it until someone
+reports it. Recorded here so the next person does not re-derive why the colours are one-sided.
 
 ---
 
