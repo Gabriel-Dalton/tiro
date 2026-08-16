@@ -185,8 +185,41 @@ tradeoff in one line rather than burying it.
 ### 2.5 Design
 
 Port the "Forum" direction from `Sources/tiro/design.swift`: warm paper, dark ink, one clay
-accent at `#B23A2E`, serif display type, mono for small caps labels. Palette lives in
-`shared/design-tokens.json` and generates `tokens.css`.
+accent at `#B23A2E`, serif display type. Palette lives in `shared/design-tokens.json` and
+generates `tokens.css`.
+
+**Type.** Three faces, three jobs, and no overlap:
+
+| Face | Carries |
+|---|---|
+| serif (`--font-display`) | the wordmark, view and card titles, and **anything the user dictated** — the live transcript, the result, history entries |
+| sans (`--font-sans`) | the entire interface: buttons, labels, hints, tab labels, small caps section headings |
+| mono (`--font-mono`) | figures you read off or compare — the timer, timestamps, prices, the version string |
+
+The original spec put small caps labels in the mono, and the result read like a terminal:
+every tab, chip and section heading was 9–10 px monospaced uppercase. Small caps labels stay,
+in the sans, at 11.5 px. The mono is now data-only, and `scripts/smoke-web.mjs` asserts it.
+
+**Colour is semantic.** `design-tokens.json` carries a `semantic` block — `--bg`, `--surface`,
+`--text-muted`, `--accent`, `--halo`, … — that maps the palette to jobs, in a light set and a
+dark one. The stylesheet names only those, so **the app follows the system theme** and dark
+mode is one generated `@media (prefers-color-scheme: dark)` block rather than a second
+stylesheet. Never reach past the semantic layer to a raw palette token in `app.css`.
+
+**Accessibility floor**, all enforced by the smoke suite:
+
+- every text colour clears **4.5:1** against the surface it lands on, in both themes;
+- every control is a **44 px** target and has a name that is text, never only an icon;
+- the state of a thing is never carried by colour alone — the recording chip has a word, the
+  current tab has `aria-current`, the daily chart has a written summary;
+- everything you can do with a pointer you can do with a keyboard, including **hold-to-talk**
+  (Space or Enter on the focused button);
+- the install sheet is a real modal: focus goes in, Tab cannot leave, Escape closes, and focus
+  returns to whatever opened it.
+
+**Icons.** One set, drawn once as `<symbol>`s in `index.html` and referenced with `<use>`:
+24-unit box, 1.8 round strokes. No text glyphs (`⌸ ◔ ✳`) — they render as a different face on
+every platform and one of them was landing as a dot.
 
 The Tironian et mark is defined as two strokes in a 48-unit box, already in `design.swift`:
 
