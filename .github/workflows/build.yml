@@ -231,7 +231,9 @@ jobs:
         # does not wait on those: `&` returns immediately, leaves $LASTEXITCODE
         # untouched, and the next line reads a log the app has not written yet.
         run: |
-          $run = Start-Process -FilePath publish/Tiro.exe -ArgumentList '--self-test' -Wait -PassThru
+          $exe = (Resolve-Path publish/Tiro.exe).Path   # Start-Process resolves against the
+          # process CWD, which PowerShell does not keep in step with Set-Location
+          $run = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
           $log = Join-Path $env:APPDATA 'Tiro/tiro.log'
           if (Test-Path $log) { Get-Content $log -Tail 40 } else { "No log at $log" }
           if ($run.ExitCode -ne 0) { throw "Tiro.exe --self-test exited $($run.ExitCode); see the log above." }

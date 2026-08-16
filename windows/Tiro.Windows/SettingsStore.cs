@@ -21,6 +21,15 @@ class AppSettings
 
     // UTC, so a laptop crossing a timezone does not check twice or skip a week.
     public DateTime? LastUpdateCheckUtc { get; set; }
+
+    // What the last successful check found, so the tray menu can still say
+    // "New version 1.3.0" on the six days it does not check. Without this the
+    // news appeared for one launch and then vanished until the next week.
+    public string? LastKnownVersion { get; set; }
+
+    // The version we have already interrupted someone about. Once per version
+    // means once, not once a week for as long as they decline it.
+    public string? AnnouncedVersion { get; set; }
 }
 
 static class SettingsStore
@@ -43,12 +52,21 @@ static class SettingsStore
         return new AppSettings();
     }
 
+    // The weekly update check completes on a threadpool thread and writes here,
+    // while the tray menu writes from the UI thread. Two WriteAllText calls
+    // overlapping means one of them throws on the file share and the setting it
+    // was saving is lost, silently, because the catch below logs and moves on.
+    private static readonly object SaveGate = new();
+
     public static void Save(AppSettings settings)
     {
         try
         {
-            Directory.CreateDirectory(Log.AppDataDir);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            lock (SaveGate)
+            {
+                Directory.CreateDirectory(Log.AppDataDir);
+                File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            }
         }
         catch (Exception ex)
         {

@@ -50,6 +50,13 @@ try {
     return `${base}..HEAD`;
   })();
   commits = git("log", "--format=%H", spec).trim().split("\n").filter(Boolean);
+  // On a push to main the merge base *is* HEAD, so the range is empty and this
+  // would pass without reading anything. The commit that lands there is the one
+  // GitHub writes at merge time, which never existed on the branch and is
+  // therefore the only message no branch build ever checked.
+  if (!commits.length && !range) {
+    commits = git("log", "--format=%H", "-1", "HEAD").trim().split("\n").filter(Boolean);
+  }
 } catch {
   console.log("No commit range to check (no origin/main here); checking the tree only.");
 }

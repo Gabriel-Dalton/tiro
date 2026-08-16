@@ -153,7 +153,7 @@ item rather than as one "done when".
   - **Web and installed PWA — done.** The service worker already re-fetched the app in the
     background; the fault was that it *activated* the moment it finished, swapping the shell
     under a page that might be mid-take, and never said a word. Now the new version installs
-    and waits, a toast offers a **Reload**, and nothing changes until that is taken. The offer
+    and waits, a toast names it and offers **Update**, and nothing changes until that is taken. The offer
     holds until you are idle, and does not time out. No new network surface whatsoever: the
     browser re-fetches Tiro's own files from the origin already serving it.
   - **Windows — done.** A weekly, anonymous read of the latest release tag from GitHub's API,

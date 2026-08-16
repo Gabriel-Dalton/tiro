@@ -30,7 +30,14 @@ const server = createServer((req, res) => {
   if (!existsSync(p)) { res.writeHead(404); res.end("no"); return; }
   let body = readFileSync(p);
   if (deployedVersion && p.endsWith("sw.js")) {
-    body = Buffer.concat([body, Buffer.from(`\n// deployed ${deployedVersion}\n`)]);
+    // Rename the cache exactly as gen-version.mjs does on a real release. This
+    // is the difference between a test that means something and one that lies:
+    // reusing the cache name lets the installing worker overwrite the old files
+    // in place, so the page reads the new version by accident. In production
+    // both caches exist at once and `caches.match` can answer from either.
+    body = Buffer.from(
+      String(body).replace(/const CACHE = "tiro-[^"]*";/, `const CACHE = "tiro-${deployedVersion}";`)
+    );
   }
   // The app reads the incoming version off this file to decide both what to
   // call the update and whether it is worth mentioning at all, so a fake deploy
@@ -726,6 +733,34 @@ for (const scheme of ["light", "dark"]) {
   check("the offer is a button, not a message that scrolls away",
     (await page.locator("#toast-action").innerText()).trim() === "Update");
   check("and it can be turned down", await page.locator("#toast-dismiss").isVisible());
+  // These two are the only things you can press in an update offer, and on a
+  // phone they are the ones being pressed.
+  const offerTargets = await page.evaluate(() =>
+    ["toast-action", "toast-dismiss"].map((id) => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      return { id, w: Math.round(r.width), h: Math.round(r.height) };
+    }));
+  check("the offer's own controls are 44px targets too",
+    offerTargets.every((t) => t.h >= 44 && t.w >= 44), JSON.stringify(offerTargets));
+
+  // An ordinary toast must not take the offer away with it: "Copied" used to
+  // reuse this element, strip the buttons, and close on its own timer, killing
+  // the offer for the rest of the session.
+  await page.evaluate(() => {
+    document.querySelector('.tab[data-view="history"]').click();
+  });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.waitForTimeout(300);
+  check("an ordinary message does not destroy the pending offer",
+    await page.locator("#toast-action").isHidden() ||
+      (await page.locator("#toast-action").innerText()).trim() === "Update");
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.waitForTimeout(2200);
+  check("and the offer comes back once that message has passed",
+    (await page.locator("#toast").innerText()).includes("Update"),
+    await page.locator("#toast").innerText());
+  await page.locator('.tab[data-view="record"]').click();
   check("an offer does not time out while you are reading it",
     await page.evaluate(async () => {
       await new Promise((r) => setTimeout(r, 4000)); // longer than any notice()
@@ -776,6 +811,34 @@ for (const scheme of ["light", "dark"]) {
     verdicts.same === null && verdicts.older === null && verdicts.nonsense === null);
   check("1.10.0 beats 1.9.0 here too", verdicts.tenVsNine === "feature");
 
+  await ctx.close();
+}
+
+// ------------------- a redeploy that changes no version says nothing at all
+//
+// Every push to the site produces a new worker, version bump or not: a typo in
+// a comment counts. Without this, every deploy would interrupt every user with
+// "a new version is ready", which is precisely how update prompts become things
+// people dismiss unread.
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto("http://localhost:8099/");
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.waitForTimeout(300);
+
+  deployedVersion = "same"; // salts the worker; version.js comes back unparseable
+  await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.update();
+    for (let i = 0; i < 60 && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 100));
+  });
+  await page.waitForTimeout(1500);
+  check("an unreadable or unmoved version produces no banner",
+    await page.locator("#toast-action").isHidden(),
+    await page.locator("#toast").innerText());
+
+  deployedVersion = "";
   await ctx.close();
 }
 

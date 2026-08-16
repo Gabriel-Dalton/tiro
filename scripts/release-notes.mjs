@@ -87,7 +87,7 @@ download and installs to a home screen. Not sure which one? The
 Windows and macOS are portable apps: replace the old one with this one. **Your API key,
 history and settings are stored by the operating system, not inside the app, so they survive
 the swap.** On Windows, \`winget upgrade GabrielDalton.Tiro\` does it for you once the package
-is listed. The web app updates itself and offers you a **Reload** when it has.
+is listed. The web app updates itself and offers you **Update** when a new version is ready.
 
 ## First run
 

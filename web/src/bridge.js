@@ -5,12 +5,14 @@
 //   host -> web:  {type:"hotkey", phase:"down"|"up"}
 //                 {type:"key", value:"<api key or empty>"}         (reply to getKey)
 //                 {type:"pasteResult", ok:bool, reason?:"elevated"}
+//                 {type:"update", version:"1.3.0", url}  a newer release exists
 //   web -> host:  {type:"ready"}
 //                 {type:"transcript", text}      host pastes it into the focused app
 //                 {type:"state", state}          idle|recording|transcribing|blocked
 //                 {type:"getKey"} / {type:"storeKey", value}       DPAPI storage
 //                 {type:"setHotkey", code}
 //                 {type:"appendHistory", line}   host mirrors to %APPDATA%\Tiro\history.jsonl
+//                 {type:"openExternal", url}     host opens it in the real browser
 //                 {type:"log", text}
 
 const webview = typeof window !== "undefined" && window.chrome && window.chrome.webview;

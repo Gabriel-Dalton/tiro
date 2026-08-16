@@ -157,7 +157,14 @@ let toastTimer = null;
  *   gains a button and stops timing out, because something you are being asked
  *   to decide must not disappear while you are reading it.
  */
+// A sticky offer survives the ordinary traffic that lands on top of it. Copying
+// a transcript while deciding whether to update used to wipe the offer for the
+// rest of the session: "Copied" reused this one element, cleared the buttons,
+// and took the offer down on its own 1.4 second timer.
+let standingOffer = null;
+
 function notice(text, tone = "warn", ms = 3200, action = null) {
+  if (action) standingOffer = { text, tone, action };
   $("toast-text").textContent = text;
   $("toast-dot").className = "dot " + (tone === "ok" ? "ok" : tone === "bad" ? "bad" : "");
   const button = $("toast-action");
@@ -169,6 +176,7 @@ function notice(text, tone = "warn", ms = 3200, action = null) {
   dismiss.hidden = !action;
   dismiss.onclick = action
     ? () => {
+        standingOffer = null;
         $("toast").dataset.open = "false";
         $("toast-text").textContent = "";
         if (action.onDismiss) action.onDismiss();
@@ -179,6 +187,12 @@ function notice(text, tone = "warn", ms = 3200, action = null) {
   toastTimer = null;
   if (action) return;
   toastTimer = setTimeout(() => {
+    // Hand the toast back to the offer it interrupted, rather than closing on it.
+    if (standingOffer) {
+      const { text: t, tone: n, action: a } = standingOffer;
+      notice(t, n, 0, a);
+      return;
+    }
     $("toast").dataset.open = "false";
     $("toast-text").textContent = "";
   }, ms);
@@ -921,6 +935,16 @@ function watchForUpdate(reg) {
   // Already downloaded, from a previous visit that did not take the offer.
   if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
 
+  // Already downloading when we got here: `updatefound` fired before this
+  // listener existed, so watch the worker itself or the update goes unmentioned
+  // until the next launch.
+  if (reg.installing && navigator.serviceWorker.controller) {
+    const early = reg.installing;
+    early.addEventListener("statechange", () => {
+      if (early.state === "installed") offerUpdate(early);
+    });
+  }
+
   reg.addEventListener("updatefound", () => {
     const incoming = reg.installing;
     if (!incoming) return;
@@ -950,13 +974,13 @@ function watchForUpdate(reg) {
   });
 }
 
-/** The version the waiting worker is about to install, read off the copy of
- * version.js the network is now serving. No version is ever assumed here: the
- * running one comes from the build, the new one from the server, and if the
- * read fails the offer still stands, just without a number in it. */
+/** The version the site is serving now, or null if it cannot be read or has not
+ * moved. `?fresh` is what gets past our own service worker: without it this
+ * request is answered out of a cache — possibly the one belonging to the very
+ * version we are running — and every update would look like no update at all. */
 async function incomingVersion() {
   try {
-    const res = await fetch("src/version.js", { cache: "reload" });
+    const res = await fetch(`src/version.js?fresh=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     const found = (await res.text()).match(/VERSION\s*=\s*"([\d.]+)"/);
     return found && found[1] !== VERSION ? found[1] : null;
@@ -966,34 +990,49 @@ async function incomingVersion() {
 }
 
 let updateOffered = false;
+let updateChecking = false;
 async function offerUpdate(worker) {
-  if (updateOffered) return;
-  updateOffered = true;
+  if (updateOffered || updateChecking) return;
+  updateChecking = true;
 
+  // Every deploy of the site produces a new worker, whether or not the version
+  // moved: a typo fixed in a comment counts. So the only thing worth saying
+  // anything about is a version that actually changed, and if that cannot be
+  // read, nothing is said — the update still installs on the next launch, and a
+  // banner nobody can act on is worse than silence.
   const version = await incomingVersion();
+  updateChecking = false;
+  if (!version) return;
+
   // A fix-only release still installs — it just does it the next time the app
   // is opened, silently, the way it always did. The only thing being decided
   // here is whether to say anything now.
-  const worth = version ? updateWorth(VERSION, version) : "feature";
-  if (worth === "quiet" || worth === null) return;
-  if (version && alreadyDismissed(version)) return;
+  const worth = updateWorth(VERSION, version);
+  if (worth !== "feature" && worth !== "fixes") return;
+  if (alreadyDismissed(version)) return;
+
+  // Latched only now, on the path that actually shows something. Setting it
+  // earlier means a quiet patch release swallows the feature release that
+  // follows it, in a session left open for days.
+  updateOffered = true;
 
   const ask = () =>
-    notice(version ? `Tiro ${version} is ready` : "A new version is ready", "ok", 0, {
+    notice(`Tiro ${version} is ready`, "ok", 0, {
       label: "Update",
       onClick: () => {
+        standingOffer = null;
         reloading = true;
         worker.postMessage("SKIP_WAITING");
         // If the worker never answers, the reload still gets us the new shell.
         setTimeout(() => location.reload(), 1500);
       },
-      onDismiss: () => version && rememberDismissed(version),
+      onDismiss: () => rememberDismissed(version),
     });
 
   // Never interrupt a take. The transcript is not on the clipboard yet, and a
   // reload button under a thumb that is mid-press is the worst possible offer.
   if (state === "idle") ask();
-  else setTimeout(() => offerWhenIdle(ask), 1200);
+  else offerWhenIdle(ask);
 }
 
 // The Windows app cannot update itself in place: it is a portable EXE someone
@@ -1008,13 +1047,15 @@ bridge.onUpdate = ({ version, url }) => {
   const worth = updateWorth(VERSION, version);
   if (worth === "quiet" || worth === null) return;
   if (alreadyDismissed(version)) return;
-  updateOffered = true;
+  updateOffered = true;   // set here, where something is actually shown
   const ask = () =>
     notice(`Tiro ${version} is available`, "ok", 0, {
       label: "Download",
       onClick: () => {
+        standingOffer = null;
         bridge.openExternal(url || "https://github.com/Gabriel-Dalton/tiro/releases/latest");
         $("toast").dataset.open = "false";
+        rememberDismissed(version); // taken: do not offer this one again
       },
       onDismiss: () => rememberDismissed(version),
     });

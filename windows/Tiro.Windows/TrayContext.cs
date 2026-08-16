@@ -68,6 +68,13 @@ sealed class TrayContext : ApplicationContext
         _updateItem = new ToolStripMenuItem("", null, (_, _) => OpenReleases()) { Visible = false };
         _updateItem.Font = new Font(_updateItem.Font, FontStyle.Bold);
         menu.Items.Add(_updateItem);
+        // The check runs weekly, so on the other six days what it found last
+        // time is all there is. Without this the news showed up for one launch
+        // and then the menu went quiet again as though nothing was waiting.
+        if (UpdateCheck.IsNewer(_settings.LastKnownVersion, Build.Version))
+        {
+            ShowPendingUpdate(_settings.LastKnownVersion!);
+        }
         menu.Items.Add($"Version {Build.Version}", null, (_, _) => CheckForUpdatesNow());
         var updates = new ToolStripMenuItem("Check for updates weekly")
         {
@@ -150,13 +157,11 @@ sealed class TrayContext : ApplicationContext
     {
         if (newer && latest != null)
         {
-            // Always visible to anyone who looks, whatever the release contains.
-            if (_updateItem != null)
-            {
-                _updateItem.Text = $"New version {latest} — download";
-                _updateItem.Visible = true;
-            }
-            _tray.Text = $"Tiro {Build.Version}. Version {latest} is available.";
+            // Always visible to anyone who looks, whatever the release contains,
+            // and remembered so it stays visible between weekly checks.
+            ShowPendingUpdate(latest);
+            _settings.LastKnownVersion = latest;
+            SettingsStore.Save(_settings);
 
             // Interrupting, though, is reserved for a release that changed
             // something you would want. A fix-only one sits in the menu above
@@ -169,6 +174,18 @@ sealed class TrayContext : ApplicationContext
                 Log.Write($"update {latest} is fixes only; tray menu only");
                 return;
             }
+
+            // Once per version means once. Weekly checks would otherwise balloon
+            // the same release at someone every week until they gave in, which is
+            // the behaviour this whole policy exists to avoid. Asking explicitly
+            // still answers, because then they asked.
+            if (_settings.AnnouncedVersion == latest && !announce)
+            {
+                Log.Write($"update {latest} already announced; tray menu only");
+                return;
+            }
+            _settings.AnnouncedVersion = latest;
+            SettingsStore.Save(_settings);
 
             // In the app itself, where someone is actually looking. The tray menu
             // is where you go once you already suspect there is an update.
@@ -187,6 +204,17 @@ sealed class TrayContext : ApplicationContext
                 : $"{Build.Version} is the latest release.";
             _tray.ShowBalloonTip(5000);
         }
+    }
+
+    /// <summary>The menu item and tooltip half, which is always safe to show.</summary>
+    private void ShowPendingUpdate(string version)
+    {
+        if (_updateItem != null)
+        {
+            _updateItem.Text = $"New version {version} — download";
+            _updateItem.Visible = true;
+        }
+        _tray.Text = $"Tiro {Build.Version}. Version {version} is available.";
     }
 
     private static void OpenReleases()
