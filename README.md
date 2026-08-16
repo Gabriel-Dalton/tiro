@@ -216,6 +216,8 @@ server, and there is deliberately no server.
 - [docs/PACKAGING.md](docs/PACKAGING.md): the winget manifest, and how a release is submitted
 - [docs/RESEARCH.md](docs/RESEARCH.md): verified platform constraints, with sources. Read
   this first; several obvious approaches are dead ends.
+- [docs/COMPETITIVE.md](docs/COMPETITIVE.md): what Wispr Flow users praise and complain about,
+  with sources graded by confidence, and what of it belongs on our roadmap
 - [docs/SPEC-PWA.md](docs/SPEC-PWA.md) and [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): build specs
 
 Two findings from that research worth surfacing here, because they change the design:
