@@ -523,6 +523,7 @@ select {
    wider digit and become a moving target under a thumb. */
 .take-meta { display: flex; align-items: center; justify-content: center; gap: var(--s3); }
 .take-meta .timer { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+.take-meta .timer.is-blank { visibility: hidden; }
 .discard {
   display: inline-flex;
   align-items: center;

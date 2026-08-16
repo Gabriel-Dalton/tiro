@@ -47,7 +47,11 @@ function setState(next) {
   head.classList.toggle("recording", next === "holdRecording" || next === "toggleRecording");
   const recording = next === "holdRecording" || next === "toggleRecording";
   const live = recording || next === "transcribing";
-  $("timer").hidden = !recording;
+  // Blanked rather than hidden once the clock stops: removing it re-centres the
+  // row and slides Discard sideways at the exact moment someone is reaching for
+  // it. A frozen clock would read as still counting, so it keeps its box and
+  // gives up its digits.
+  $("timer").classList.toggle("is-blank", !recording);
   // Discard outlives the timer by one state: once the audio is sent there is no
   // clock left to run, but there is still a transcript you may not want pasted,
   // and that is the moment people realise it.

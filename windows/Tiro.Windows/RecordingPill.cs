@@ -25,9 +25,17 @@ sealed class RecordingPill : Form
     // drawn is scaled from the form's real height, so one set of numbers holds
     // at 100%, 150% and 200% without a second table.
     private const int BaseHeight = 44;
-    private const int RecordingWidth = 268;
-    private const int TranscribingWidth = 232;
     private const int Bars = 14;
+    // Content runs X(7..37) dot(43..53) bars(64..134) clock(144..178) check(189..219),
+    // so these are the tight widths rather than round numbers. The clock's slot is
+    // reserved at its widest ("59:59") even though it is drawn left-aligned: sized
+    // to the current text, the check would shuffle sideways every time the clock
+    // ticked into a wider digit, and it is a button people hit without looking.
+    private const int RecordingWidth = 226;
+    private const int TranscribingWidth = 168;
+    private const float DotX = 48;
+    private const float BarX = 64;
+    private const float ClockX = 144;
 
     /// <summary>The X was clicked: throw the take away.</summary>
     public event Action? CancelClicked;
@@ -200,14 +208,16 @@ sealed class RecordingPill : Form
             using var brush = new SolidBrush(Paper50);
             var text = "Transcribing…";
             var size = g.MeasureString(text, font);
-            g.DrawString(text, font, brush, (Width - size.Width) / 2f + 8 * s, (Height - size.Height) / 2f);
+            // Centred in the space right of the X rather than in the whole pill,
+            // or it reads as shoved right by exactly the width of the button.
+            g.DrawString(text, font, brush, (Width - size.Width) / 2f + 15 * s, (Height - size.Height) / 2f);
             return;
         }
 
         DrawCancel(g, CancelRect());
 
         // Pulsing dot, then the bars, then the clock, then the check.
-        var dotX = 44 * s;
+        var dotX = DotX * s;
         var dotR = 5 * s;
         // A 1.6 s breath, matching the macOS pill's CALayer animation.
         var phase = (float)((DateTime.UtcNow - _startedAt).TotalSeconds % 1.6 / 1.6);
@@ -221,7 +231,7 @@ sealed class RecordingPill : Form
             g.FillEllipse(dot, dotX - dotR, Height / 2f - dotR, dotR * 2, dotR * 2);
         }
 
-        var barX = 60 * s;
+        var barX = BarX * s;
         var barW = 2.5f * s;
         var barPitch = 5f * s;
         var barMax = 20 * s;
@@ -244,7 +254,7 @@ sealed class RecordingPill : Form
         {
             var text = $"{t / 60}:{t % 60:D2}";
             var size = g.MeasureString(text, font);
-            g.DrawString(text, font, brush, barX + Bars * barPitch + 8 * s, (Height - size.Height) / 2f);
+            g.DrawString(text, font, brush, ClockX * s, (Height - size.Height) / 2f);
         }
 
         DrawStop(g, StopRect());
