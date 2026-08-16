@@ -155,11 +155,13 @@ native code is only the keyboard hook, `SendInput` paste, tray, and DPAPI key st
 Two findings from that research worth surfacing here, because they change the design:
 
 - Deepgram's **REST API is CORS-blocked** by design, so a browser cannot POST audio to it. The
-  **streaming WebSocket API** is built for client-side use and works. That is what the fork uses,
-  which also makes it cheaper: **$0.0048/min** streaming versus $0.0077/min pre-recorded.
-- Upstream's quoted $0.0043/min no longer matches Deepgram's published pricing. The savings
-  argument still holds easily; break-even against a $15/month subscription is about 52 hours of
-  dictation a month.
+  **streaming WebSocket API** is built for client-side use and works, so that is what every
+  client here uses. Streaming costs more than batch — **$0.0077/min** against $0.0043/min — and
+  it is the only option a browser has.
+- Upstream's quoted $0.0043/min is the *pre-recorded* rate, so it understates what dictation
+  actually costs. The real number is $0.0077/min, or about **46¢ an hour**. The savings argument
+  still holds easily: break-even against a $15/month subscription is about 32 hours of dictation
+  a month.
 
 Everything below this line is upstream's README, describing the macOS app.
 
@@ -176,13 +178,13 @@ Tiro is that direct call, wrapped in the UX you actually want:
 
 | | monthly cost at 1 h of dictation | at 10 h |
 |---|---|---|
-| **Tiro** (Deepgram nova-3, pay-as-you-go) | **~$0.26** | **~$2.58** |
+| **Tiro** (Deepgram nova-3 streaming, pay-as-you-go) | **~$0.46** | **~$4.62** |
 | Wispr Flow Pro | $15.00 | $15.00 |
 | superwhisper Pro | $8.49 | $8.49 |
 | Aqua Voice Pro | $8.00 | $8.00 |
 
-A new Deepgram account includes **$200 of free credit** — roughly **46,000 minutes** of
-dictation before you pay anything at all. Tiro's Settings page shows your live usage, real
+A new Deepgram account includes **$200 of free credit** — roughly **26,000 minutes**, about
+**430 hours**, of dictation before you pay anything at all. Tiro's Settings page shows your live usage, real
 cost, and what you're saving. *(Prices as of Aug 2026.)*
 
 ## What it does
