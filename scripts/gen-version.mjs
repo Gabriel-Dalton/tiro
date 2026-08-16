@@ -5,7 +5,8 @@
 //   web/src/version.js                  the About card in the app
 //   web/sw.js                           cache name, so an upgrade drops the old shell
 //   windows/Tiro.Windows/Version.props  file and product version on Tiro.exe
-//   landing/index.html                  footer, so the download page names what it links to
+//   landing/index.html                  footer, so the download page names what it links
+//                                       to, and links that name at its own release notes
 //
 // Bump VERSION, run this, commit. The stamped files are checked in, so a clone
 // builds the right numbers without having to run anything first.
@@ -59,6 +60,17 @@ function stamp(file, pattern, replacement) {
 }
 
 stamp("web/sw.js", /const CACHE = "tiro-[^"]*";/, `const CACHE = "tiro-${version}";`);
-stamp("landing/index.html", /(<span class="version">)[^<]*(<\/span>)/, `$1v${version}$2`);
+
+// The footer version links to its own tag rather than to /latest, so the number and
+// the notes it opens can never describe different releases. The tag page exists only
+// once the release is published, which leaves a window: bump VERSION, deploy, and the
+// link 404s until the tag is pushed. That window is the same one in which the site is
+// already naming a version nobody can download, and the release job refuses to publish
+// a tag that disagrees with VERSION, so it closes on its own at the moment it matters.
+stamp(
+  "landing/index.html",
+  /<a class="version" href="[^"]*">[^<]*<\/a>/,
+  `<a class="version" href="https://github.com/Gabriel-Dalton/tiro/releases/tag/v${version}">v${version}</a>`
+);
 
 console.log(`stamped ${version} into the web app, service worker, Windows build and landing page`);
