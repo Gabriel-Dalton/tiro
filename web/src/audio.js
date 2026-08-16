@@ -55,10 +55,19 @@ export class AudioEngine {
     this.ringPos = 0;
     /** called with Int16Array chunks while recording (first call = pre-roll) */
     this.onChunk = null;
-    /** called when the input dies (device unplugged) and a rebuild starts */
+    /** called when the set of inputs changes — one unplugged, or a new one
+     * plugged in and now the default — and a rebuild starts */
     this.onDeviceChange = null;
     this._visHandler = () => this._onVisibility();
     document.addEventListener("visibilitychange", this._visHandler);
+    // Signature of the available audio inputs, so a `devicechange` caused by a
+    // camera or a speaker does not cost us the pre-roll ring for nothing.
+    this._inputSig = null;
+    this._rebuildWhenIdle = false;
+    this._devTimer = null;
+    this._devHandler = () => this._onDeviceListChanged();
+    // Absent on insecure origins, where there is no mic to lose anyway.
+    navigator.mediaDevices?.addEventListener?.("devicechange", this._devHandler);
   }
 
   get isRunning() {
@@ -98,6 +107,7 @@ export class AudioEngine {
     track.addEventListener("ended", () => this._rebuild());
 
     this.running = true;
+    this._inputSig = await this._inputSignature();
   }
 
   stop() {
@@ -115,6 +125,8 @@ export class AudioEngine {
     this.ringLen = 0;
     this.ringPos = 0;
     this.level = 0;
+    // A deferred rebuild is about a mic this engine no longer holds.
+    this._rebuildWhenIdle = false;
   }
 
   /** Adopt the pre-roll ring as the head of the take, then stream live. */
@@ -133,6 +145,12 @@ export class AudioEngine {
     this.recording = false;
     const sec = this.recordedSamples / TARGET_SAMPLE_RATE;
     this.recordedSamples = 0;
+    // A device appeared or vanished mid-take. Switching then would have thrown
+    // away the words being spoken, so it waited for the take to finish.
+    if (this._rebuildWhenIdle) {
+      this._rebuildWhenIdle = false;
+      this._rebuild();
+    }
     return sec;
   }
 
@@ -168,6 +186,41 @@ export class AudioEngine {
     this.ringLen = 0;
     this.ringPos = 0;
     return out;
+  }
+
+  /** Stable description of the current audio inputs. Ignores ordering, which
+   * browsers do not promise, so only a real arrival or departure counts. */
+  async _inputSignature() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices
+        .filter((d) => d.kind === "audioinput")
+        .map((d) => `${d.deviceId}:${d.groupId}`)
+        .sort()
+        .join("|");
+    } catch {
+      return null; // enumeration blocked; fall back to the track-ended path
+    }
+  }
+
+  /** Plugging a headset in while the built-in mic still works fires this and
+   * nothing else: the existing track stays happily open on the old device, so
+   * without a rebuild you keep recording from the laptop. The `ended` handler
+   * above only covers the opposite case, the device going away. */
+  _onDeviceListChanged() {
+    // These arrive in bursts — one event per endpoint on a single USB dock.
+    clearTimeout(this._devTimer);
+    this._devTimer = setTimeout(async () => {
+      if (!this.running) return;
+      const sig = await this._inputSignature();
+      if (sig === null || sig === this._inputSig) return;
+      this._inputSig = sig;
+      if (this.recording) {
+        this._rebuildWhenIdle = true;
+        return;
+      }
+      this._rebuild();
+    }, 250);
   }
 
   async _rebuild() {

@@ -54,6 +54,11 @@ gets full parity with the Mac.
   includes it. Tiro checks at startup and offers the download rather than failing silently.
   ARM machines (Snapdragon, Surface) can use `Tiro-Windows-arm64.zip` for a native build,
   though the x64 one also runs there under emulation.
+
+  Every release also carries `Tiro-winget-manifests.zip`, the winget submission for that
+  version with the hashes already filled in. Once Microsoft accepts the package,
+  `winget install GabrielDalton.Tiro` is the shortest route to all of the above;
+  [`docs/PACKAGING.md`](docs/PACKAGING.md) covers submitting it and why there is no MSI.
 - **macOS**: `Tiro-macOS.zip` from the same release, or build locally with `./make-app.sh`.
   It is a **universal binary** — one file for Apple Silicon and Intel. `make-app.sh` builds
   both slices and refuses to produce a single-architecture app, because that failure is
@@ -126,7 +131,13 @@ csproj and publishes to a genuine single self-contained EXE in CI, which the Win
 still makes painful. The split the spec draws is unchanged: all product UI is the web core;
 native code is only the keyboard hook, `SendInput` paste, tray, and DPAPI key storage.
 
+History moves between the three apps as JSONL: export from any of them, import into any other.
+It is upstream's format, so `~/Library/Application Support/Tiro/history.jsonl` from the Mac app
+imports into the PWA and the Windows app unchanged. There is no sync — that would need a server,
+and there is deliberately no server.
+
 - **[ROADMAP.md](ROADMAP.md)** — phases, scope and non-goals
+- **[docs/PACKAGING.md](docs/PACKAGING.md)** — the winget manifest, and how a release is submitted
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the three clients share one core
 - **[docs/RESEARCH.md](docs/RESEARCH.md)** — verified platform constraints, with sources. Read
   this first; several obvious approaches are dead ends.

@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json
+#
+# TEMPLATE. __VERSION__ is filled in by scripts/gen-winget.mjs.
+
+PackageIdentifier: GabrielDalton.Tiro
+PackageVersion: __VERSION__
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.12.0

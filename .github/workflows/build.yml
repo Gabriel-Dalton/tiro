@@ -38,6 +38,45 @@ permissions:
   contents: write # create the tag, the release, and upload assets
 
 jobs:
+  # The design tokens and the icon set are generated from shared/design-tokens.json,
+  # but the *checked-in* output is what ships: Tiro.Windows.csproj copies web/ verbatim
+  # into the EXE. Vercel regenerates on deploy and Windows does not, so a hand-edit or a
+  # forgotten regenerate would put the site and the desktop app on different palettes
+  # with nothing to notice it. This is Phase 0's acceptance criterion, enforced.
+  generated:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the patch, not just the major. gen-icons.mjs encodes its PNGs with
+      # node:zlib at level 9, so the committed bytes depend on the zlib that Node
+      # bundles — a Node bump can change them with the image itself identical. An
+      # exact pin turns that from a mystery red build into a deliberate one: bump
+      # this line, regenerate, commit the new bytes.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.2"
+
+      - name: Regenerate tokens and icons
+        run: |
+          node scripts/gen-tokens.mjs
+          node scripts/gen-icons.mjs
+
+      # --porcelain rather than `git diff --exit-code`, so a newly generated file
+      # that was never committed counts as drift too instead of passing untracked.
+      - name: Fail if the committed output drifted from the source
+        run: |
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "$dirty"
+            git diff -- . ':!*.png' ':!*.ico'
+            echo "::error::Generated files are stale. Run: node scripts/gen-tokens.mjs && node scripts/gen-icons.mjs — or, if only the images moved and this job's Node pin just changed, that is the compression, not the artwork."
+            exit 1
+          fi
+          echo "Generated files match shared/design-tokens.json."
+
   windows:
     runs-on: windows-latest
     strategy:
@@ -172,13 +211,23 @@ jobs:
           path: Tiro-macOS.zip
 
   release:
-    needs: [windows, macos]
+    # `generated` gates the release rather than the builds: a stale palette should
+    # stop a release going out, but it should not stop a branch build being tested.
+    needs: [generated, windows, macos]
     if: >
       startsWith(github.ref, 'refs/tags/v') ||
       startsWith(github.ref, 'refs/heads/release/') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
     runs-on: ubuntu-latest
     steps:
+      # Before download-artifact, not after: checkout cleans the working tree of
+      # untracked files, which is exactly what dist/ is.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -208,6 +257,22 @@ jobs:
           esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Publishing $version"
+
+      # The manifests point at release URLs that do not exist yet, and carry the
+      # SHA256 of the ZIPs about to be attached. Both are deterministic, so they
+      # can be built here and shipped in the same release they describe.
+      - name: Build the winget manifests
+        run: |
+          set -euo pipefail
+          node scripts/gen-winget.mjs \
+            --tag "${{ steps.v.outputs.version }}" \
+            --x64 dist/Tiro-Windows-x64.zip \
+            --arm64 dist/Tiro-Windows-arm64.zip \
+            --out winget-out
+          # Zipped so the manifests/g/GabrielDalton/Tiro/<version>/ path survives:
+          # that path is the package identity as far as winget-pkgs is concerned,
+          # and three loose YAML files lose it.
+          (cd winget-out && zip -r ../dist/Tiro-winget-manifests.zip manifests)
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -245,3 +310,7 @@ jobs:
             First run asks for a Deepgram API key, free at
             [console.deepgram.com](https://console.deepgram.com). It is stored on your device
             and sent only to Deepgram — there is no server in between.
+
+            `Tiro-winget-manifests.zip` is not a download — it is the winget submission for
+            this version, hashes and all, ready to copy into a `winget-pkgs` clone.
+            See [docs/PACKAGING.md](https://github.com/Gabriel-Dalton/tiro/blob/main/docs/PACKAGING.md).

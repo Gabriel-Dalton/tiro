@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+#
+# TEMPLATE. __VERSION__ and __TAG__ are filled in by scripts/gen-winget.mjs.
+
+PackageIdentifier: GabrielDalton.Tiro
+PackageVersion: __VERSION__
+PackageLocale: en-US
+Publisher: Gabriel Dalton
+PublisherUrl: https://github.com/Gabriel-Dalton
+PublisherSupportUrl: https://github.com/Gabriel-Dalton/tiro/issues
+Author: Gabriel Dalton, from Tiro by Toby Stapleton
+PackageName: Tiro
+PackageUrl: https://github.com/Gabriel-Dalton/tiro
+License: MIT
+LicenseUrl: https://github.com/Gabriel-Dalton/tiro/blob/__TAG__/LICENSE
+Copyright: Copyright (c) Toby Stapleton and Tiro contributors
+ShortDescription: Hold a key, speak, and punctuated text lands where your cursor is.
+Description: |-
+  Tiro is hold-to-talk dictation for Windows. Hold Right Alt in any app, speak, and the
+  transcript is typed into whatever text box has focus. Tap instead of holding to go
+  hands-free until you tap again.
+
+  It sits in the tray and uses Deepgram for speech recognition, with your own API key
+  stored encrypted on the machine via DPAPI. There is no account, no telemetry, and no
+  server in between: audio goes to Deepgram while you are dictating and nowhere else.
+  That works out at roughly half a cent per minute instead of a monthly subscription.
+
+  Transcripts are kept locally in a searchable history you can export as JSONL. This is
+  a fork of the macOS app by Toby Stapleton, extended to Windows and the web around a
+  shared core.
+Moniker: tiro
+Tags:
+  - deepgram
+  - dictation
+  - hotkey
+  - productivity
+  - speech-to-text
+  - transcription
+  - voice
+  - voice-typing
+ReleaseNotesUrl: https://github.com/Gabriel-Dalton/tiro/releases/tag/__TAG__
+Documentations:
+  - DocumentLabel: Readme
+    DocumentUrl: https://github.com/Gabriel-Dalton/tiro#readme
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0
