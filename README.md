@@ -35,9 +35,9 @@ gets full parity with the Mac.
 
 | | Status | Where |
 |---|---|---|
-| macOS | Upstream's, unchanged | `Sources/`, built by CI into `Tiro-macOS.zip` |
+| macOS | Upstream's, unchanged | `Sources/`, built by CI into `Tiro-macOS.zip` (universal: Apple Silicon + Intel) |
 | Web / iPhone PWA | **Built** (phases 0–2; deploy `web/` to any static host) | [`web/`](web/) |
-| Windows | **Built** — WebView2 shell around the same web core | [`windows/`](windows/), built by CI into `Tiro-Windows-x64.zip` |
+| Windows | **Built** — WebView2 shell around the same web core | [`windows/`](windows/), built by CI into `Tiro-Windows-x64.zip` and `Tiro-Windows-arm64.zip` |
 | Landing page | **Built** — download links for all three | [`landing/`](landing/) |
 | Native iOS keyboard | Deferred, phase 5 | — |
 
@@ -49,10 +49,30 @@ gets full parity with the Mac.
   then run `Tiro.exe`. It sits in the tray; hold **Right Alt** in any app to dictate.
   Unblocking is what keeps SmartScreen quiet — if it does interrupt, **More info → Run
   anyway**. [`docs/SIGNING.md`](docs/SIGNING.md) explains why, and how releases get signed.
+  On Windows 10 you may also need Microsoft's free
+  [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/); Windows 11
+  includes it. Tiro checks at startup and offers the download rather than failing silently.
+  ARM machines (Snapdragon, Surface) can use `Tiro-Windows-arm64.zip` for a native build,
+  though the x64 one also runs there under emulation.
 - **macOS**: `Tiro-macOS.zip` from the same release, or build locally with `./make-app.sh`.
-- **Web / iPhone**: open the deployed site's `/app/` over HTTPS, then Add to Home Screen.
-  Everything (`getUserMedia`, service worker, install) requires a secure origin, so the
-  PWA cannot be tested from a file:// URL or from `localhost` on a phone.
+  It is a **universal binary** — one file for Apple Silicon and Intel. `make-app.sh` builds
+  both slices and refuses to produce a single-architecture app, because that failure is
+  invisible on the machine that builds it and total on the machine that doesn't match.
+- **Web / iPhone / Android / Linux / ChromeOS**: open the deployed site's `/app/` over
+  HTTPS, then Add to Home Screen. Everything (`getUserMedia`, service worker, install)
+  requires a secure origin, so the PWA cannot be tested from a file:// URL or from
+  `localhost` on a phone.
+
+  There is no native Linux build and none is planned: the Windows app's native layer is
+  Win32 (keyboard hook, `SendInput`, DPAPI, registry) and Wayland deliberately blocks
+  global hotkeys and synthetic keystrokes, so it would be a rewrite that still could not
+  do the one thing that justifies a native app. The PWA covers Linux today.
+
+The landing page detects the visitor's platform and leads with the right download, folding
+the rest behind "Other platforms". Detection only reorders what is already on the page, so
+a wrong guess — or no JavaScript — still leaves every download visible. Mac CPU type is
+deliberately not detected: browsers cannot tell Apple Silicon from Intel reliably, which is
+exactly why the Mac build is universal.
 
 ### Deploying the site
 
