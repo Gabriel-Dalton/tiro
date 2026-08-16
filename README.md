@@ -115,6 +115,35 @@ a wrong guess, or no JavaScript at all, still leaves every download visible. Mac
 deliberately not detected: browsers cannot tell Apple Silicon from Intel reliably, which is
 exactly why the Mac build is universal.
 
+### The interface
+
+The web core and the Windows app share one stylesheet, and it follows three rules.
+
+**Three faces, three jobs.** The serif carries the wordmark, the titles and **anything you
+dictated** — live text, the result, history entries. The sans carries the whole interface.
+The mono carries figures you read off or compare: the timer, timestamps, prices, the version.
+It used to carry the labels too, and 10 px monospaced uppercase on every tab, chip and
+section heading is what made a dictation app read like a terminal. Small caps labels stayed;
+they are just in the sans now, at a size you can read.
+
+**Colour is named by job, not by hue.** `shared/design-tokens.json` maps the Forum palette
+onto `--bg`, `--surface`, `--text-muted`, `--accent` and the rest, in a light set and a dark
+one, and `gen-tokens.mjs` emits both. The stylesheet names only those, so **the app follows
+your system theme** — the same clay accent, lifted until it carries 4.5:1 against a warm
+near-black page — and dark mode is one generated media query rather than a second stylesheet.
+
+**The floor is enforced, not intended.** `scripts/smoke-web.mjs` fails the build if a text
+colour drops under 4.5:1 in either theme, if a control is under 44 px or unlabelled, if
+interface type creeps back into the mono, if a tab stops reporting `aria-current`, if the
+usage chart loses its written summary, or if anything overflows a 320 px screen. Every state
+is carried by a word as well as a colour, everything a finger can do a keyboard can do —
+including **hold-to-talk on Space** — and the install sheet is a real modal: focus goes in,
+Tab cannot leave, Escape closes, focus comes back.
+
+Tab-bar icons are one drawn set (24-unit box, 1.8 round strokes) defined once as `<symbol>`s.
+The previous text glyphs (`⌸ ◔ ✳`) rendered as a different typeface on every platform, and
+one of them arrived on iOS as a dot.
+
 ### Deploying the site
 
 The repository root is the Vercel project. Import it with **Root Directory left at the
@@ -196,9 +225,13 @@ halo stays centred on the button across the 700 px breakpoint; that a take survi
 who releases the button before the microphone has finished opening; and that the install
 walkthrough says the right thing on desktop Chromium, iPhone Safari, iPad and Chrome on iOS,
 including that it asks only after a take has succeeded, remembers being turned down, and
-fits a 667 pt screen. Deepgram is stubbed and the microphone is Chromium's synthetic device,
-so it needs no key, no network and no audio hardware. The `build` workflow runs it on every
-push.
+fits a 667 pt screen. It also holds the interface to the rules above: every sampled text
+colour measured off the rendered page in **both themes**, touch-target sizes, labels on every
+control, `aria-current` on the current tab, a spoken summary on the usage chart, no interface
+type in the mono, no overflow at 320 px, dictation driven entirely from the keyboard, and a
+focus trap in the install sheet. Deepgram is stubbed and the microphone is Chromium's
+synthetic device, so it needs no key, no network and no audio hardware. The `build` workflow
+runs it on every push.
 
 One deliberate deviation from [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): the native host
 frame is WinForms rather than WinUI 3, because it provides the tray icon and WebView2 with a plain

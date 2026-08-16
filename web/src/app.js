@@ -35,7 +35,11 @@ function setState(next) {
   talk.classList.toggle("recording", next === "holdRecording" || next === "toggleRecording");
   talk.classList.toggle("transcribing", next === "transcribing");
   head.classList.toggle("recording", next === "holdRecording" || next === "toggleRecording");
-  $("timer").hidden = next !== "holdRecording" && next !== "toggleRecording";
+  const recording = next === "holdRecording" || next === "toggleRecording";
+  $("timer").hidden = !recording;
+  // The timer takes the hint's slot while a take runs, so the page does not
+  // reflow under a thumb that is mid-press.
+  $("talk-hint").classList.toggle("is-faded", recording);
   // Drive the halo from the state itself, not from one branch below: a take
   // that starts in toggle mode has to breathe too.
   if (next === "holdRecording" || next === "toggleRecording") startHalo();
@@ -144,13 +148,19 @@ function startHalo() {
   requestAnimationFrame(tick);
 }
 
+// The toast is a live region, so it stays in the DOM and is shown and hidden
+// with an attribute rather than `hidden`. A region added to the page at the
+// moment it gains text is one a screen reader is entitled to ignore.
 let toastTimer = null;
 function notice(text, tone = "warn", ms = 3200) {
   $("toast-text").textContent = text;
   $("toast-dot").className = "dot " + (tone === "ok" ? "ok" : tone === "bad" ? "bad" : "");
-  $("toast").hidden = false;
+  $("toast").dataset.open = "true";
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { $("toast").hidden = true; }, ms);
+  toastTimer = setTimeout(() => {
+    $("toast").dataset.open = "false";
+    $("toast-text").textContent = "";
+  }, ms);
 }
 
 // ---------------------------------------------------------------- recording
@@ -362,6 +372,33 @@ talk.addEventListener("pointercancel", (e) => {
 });
 talk.addEventListener("contextmenu", (e) => e.preventDefault());
 
+// The button was pointer-only, which left anyone on a keyboard — or on a switch
+// or a screen reader driving the focused control — with no way to dictate at
+// all. Space and Enter hold it: down starts the take, up ends it, exactly like a
+// finger. `preventDefault` stops the page scrolling and stops the browser
+// synthesising a click that would fire a second press.
+let spaceHeld = false;
+talk.addEventListener("keydown", (e) => {
+  if (e.key !== " " && e.key !== "Enter") return;
+  e.preventDefault();
+  if (e.repeat || spaceHeld) return;
+  spaceHeld = true;
+  pressStart();
+});
+talk.addEventListener("keyup", (e) => {
+  if (e.key !== " " && e.key !== "Enter") return;
+  e.preventDefault();
+  if (!spaceHeld) return;
+  spaceHeld = false;
+  pressEnd();
+});
+// Focus lost mid-hold (tabbing away, an alert) must not leave a take running.
+talk.addEventListener("blur", () => {
+  if (!spaceHeld) return;
+  spaceHeld = false;
+  pressEnd();
+});
+
 // Desktop browsers: optional hold-to-talk key while the tab is focused.
 // The Windows shell drives the same pressStart/pressEnd via its global hook.
 let keyHeld = false;
@@ -426,7 +463,15 @@ $("result-share").addEventListener("click", () => {
 function showView(name) {
   for (const v of document.querySelectorAll(".view")) v.classList.remove("active");
   $(`view-${name}`).classList.add("active");
-  for (const t of document.querySelectorAll(".tab")) t.classList.toggle("active", t.dataset.view === name);
+  for (const t of document.querySelectorAll(".tab")) {
+    const on = t.dataset.view === name;
+    t.classList.toggle("active", on);
+    // aria-current is what tells a screen reader which of the four you are on;
+    // the colour change alone says it to sighted users only.
+    if (on) t.setAttribute("aria-current", "page");
+    else t.removeAttribute("aria-current");
+  }
+  window.scrollTo({ top: 0, behavior: "instant" });
   if (name === "history") renderHistory();
   if (name === "usage") renderUsage();
 }
@@ -434,7 +479,30 @@ for (const t of document.querySelectorAll(".tab")) {
   t.addEventListener("click", () => showView(t.dataset.view));
 }
 
+// The header keeps its hairline until something has actually scrolled under it.
+const appHead = document.querySelector(".app-head");
+addEventListener("scroll", () => {
+  appHead.classList.toggle("is-scrolled", window.scrollY > 4);
+}, { passive: true });
+
 // ---------------------------------------------------------------- history view
+
+/** An icon button whose label is text, not a picture: every one of these needs
+ * a name a screen reader can read out, and a shape a thumb can hit. */
+function iconButton(icon, label, onClick, extraClass = "") {
+  const b = document.createElement("button");
+  b.className = "icon-btn" + (extraClass ? " " + extraClass : "");
+  b.type = "button";
+  b.setAttribute("aria-label", label);
+  b.title = label;
+  b.innerHTML = `<svg aria-hidden="true" focusable="false"><use href="#${icon}"/></svg>`;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function setIcon(button, icon) {
+  button.querySelector("use").setAttribute("href", `#${icon}`);
+}
 
 async function renderHistory() {
   const q = $("history-search").value.trim().toLowerCase();
@@ -442,7 +510,14 @@ async function renderHistory() {
   const filtered = q ? rows.filter((r) => r.text.toLowerCase().includes(q)) : rows;
   const list = $("history-list");
   list.textContent = "";
+  $("history-clear-search").hidden = !q;
   $("history-empty").hidden = filtered.length > 0;
+  $("history-empty-text").textContent = q
+    ? `No transcript matches “${$("history-search").value.trim()}”.`
+    : "Nothing here yet. Everything you dictate lands in history, on this device only.";
+  $("history-count").textContent = rows.length
+    ? `${filtered.length} of ${rows.length} ${rows.length === 1 ? "take" : "takes"}`
+    : "";
 
   const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" });
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
@@ -452,12 +527,12 @@ async function renderHistory() {
     const day = dayFmt.format(d);
     if (day !== lastDay) {
       lastDay = day;
-      const h = document.createElement("div");
+      const h = document.createElement("h3");
       h.className = "history-day caps";
       h.textContent = day;
       list.appendChild(h);
     }
-    const entry = document.createElement("div");
+    const entry = document.createElement("article");
     entry.className = "history-entry";
     const text = document.createElement("div");
     text.className = "text";
@@ -465,25 +540,40 @@ async function renderHistory() {
     const meta = document.createElement("div");
     meta.className = "meta";
     const time = document.createElement("time");
+    time.dateTime = r.ts;
     time.textContent = `${timeFmt.format(d)} · ${(r.sec || 0).toFixed(1)}s`;
-    const copy = document.createElement("button");
-    copy.className = "btn-pill";
-    copy.textContent = "Copy";
-    copy.addEventListener("click", async () => {
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const copy = iconButton("i-copy", "Copy this transcript", async () => {
       try {
         await navigator.clipboard.writeText(r.text);
-        copy.textContent = "Copied";
-        setTimeout(() => (copy.textContent = "Copy"), 1200);
+        setIcon(copy, "i-check");
+        copy.classList.add("is-done");
+        notice("Copied", "ok", 1400);
+        setTimeout(() => { setIcon(copy, "i-copy"); copy.classList.remove("is-done"); }, 1400);
       } catch {
         notice("Copy failed", "bad");
       }
     });
-    meta.append(time, copy);
+    const del = iconButton("i-trash", "Delete this transcript", async () => {
+      await history.deleteEntry(r.id);
+      notice("Deleted", "ok", 1600);
+      renderHistory();
+    }, "danger");
+    actions.append(copy, del);
+
+    meta.append(time, actions);
     entry.append(text, meta);
     list.appendChild(entry);
   }
 }
 $("history-search").addEventListener("input", renderHistory);
+$("history-clear-search").addEventListener("click", () => {
+  $("history-search").value = "";
+  $("history-search").focus();
+  renderHistory();
+});
 
 async function exportHistory() {
   const jsonl = await history.exportJsonl();
@@ -510,6 +600,9 @@ $("history-import-file").addEventListener("change", async (e) => {
 
 // ---------------------------------------------------------------- usage view
 
+const ordinal = (n) =>
+  n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th";
+
 async function renderUsage() {
   const rows = await history.allEntries();
   const s = monthStats(rows);
@@ -529,6 +622,15 @@ async function renderUsage() {
     b.title = `Day ${i + 1}: ${fmtMinutes(m)}`;
     bars.appendChild(b);
   });
+  // A row of bars is a picture. Say in words what it shows, or it is nothing at
+  // all to anyone not looking at it.
+  bars.setAttribute(
+    "aria-label",
+    peak > 0
+      ? `Minutes dictated per day this month. Busiest day: the ${peakIdx + 1}${ordinal(peakIdx + 1)}, ${fmtMinutes(peak)}.`
+      : "Minutes dictated per day this month. Nothing dictated yet."
+  );
+  $("daily-last").textContent = `today, day ${s.today}`;
 
   const cmp = $("compare-bars");
   cmp.textContent = "";
@@ -550,15 +652,25 @@ async function renderUsage() {
 
 // ---------------------------------------------------------------- settings view
 
-async function saveAndTestKey(inputEl, statusEl) {
+async function saveAndTestKey(inputEl, statusEl, button) {
   const key = inputEl.value.trim();
-  if (!key) { statusEl("Enter a key first", "bad"); return; }
+  if (!key) {
+    statusEl("Enter a key first", "bad");
+    inputEl.focus();
+    return;
+  }
   statusEl("Testing…", "warn");
+  // A key test is a network round trip. Say so on the button that started it,
+  // and refuse a second one rather than racing two sockets.
+  const label = button && button.textContent;
+  if (button) { button.disabled = true; button.textContent = "Testing…"; }
   const r = await testKey(key);
+  if (button) { button.disabled = false; button.textContent = label; }
   if (r.ok) {
     await settings.setApiKey(key);
     statusEl("Valid", "ok");
     $("setup-card").hidden = true;
+    document.body.classList.remove("needs-setup");
     notice("Key saved. Hold the button and speak", "ok");
   } else {
     statusEl(
@@ -574,14 +686,28 @@ $("settings-key-save").addEventListener("click", () =>
     b.hidden = false;
     b.textContent = text;
     b.className = "badge" + (tone === "ok" ? "" : tone === "bad" ? " bad" : " warn");
-  })
+  }, $("settings-key-save"))
 );
 $("setup-save").addEventListener("click", () =>
   saveAndTestKey($("setup-key"), (text, tone) => {
     $("setup-status").textContent = text;
-    $("setup-status").style.color = tone === "bad" ? "var(--red-600)" : tone === "ok" ? "var(--green-600)" : "var(--ink-500)";
-  })
+    $("setup-status").style.color =
+      tone === "bad" ? "var(--bad-fg)" : tone === "ok" ? "var(--ok-fg)" : "var(--text-muted)";
+  }, $("setup-save"))
 );
+
+// Typing a 40-character key into a dot field with no way to check it is how
+// people end up with "key rejected" and no idea which character went wrong.
+$("settings-key-reveal").addEventListener("click", () => {
+  const input = $("settings-key");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  const btn = $("settings-key-reveal");
+  btn.setAttribute("aria-pressed", String(show));
+  btn.setAttribute("aria-label", show ? "Hide key" : "Show key");
+  btn.title = show ? "Hide key" : "Show key";
+  btn.querySelector("use").setAttribute("href", show ? "#i-eye-off" : "#i-eye");
+});
 
 $("set-warm").addEventListener("change", async (e) => {
   settings.setSetting("micWarm", e.target.checked);
@@ -598,6 +724,7 @@ $("settings-clear-history").addEventListener("click", async () => {
   if (!confirm("Delete all history on this device?")) return;
   await history.clearAll();
   notice("History cleared", "ok");
+  renderHistory(); // the History view is one tap away and must not show ghosts
 });
 $("settings-clear-all").addEventListener("click", async () => {
   if (!confirm("Delete history, settings and the stored API key?")) return;
@@ -690,6 +817,9 @@ async function boot() {
     $("key-badge").textContent = "saved";
   } else {
     $("setup-card").hidden = false;
+    // first run: the card is the task, so the record view stops trying to
+    // centre the button in a screen that no longer has room for it
+    document.body.classList.add("needs-setup");
   }
 
   history.requestPersistence();

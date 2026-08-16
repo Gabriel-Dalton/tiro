@@ -11,11 +11,25 @@ const tokens = JSON.parse(readFileSync(join(root, "shared/design-tokens.json"), 
 
 const header = "/* GENERATED from shared/design-tokens.json. Do not edit by hand.\n * Regenerate with: node scripts/gen-tokens.mjs */\n";
 
+// Documentation keys live alongside the tokens; they are not tokens.
+const real = (obj) => Object.entries(obj).filter(([k]) => !k.startsWith("$"));
+
+// A semantic value is either a raw CSS value or a {palette-token} reference.
+const resolve = (v) => v.replace(/\{([a-z0-9-]+)\}/gi, (_, name) => `var(--${name})`);
+
 let css = header + ":root {\n";
-for (const [k, v] of Object.entries(tokens.color)) css += `  --${k}: ${v};\n`;
-for (const [k, v] of Object.entries(tokens.font)) css += `  --font-${k}: ${v};\n`;
-for (const [k, v] of Object.entries(tokens.radius)) css += `  --radius-${k}: ${v};\n`;
+for (const [k, v] of real(tokens.color)) css += `  --${k}: ${v};\n`;
+for (const [k, v] of real(tokens.font)) css += `  --font-${k}: ${v};\n`;
+for (const [k, v] of real(tokens.radius)) css += `  --radius-${k}: ${v};\n`;
+css += "\n  /* what each colour is for; the only names the UI should use */\n";
+for (const [k, v] of real(tokens.semantic.light)) css += `  --${k}: ${resolve(v)};\n`;
 css += "}\n";
+
+// The same semantic names, repointed. Nothing else in the app knows the theme:
+// this block is the whole of dark mode.
+css += "\n@media (prefers-color-scheme: dark) {\n  :root {\n";
+for (const [k, v] of real(tokens.semantic.dark)) css += `    --${k}: ${resolve(v)};\n`;
+css += "  }\n}\n";
 
 mkdirSync(join(root, "web/styles"), { recursive: true });
 writeFileSync(join(root, "web/styles/tokens.css"), css);

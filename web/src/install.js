@@ -169,7 +169,11 @@ export class Installer {
     doButton.addEventListener("click", () => this.install());
     if (this.els.copyButton) this.els.copyButton.addEventListener("click", () => this.copyLink());
     sheet.addEventListener("click", (e) => { if (e.target === sheet) this.dismiss(); });
-    window.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.hidden) this.dismiss(); });
+    window.addEventListener("keydown", (e) => {
+      if (sheet.hidden) return;
+      if (e.key === "Escape") this.dismiss();
+      else this._trapTab(e);
+    });
 
     // iOS never fires beforeinstallprompt, so nothing above would ever show the
     // button there. Reveal it on the strength of the platform instead, and make
@@ -299,6 +303,10 @@ export class Installer {
     doButton.hidden = !this.prompt;
     copyButton.hidden = !plan.offerCopy;
 
+    // Where to put focus back when this closes. A modal that drops you at the
+    // top of the document has cost you your place on the page.
+    this._returnTo = document.activeElement;
+
     sheet.hidden = false;
     // Focus the panel itself when there is nothing to press: putting the ring
     // on Close makes "give up" look like the recommended move.
@@ -306,8 +314,32 @@ export class Installer {
     (primary || this.els.panel).focus();
   }
 
+  /** Tab must not walk out of an `aria-modal` dialog into the page behind it:
+   * the page is inert to a screen reader, so a keyboard user would be moving
+   * through controls that are, as far as the announcement goes, not there. */
+  _trapTab(e) {
+    if (e.key !== "Tab" || this.els.sheet.hidden) return;
+    const focusable = this.els.panel.querySelectorAll(
+      'button:not([hidden]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const list = [...focusable].filter((el) => el.offsetParent !== null);
+    if (!list.length) return;
+    const first = list[0];
+    const last = list[list.length - 1];
+    const on = document.activeElement;
+    if (e.shiftKey && (on === first || on === this.els.panel)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && on === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   close() {
     this.els.sheet.hidden = true;
+    if (this._returnTo && this._returnTo.isConnected) this._returnTo.focus();
+    this._returnTo = null;
   }
 
   /** What to actually tell this visitor. */

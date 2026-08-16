@@ -476,6 +476,190 @@ const FAKE_SOCKET = () => {
   await page.waitForTimeout(1400);
   check("installed: it does not say so twice",
     !/installed/i.test(await page.locator("#toast-text").innerText()));
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------- interface
+//
+// The rules the redesign is built on, as assertions. Every one of these is
+// something that was wrong at some point and would go quietly wrong again:
+// interface type creeping back into the mono, an icon that renders as a missing
+// glyph, a touch target too small for a thumb, a colour that looks fine to the
+// person choosing it and fails for everyone else.
+{
+  const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+
+  // --- type: the mono is for figures, not for the interface
+  const mono = await page.evaluate(() => {
+    const isMono = (el) => /mono|menlo|consolas|courier/i.test(getComputedStyle(el).fontFamily);
+    const sel = (s) => [...document.querySelectorAll(s)].filter((el) => el.offsetParent !== null);
+    return {
+      interfaceInMono: [...sel(".tab-label"), ...sel(".caps"), ...sel(".btn"), ...sel(".status"),
+        ...sel("#talk-label"), ...sel(".view-head h2")].filter(isMono).map((el) => el.textContent.trim()),
+      figuresInMono: sel("#timer, .version").every(isMono),
+    };
+  });
+  check("no interface type is set in the mono any more", mono.interfaceInMono.length === 0,
+    mono.interfaceInMono.join(", "));
+
+  // --- the tab bar
+  const tabs = await page.evaluate(() => {
+    return [...document.querySelectorAll(".tab")].map((t) => {
+      const r = t.getBoundingClientRect();
+      const icon = t.querySelector("svg");
+      const ir = icon ? icon.getBoundingClientRect() : { width: 0, height: 0 };
+      return {
+        view: t.dataset.view,
+        label: t.querySelector(".tab-label")?.textContent.trim(),
+        h: Math.round(r.height),
+        w: Math.round(r.width),
+        icon: Math.round(ir.width),
+        current: t.getAttribute("aria-current"),
+      };
+    });
+  });
+  check("four tabs, each with a drawn icon rather than a text glyph",
+    tabs.length === 4 && tabs.every((t) => t.icon >= 18),
+    JSON.stringify(tabs.map((t) => `${t.view}:${t.icon}px`)));
+  check("every tab is a 44px-plus touch target",
+    tabs.every((t) => t.h >= 44 && t.w >= 44),
+    JSON.stringify(tabs.map((t) => `${t.view} ${t.w}×${t.h}`)));
+  check("the current tab is marked for screen readers, not only in colour",
+    tabs.filter((t) => t.current === "page").length === 1 &&
+    tabs.find((t) => t.current === "page").view === "record");
+
+  await page.locator('.tab[data-view="usage"]').click();
+  await page.waitForTimeout(200);
+  check("aria-current follows the tab you moved to",
+    (await page.locator('.tab[data-view="usage"]').getAttribute("aria-current")) === "page" &&
+    (await page.locator('.tab[data-view="record"]').getAttribute("aria-current")) === null);
+
+  // --- every control says what it is
+  await page.locator('.tab[data-view="history"]').click();
+  await page.waitForTimeout(200);
+  const nameless = await page.evaluate(() =>
+    [...document.querySelectorAll("button, input, select")]
+      .filter((el) => el.offsetParent !== null)
+      .filter((el) => {
+        const label = el.getAttribute("aria-label") || el.getAttribute("title") ||
+          (el.labels && el.labels.length) || el.textContent.trim();
+        return !label;
+      })
+      .map((el) => el.id || el.className || el.tagName));
+  check("no unlabelled control on the History view", nameless.length === 0, nameless.join(", "));
+
+  // --- the chart is not only a picture
+  await page.locator('.tab[data-view="usage"]').click();
+  await page.waitForTimeout(250);
+  check("the daily chart carries a spoken summary",
+    /minutes dictated per day/i.test(await page.locator("#daily-bars").getAttribute("aria-label")),
+    await page.locator("#daily-bars").getAttribute("aria-label"));
+
+  // --- nothing overflows the narrowest phone still sold
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(150);
+  for (const v of ["record", "history", "usage", "settings"]) {
+    await page.locator(`.tab[data-view="${v}"]`).click();
+    await page.waitForTimeout(150);
+    check(`no horizontal overflow on a 320px screen (${v})`,
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  }
+
+  await ctx.close();
+}
+
+// ------------------------------------------- text contrast, light and dark
+//
+// WCAG AA for body text is 4.5:1. Reading it off the rendered page rather than
+// off the palette is the only way to catch a colour that is fine in the token
+// file and wrong once it lands on the surface it is actually used on — and it
+// checks the dark theme, which nobody looks at as often.
+for (const scheme of ["light", "dark"]) {
+  const ctx = await browser.newContext({ ...devices["iPhone 13"], colorScheme: scheme });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(300);
+  await page.locator('.tab[data-view="settings"]').click();
+  await page.waitForTimeout(250);
+
+  const worst = await page.evaluate(() => {
+    const nums = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+    const lum = ([r, g, b]) => {
+      const f = [r, g, b].map((v) => (v /= 255) <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2];
+    };
+    // the first ancestor that actually paints something
+    const bgOf = (el) => {
+      for (let n = el; n; n = n.parentElement) {
+        const p = nums(getComputedStyle(n).backgroundColor);
+        if (p.length >= 3 && (p[3] === undefined || p[3] > 0.5)) return p.slice(0, 3);
+      }
+      return [255, 255, 255];
+    };
+    const ratio = (a, b) => {
+      const [l1, l2] = [lum(a), lum(b)];
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    };
+    const samples = ["body", ".hint", ".caps", ".status", ".badge", ".tab:not(.active) .tab-label",
+      ".tab.active .tab-label", ".btn", ".btn-accent", "a", ".version", "input"];
+    const out = [];
+    for (const sel of samples) {
+      const el = [...document.querySelectorAll(sel)].find((e) => e.offsetParent !== null);
+      if (!el) continue;
+      out.push({ sel, r: Math.round(ratio(nums(getComputedStyle(el).color).slice(0, 3), bgOf(el)) * 100) / 100 });
+    }
+    return out.sort((a, b) => a.r - b.r);
+  });
+  const failing = worst.filter((s) => s.r < 4.5);
+  check(`${scheme}: every sampled text colour clears 4.5:1`, failing.length === 0,
+    failing.map((f) => `${f.sel} ${f.r}`).join(", ") || `worst was ${worst[0].sel} at ${worst[0].r}`);
+
+  await ctx.close();
+}
+
+// ------------------------------------ dictating without touching the screen
+{
+  // The button was pointer-only, so a keyboard could focus it and do nothing at
+  // all with it. Space has to hold it exactly like a finger does.
+  const ctx = await browser.newContext({ permissions: ["microphone", "clipboard-write"] });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.addInitScript(FAKE_SOCKET);
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+
+  await page.locator("#talk").focus();
+  await page.keyboard.down(" ");
+  await page.waitForTimeout(900);
+  check("holding Space starts a take",
+    /listening/i.test(await page.locator("#talk-label").innerText()),
+    await page.locator("#talk-label").innerText());
+  await page.keyboard.up(" ");
+  await page.waitForTimeout(2000);
+  check("releasing Space finishes it, transcript and all",
+    (await page.locator("#result-text").innerText()).includes("hello from the fake mic"));
+
+  // A dialog is only modal if Tab cannot walk out of the back of it.
+  await page.evaluate(() => {
+    const e = new Event("beforeinstallprompt");
+    e.prompt = () => Promise.resolve();
+    Object.defineProperty(e, "userChoice", { value: Promise.resolve({ outcome: "dismissed" }) });
+    window.dispatchEvent(e);
+  });
+  await page.locator("#install-btn").click();
+  await page.waitForTimeout(200);
+  for (let i = 0; i < 8; i++) await page.keyboard.press("Tab");
+  check("Tab stays inside the install sheet",
+    await page.evaluate(() => document.getElementById("install-panel").contains(document.activeElement)));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  check("closing the sheet gives focus back to the button that opened it",
+    await page.evaluate(() => document.activeElement === document.getElementById("install-btn")));
 
   await ctx.close();
 }
