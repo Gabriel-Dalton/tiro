@@ -16,6 +16,7 @@ sealed class KeyboardHook : IDisposable
     private const int WM_SYSKEYDOWN = 0x0104;
     private const int WM_SYSKEYUP = 0x0105;
     private const uint LLKHF_INJECTED = 0x10;
+    private const uint VK_ESCAPE = 0x1B;
 
     // web-core hotkey codes (KeyboardEvent.code names) -> virtual-key codes
     public static readonly Dictionary<string, uint> CodeToVk = new()
@@ -28,6 +29,16 @@ sealed class KeyboardHook : IDisposable
     };
 
     public event Action<bool>? HotkeyChanged; // true = down, false = up
+
+    /// <summary>Escape, while and only while a take is running.</summary>
+    public event Action? CancelPressed;
+
+    /// <summary>Gates the Escape watch. Swallowing Escape globally would break
+    /// every dialog, menu and vim session on the machine, so it is armed only
+    /// for the seconds a take is actually in flight. Within those seconds
+    /// swallowing it is the right call: you pressed it to stop dictating, not to
+    /// dismiss whatever is behind the pill.</summary>
+    public bool WatchCancel { get; set; }
 
     private IntPtr _hook = IntPtr.Zero;
     private readonly LowLevelKeyboardProc _proc; // rooted: the GC must not collect the delegate
@@ -63,8 +74,17 @@ sealed class KeyboardHook : IDisposable
         if (nCode >= 0)
         {
             var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+            bool injected = (info.flags & LLKHF_INJECTED) != 0;
+
+            if (WatchCancel && info.vkCode == VK_ESCAPE && !injected)
+            {
+                int m = wParam.ToInt32();
+                if (m == WM_KEYDOWN || m == WM_SYSKEYDOWN) CancelPressed?.Invoke();
+                return (IntPtr)1; // swallow both edges, or the app sees a stray key-up
+            }
+
             // ignore our own SendInput Ctrl+V, or pasting would re-trigger the hook
-            if (info.vkCode == _vk && (info.flags & LLKHF_INJECTED) == 0)
+            if (info.vkCode == _vk && !injected)
             {
                 int msg = wParam.ToInt32();
                 bool down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;

@@ -24,6 +24,16 @@ let stream = null;      // DeepgramStream for the current take
 let timerHandle = null;
 let recordStartedAt = 0;
 
+// Identifies the take in flight. Discarding one bumps it, which is how a
+// discarded take's own async tail knows it is stale.
+//
+// A boolean would be wrong here, and the race is not theoretical: cancelling
+// while transcribing returns to idle immediately, but the socket is still
+// draining finals and can take another second to resolve. Nothing stops the
+// user starting a fresh take inside that second, and a shared flag would be
+// cleared by the new take just in time for the discarded one to paste.
+let takeToken = 0;
+
 const engine = new AudioEngine();
 engine.onDeviceChange = () => notice("Mic changed, reconnected", "warn");
 
@@ -36,10 +46,15 @@ function setState(next) {
   talk.classList.toggle("transcribing", next === "transcribing");
   head.classList.toggle("recording", next === "holdRecording" || next === "toggleRecording");
   const recording = next === "holdRecording" || next === "toggleRecording";
+  const live = recording || next === "transcribing";
   $("timer").hidden = !recording;
+  // Discard outlives the timer by one state: once the audio is sent there is no
+  // clock left to run, but there is still a transcript you may not want pasted,
+  // and that is the moment people realise it.
+  $("take-meta").hidden = !live;
   // The timer takes the hint's slot while a take runs, so the page does not
   // reflow under a thumb that is mid-press.
-  $("talk-hint").classList.toggle("is-faded", recording);
+  $("talk-hint").classList.toggle("is-faded", live);
   // Drive the halo from the state itself, not from one branch below: a take
   // that starts in toggle mode has to breathe too.
   if (next === "holdRecording" || next === "toggleRecording") startHalo();
@@ -126,12 +141,21 @@ function startHalo() {
     const rate = target > haloValue ? HALO_ATTACK : HALO_DECAY;
     haloValue += (target - haloValue) * rate;
 
+    // The Windows pill draws the same number as a waveform. It gets the
+    // smoothed, normalised value rather than engine.level so the two meters
+    // cannot disagree; bridge.setLevel throttles it down to 20 Hz.
+    bridge.setLevel(haloValue);
+
     if (!recording && haloValue < 0.01) {
       // settled: park it clean so the next take starts from a known state
       haloValue = 0;
       halo.style.opacity = "0";
       halo.style.transform = "scale(1)";
       haloRunning = false;
+      // Park the host's bars too. Without this the last thing the pill heard is
+      // a value just under the settle threshold, and the bars freeze there
+      // rather than flattening.
+      bridge.setLevel(0);
       return;
     }
 
@@ -193,11 +217,22 @@ async function pressStart() {
 
   starting = true;
   releasedWhileStarting = false;
+  const token = ++takeToken; // any earlier take's tail is now stale
   try {
     await engine.start(); // no-op when already warm
   } catch {
     starting = false;
     notice("No microphone. Check permissions", "bad", 5000);
+    return;
+  }
+
+  // Discarded while the mic was still opening. On first run that window is the
+  // whole permission prompt, which is exactly when someone realises they hit
+  // the wrong key, so this is the likeliest cancel of all and the one that
+  // would otherwise come back to life as a live take seconds later.
+  if (token !== takeToken) {
+    starting = false;
+    releasedWhileStarting = false;
     return;
   }
 
@@ -275,13 +310,24 @@ function stopAndInsert() {
   const s = stream;
   stream = null;
   setState("transcribing");
+  const token = takeToken;
 
   const transcriptPromise = (async () => {
     // keep streaming through the tail so the last word is not clipped
     await new Promise((r) => setTimeout(r, TAIL_SEC * 1000));
+    // Discarded during the tail. Bail *before* touching the engine, not after
+    // the transcript arrives: cancelTake has already detached it, and by now the
+    // user may well have started a fresh take. Checking only at the end meant
+    // this stale tail called endRecording() and nulled onChunk on the take that
+    // replaced it, which killed the next take's audio silently.
+    if (token !== takeToken) throw new Error("discarded");
     const sec = Math.round(engine.endRecording() * 10) / 10;
     engine.onChunk = null;
     const text = await s.finish();
+    // Discarded while the finals were still draining. Drop the text on the
+    // floor: no result card, no history, no clipboard, no paste. cancelTake has
+    // already put the UI back to idle, so there is nothing to undo here.
+    if (token !== takeToken) throw new Error("discarded");
     finishTake(text, sec);
     if (!text) throw new Error("empty"); // reject: never clobber the clipboard with ""
     return text;
@@ -293,6 +339,42 @@ function stopAndInsert() {
     // The Windows host pastes into the focused app via SendInput instead.
     transcriptPromise.then((text) => bridge.sendTranscript(text)).catch(() => {});
   }
+}
+
+/** Throw the take away. The counterpart to stopAndInsert, and the thing that was
+ * missing entirely: before this, everything you said reached the clipboard or
+ * the focused app whether you meant it to or not, and the only way out of a
+ * misfire was to undo the paste afterwards.
+ *
+ * Two shapes, because the audio has already left the building in the second:
+ *  - still recording: abort the socket, nothing was ever transcribed
+ *  - transcribing: the take is mid-flight, so bump the token and let its own
+ *    tail discover it is stale. Deepgram still bills for the seconds already
+ *    streamed; discarding is about not pasting, not about a refund. */
+function cancelTake() {
+  // `starting` matters as much as the state does: between the press and the mic
+  // opening the state is still "idle", and that gap is where a first-run
+  // permission prompt lives.
+  if (state === "idle" && !starting) return;
+  takeToken++;
+
+  // Detach the engine in both shapes, not just while recording. When the take is
+  // already transcribing its own tail is asleep in TAIL_SEC and will bail on the
+  // stale token before it reaches endRecording, so if this does not release the
+  // mic nothing will: it stays flagged as recording and keeps billing samples to
+  // a take nobody will ever read.
+  const s = stream;   // null while transcribing; stopAndInsert took it
+  stream = null;
+  engine.endRecording();
+  engine.onChunk = null;
+  if (s) s.abort();
+
+  $("live").hidden = true;
+  $("live-final").textContent = "";
+  $("live-interim").textContent = "";
+  setState("idle");
+  if (!settings.getSettings().micWarm) engine.stop();
+  notice("Discarded", "warn", 2000);
 }
 
 function finishTake(text, sec) {
@@ -420,10 +502,32 @@ window.addEventListener("keyup", (e) => {
   pressEnd();
 });
 
+// Escape discards the take, anywhere in the app, including from inside a text
+// field: nothing else in Tiro binds it, and reaching for it mid-dictation means
+// one thing. In the Windows shell this only fires when the Tiro window itself
+// has focus, which it usually does not; the host hooks Escape globally and
+// sends {type:"cancel"} instead, landing on the same function below.
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (state === "idle" && !starting) return;
+  e.preventDefault();
+  cancelTake();
+});
+
+$("discard").addEventListener("click", (e) => {
+  e.preventDefault();
+  cancelTake();
+});
+
 // Windows shell: global hotkey events arrive over the bridge.
 bridge.onHotkey = (phase) => {
   if (phase === "down") pressStart();
   else pressEnd();
+};
+// The pill's X and check, clicked in whatever app the user is dictating into.
+bridge.onCancel = () => cancelTake();
+bridge.onStop = () => {
+  if (isRecordingState()) stopAndInsert();
 };
 bridge.onPasteResult = (r) => {
   if (!r.ok) {

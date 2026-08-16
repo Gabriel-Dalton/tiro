@@ -27,6 +27,14 @@ sealed class TrayContext : ApplicationContext
             _tray.Text = $"Tiro {Build.Version}. WebView2 runtime missing.";
         };
         _mainForm.HotkeyRebound += (code) => _hook!.SetHotkey(code);
+        _mainForm.LevelChanged += _pill.SetLevel;
+
+        // The pill's own buttons, clicked in whatever app the user is dictating
+        // into. They go back through the web core rather than acting locally:
+        // it owns the take, the socket and the history, and a second authority
+        // over any of those is how the two ends drift apart.
+        _pill.CancelClicked += () => _mainForm.PostCancel();
+        _pill.StopClicked += () => _mainForm.PostStop();
 
         foreach (var state in new[] { "idle", "recording", "transcribing", "blocked" })
         {
@@ -67,6 +75,7 @@ sealed class TrayContext : ApplicationContext
         // global hotkey -> the web core's shared hold/tap state machine
         _hook = new KeyboardHook(_settings.HotkeyCode);
         _hook.HotkeyChanged += (down) => _mainForm.BeginInvoke(() => _mainForm.PostHotkey(down));
+        _hook.CancelPressed += () => _mainForm.BeginInvoke(() => _mainForm.PostCancel());
 
         // a second launch signals this event instead of starting a second copy
         _showWait = ThreadPool.RegisterWaitForSingleObject(
@@ -86,6 +95,11 @@ sealed class TrayContext : ApplicationContext
     {
         if (_tray.Icon != null && _stateIcons.TryGetValue(state, out var icon)) _tray.Icon = icon;
         _pill.ShowState(state);
+        // Arm the global Escape watch for exactly as long as there is something
+        // to cancel. "blocked" is not a take, so it disarms too. The hook is
+        // built before _mainForm.Show(), and nothing raises StateChanged until
+        // the WebView2 loads on Show, so it cannot be null here.
+        _hook.WatchCancel = state == "recording" || state == "transcribing";
     }
 
     private void Quit()

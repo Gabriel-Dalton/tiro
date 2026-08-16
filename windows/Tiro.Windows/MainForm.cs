@@ -168,6 +168,13 @@ sealed class MainForm : Form
                 StateChanged?.Invoke(msg.GetProperty("state").GetString() ?? "idle");
                 break;
 
+            case "level":
+                // Already smoothed and normalised by the web core, which is what
+                // keeps this meter and the PWA's halo from disagreeing. The
+                // bridge throttles it to 20 Hz, so this is not a hot path.
+                LevelChanged?.Invoke((float)msg.GetProperty("value").GetDouble());
+                break;
+
             case "setHotkey":
             {
                 var code = msg.GetProperty("code").GetString() ?? "AltRight";
@@ -206,7 +213,16 @@ sealed class MainForm : Form
     /// the blocked state rather than pretending the app is ready.</summary>
     public event Action? RuntimeMissing;
 
+    /// <summary>Mic level 0..1 while a take runs, for the pill's waveform.</summary>
+    public event Action<float>? LevelChanged;
+
     public void PostHotkey(bool down) => PostToWeb(new { type = "hotkey", phase = down ? "down" : "up" });
+
+    /// <summary>Throw the take away: global Escape, or the pill's X.</summary>
+    public void PostCancel() => PostToWeb(new { type = "cancel" });
+
+    /// <summary>Finish the take now: the pill's check.</summary>
+    public void PostStop() => PostToWeb(new { type = "stop" });
 
     private void PostToWeb(object payload)
     {
