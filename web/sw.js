@@ -2,7 +2,9 @@
 // wss:// and never passes through here; sw.js itself is served no-cache (see
 // vercel.json) so shell updates are picked up on next load.
 
-const VERSION = "tiro-v1";
+// Stamped by scripts/gen-version.mjs. A version bump renames the cache, which
+// is what drops the previous shell on activate.
+const CACHE = "tiro-1.0.0";
 const SHELL = [
   "./",
   "index.html",
@@ -14,9 +16,11 @@ const SHELL = [
   "src/bridge.js",
   "src/deepgram.js",
   "src/history.js",
+  "src/install.js",
   "src/settings.js",
   "src/tokens.js",
   "src/usage.js",
+  "src/version.js",
   "worklets/pcm-processor.js",
   "icons/icon-192.png",
   "icons/icon-512.png",
@@ -27,13 +31,13 @@ const SHELL = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -48,7 +52,7 @@ self.addEventListener("fetch", (e) => {
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();
-            caches.open(VERSION).then((c) => c.put(e.request, copy));
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
           }
           return res;
         })

@@ -5,7 +5,7 @@ namespace Tiro.Windows;
 
 /// <summary>
 /// WH_KEYBOARD_LL global hotkey (SPEC-WINDOWS 4.1). The callback does no work
-/// beyond filtering and raising an event — a slow hook lags every app's typing
+/// beyond filtering and raising an event. A slow hook lags every app's typing
 /// and Windows silently unhooks it. Hold/tap timing lives in the web core.
 /// </summary>
 sealed class KeyboardHook : IDisposable

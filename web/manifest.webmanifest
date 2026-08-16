@@ -1,7 +1,7 @@
 {
   "name": "Tiro",
   "short_name": "Tiro",
-  "description": "Hold, speak, release — the transcript is on your clipboard. Dictation with your own Deepgram key.",
+  "description": "Hold, speak, release, and the transcript is on your clipboard. Dictation with your own Deepgram key.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

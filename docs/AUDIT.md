@@ -1,5 +1,15 @@
 # Platform audit — August 2026
 
+> **Partly overtaken by main.** This was written against `d07d9d0`. Merging main brought in
+> fifteen commits that land on the same files, and four findings are already resolved there:
+> **WIN-06** (DPI-aware region, `DeleteObject`, and the pill now follows the foreground
+> window), **PWA-11** (the cache name is stamped by `scripts/gen-version.mjs`), the
+> cross-cutting **no-tests** finding (`scripts/smoke-web.mjs` is a real Playwright suite),
+> and half of **MAC-01** (`deepgramStreamingPerMin` moved to 0.0077 in the shared tokens,
+> though `DEEPGRAM_PER_MIN` in `main.swift` is still 0.0043 and now disagrees with it).
+> Those are marked inline. The rest were re-checked against the merged tree and stand, but
+> this document has not had a full second pass and should get one.
+
 A read of every source file in the three clients: the macOS Swift app (`Sources/`), the
 Windows WebView2 shell (`windows/`), and the PWA (`web/`), plus the shared build scripts
 and CI. 26 findings, none of them cosmetic-only.
@@ -53,13 +63,18 @@ not wired to this moment.
 
 ### PWA-02 · Critical · The first tap can leave the app stuck recording, and orphan a billed socket
 
-> **Fixed.** `pressStart` now claims the async gap with a `starting` flag and
-> `pressEnd` records a release that lands inside it, which `pressStart` applies once
-> there is a take to apply it to. Re-entry is also blocked outright — the guard is now
-> `state !== "idle"` rather than a list of two states — and the `stream.start()` failure
-> path checks it still owns the current take before tearing anything down. Verified in
-> Chromium against a stalled `getUserMedia`: the bug reproduces on the previous commit
-> and does not on this one.
+> **Fixed — and fixed independently on main at the same time.** Both arrived at the same
+> mechanism and the same names: a `starting` flag claiming the async gap, and `pressEnd`
+> recording a release that lands inside it. Main's version is the one that survived the
+> merge, including its call on where a deferred release should land: hands-free mode
+> rather than ending the take, on the grounds that there is no audio yet and the user
+> gesture is gone, so stopping would transcribe silence and be refused the clipboard.
+> That is the better argument. What this branch adds on top is the take-identity guard in
+> the `stream.start()` failure path (`const take = stream` / `if (stream !== take) return`),
+> which main does not have: connecting can outlast the take, and without it the failure
+> path reaches into a take `stopAndInsert` has already taken over. Covered by
+> `scripts/smoke-web.mjs` — "tap-before-mic-ready lands in hands-free mode" and "only one
+> socket was ever opened across the whole fumbled sequence".
 
 **`web/src/app.js:99-156`, `web/src/app.js:249-265`**
 
@@ -214,6 +229,10 @@ One `readwrite` transaction for the whole batch is both faster and atomic.
 
 ### PWA-11 · Low · The service worker cache version is a hand-maintained constant
 
+> **Already fixed on main.** The cache name is now `tiro-<version>`, stamped by
+> `scripts/gen-version.mjs` from the root `VERSION` file, so `activate` drops the previous
+> shell on every release.
+
 **`web/sw.js:5`**
 
 `VERSION = "tiro-v1"` is what `activate` uses to delete stale caches, and nothing in
@@ -332,6 +351,10 @@ does nothing. The runtime-missing path (lines 57-95) is handled carefully; this 
 same class of problem and is not.
 
 ### WIN-06 · Medium · The recording pill is clipped on scaled displays and always lands on the primary monitor
+
+> **Already fixed on main.** `RecordingPill` now rebuilds its region on `DpiChanged`, frees
+> the `HRGN` with `DeleteObject`, and places against `Screen.FromHandle(...)` with
+> `Screen.PrimaryScreen` only as a fallback. All three sub-issues are closed.
 
 **`windows/Tiro.Windows/RecordingPill.cs:39`, `windows/Tiro.Windows/RecordingPill.cs:81-85`**
 
@@ -470,7 +493,12 @@ pre-created 0600 file removes it entirely.
 
 ## Cross-cutting
 
-**There are no automated tests anywhere in the repository.** CI (`.github/workflows/build.yml`)
+> **Overtaken by main.** `scripts/smoke-web.mjs` is a Playwright suite covering the install
+> sheet, the level halo, a full take, and the tap-before-mic-ready race. The paragraph below
+> stood at `d07d9d0`; what remains true is that the Swift and C# sides still have no tests,
+> and that `smoke-web.mjs` is not yet wired into CI.
+
+**There were no automated tests anywhere in the repository.** CI (`.github/workflows/build.yml`)
 builds both apps and asserts the macOS binary is universal — which is a genuinely good
 check, and caught a real v1.0.0 regression — but nothing executes a line of application
 logic. The pieces that would benefit most are pure and easy to test today:

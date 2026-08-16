@@ -1,11 +1,11 @@
-// GENERATED from shared/design-tokens.json — do not edit by hand.
+// GENERATED from shared/design-tokens.json. Do not edit by hand.
 // Regenerate with: node scripts/gen-tokens.mjs
 
 export const TAP_THRESHOLD_MS = 350;
 export const PRE_ROLL_SEC = 0.7;
 export const TAIL_SEC = 0.5;
 export const TARGET_SAMPLE_RATE = 16000;
-export const STREAMING_PER_MIN = 0.0048;
+export const STREAMING_PER_MIN = 0.0077;
 export const KEEPALIVE_INTERVAL_MS = 5000;
 export const COMPETITORS = [
   {

@@ -9,6 +9,8 @@ import * as history from "./history.js";
 import { monthStats, fmtMoney, fmtMinutes } from "./usage.js";
 import * as settings from "./settings.js";
 import { bridge } from "./bridge.js";
+import { Installer } from "./install.js";
+import { VERSION } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -21,15 +23,9 @@ let pressedAt = 0;
 let stream = null;      // DeepgramStream for the current take
 let timerHandle = null;
 let recordStartedAt = 0;
-// pressStart has to await the mic before there is a take to hold, and the very
-// first press on iOS waits on a modal permission prompt. These two carry the
-// press across that gap: without them the release lands on an idle app, does
-// nothing, and the take starts anyway with no finger on it.
-let starting = false;
-let releasedWhileStarting = false;
 
 const engine = new AudioEngine();
-engine.onDeviceChange = () => notice("Mic changed — reconnected", "warn");
+engine.onDeviceChange = () => notice("Mic changed, reconnected", "warn");
 
 // ---------------------------------------------------------------- ui helpers
 
@@ -40,6 +36,9 @@ function setState(next) {
   talk.classList.toggle("transcribing", next === "transcribing");
   head.classList.toggle("recording", next === "holdRecording" || next === "toggleRecording");
   $("timer").hidden = next !== "holdRecording" && next !== "toggleRecording";
+  // Drive the halo from the state itself, not from one branch below: a take
+  // that starts in toggle mode has to breathe too.
+  if (next === "holdRecording" || next === "toggleRecording") startHalo();
   if (next === "idle") {
     label.textContent = "Hold to talk";
     head.textContent = "ready";
@@ -68,7 +67,6 @@ function startTimer() {
     $("timer").textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
   }, 200);
   $("timer").textContent = "0:00";
-  animateLevel();
 }
 
 function stopTimer() {
@@ -76,16 +74,71 @@ function stopTimer() {
   timerHandle = null;
 }
 
-function animateLevel() {
+// ---------------------------------------------------------------- level halo
+//
+// The ring behind the button breathes with your voice. Three things make or
+// break how it feels, and all three were wrong before:
+//
+//  1. The CSS carried `transition: opacity` while this loop rewrote opacity
+//     every frame. Each write restarted a 200 ms transition that the next frame
+//     replaced, so the ring never reached any value it was told to. It smeared
+//     and lagged behind the voice. The transition is gone; smoothing happens
+//     here, on the number, where it can be tuned.
+//  2. Raw RMS through automatic gain control sits around 0.05–0.15 for ordinary
+//     speech, so the old `level * 3.2` never got near 1 and the ring barely
+//     moved. Normalising between a noise floor and a realistic ceiling, then
+//     bending the curve, uses the whole range.
+//  3. Nothing reset the transform when recording stopped, so the ring froze at
+//     whatever size the last word left it.
+
+const HALO_FLOOR = 0.012;   // below this is room tone, not speech
+const HALO_CEIL = 0.22;     // a firm speaking voice through AGC
+const HALO_ATTACK = 0.45;   // rise fast enough to feel like a response
+const HALO_DECAY = 0.12;    // fall slowly enough not to strobe between syllables
+
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let haloValue = 0;          // smoothed 0..1, the number actually drawn
+let haloRunning = false;
+
+function isRecordingState() {
+  return state === "holdRecording" || state === "toggleRecording";
+}
+
+function startHalo() {
+  if (haloRunning) return; // one loop only, however many times we are called
+  haloRunning = true;
   const halo = $("halo");
+
   const tick = () => {
-    if (state !== "holdRecording" && state !== "toggleRecording") {
+    const recording = isRecordingState();
+    // Target is the voice while recording, and zero once it stops, so the ring
+    // eases back down instead of snapping off mid-pulse.
+    let target = 0;
+    if (recording) {
+      const norm = (engine.level - HALO_FLOOR) / (HALO_CEIL - HALO_FLOOR);
+      // gamma < 1 opens up the quiet end, where normal speech actually lives
+      target = Math.pow(Math.max(0, Math.min(1, norm)), 0.6);
+    }
+    const rate = target > haloValue ? HALO_ATTACK : HALO_DECAY;
+    haloValue += (target - haloValue) * rate;
+
+    if (!recording && haloValue < 0.01) {
+      // settled: park it clean so the next take starts from a known state
+      haloValue = 0;
       halo.style.opacity = "0";
+      halo.style.transform = "scale(1)";
+      haloRunning = false;
       return;
     }
-    const l = Math.min(1, engine.level * 3.2);
-    halo.style.opacity = String(0.35 + l * 0.6);
-    halo.style.transform = `scale(${1 + l * 0.45})`;
+
+    if (reducedMotion.matches) {
+      // A steady ring still says "recording" without any motion at all.
+      halo.style.opacity = recording ? "0.6" : String(haloValue * 0.6);
+      halo.style.transform = "scale(1.1)";
+    } else {
+      halo.style.opacity = String((0.3 + haloValue * 0.55) * (recording ? 1 : haloValue));
+      halo.style.transform = `scale(${1 + haloValue * 0.42})`;
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -102,12 +155,19 @@ function notice(text, tone = "warn", ms = 3200) {
 
 // ---------------------------------------------------------------- recording
 
+// Opening the mic is asynchronous, and on first run it waits on a permission
+// prompt that can sit there for seconds. Everything between the press and
+// setState("holdRecording") is therefore a window in which a release can arrive
+// with nothing to release, and a second press can start a second take on top of
+// the first. `starting` closes both.
+let starting = false;
+let releasedWhileStarting = false;
+
 async function pressStart() {
-  // Only a genuinely idle app starts a take. Re-entering while one is already
-  // running (or still starting) used to overwrite `stream`, leaving the first
-  // socket unreferenced — still open, still streaming, still billing, with
-  // nothing left able to abort it.
-  if (starting || state !== "idle") return;
+  if (starting) return;                    // one take may be opening at a time
+  if (state === "transcribing") return;
+  if (state === "holdRecording") return;   // already running; a second stream would orphan the first
+  if (state === "toggleRecording") return; // handled on release: stop-and-insert
 
   const key = settings.getApiKey();
   if (!key) {
@@ -121,21 +181,17 @@ async function pressStart() {
     return;
   }
 
-  // Stamp the press before the await, and claim the gap. A release arriving
-  // during it is remembered rather than dropped.
-  pressedAt = Date.now();
   starting = true;
   releasedWhileStarting = false;
-
   try {
     await engine.start(); // no-op when already warm
   } catch {
     starting = false;
-    releasedWhileStarting = false;
-    notice("Microphone unavailable — check permissions", "bad", 5000);
+    notice("No microphone. Check permissions", "bad", 5000);
     return;
   }
 
+  pressedAt = Date.now();
   stream = new DeepgramStream(key);
   stream.onInterim = (interim, finals) => {
     $("live").hidden = false;
@@ -155,13 +211,24 @@ async function pressStart() {
   engine.onChunk = (c) => stream && stream.send(c);
   engine.beginRecording();
   setState("holdRecording");
+  starting = false;
+
+  if (releasedWhileStarting) {
+    releasedWhileStarting = false;
+    // The press ended before the mic was open. That is the first run, where the
+    // permission prompt sits in front of everything. There is no audio yet, and
+    // the user gesture is long gone, so a stop here would transcribe silence and
+    // be refused the clipboard anyway. Hands-free mode is the useful landing.
+    setState("toggleRecording");
+    notice("Recording. Tap the button when you're done", "warn", 4000);
+  }
 
   const take = stream;
   take.start().catch((err) => {
     // The socket never opened; kill the take with a precise message. Connecting
-    // can outlast the take itself (the open timeout is longer than plenty of
-    // presses), so only clean up if this is still the take on screen — otherwise
-    // stopAndInsert already owns it and is mid-transcribe.
+    // can outlast the take itself, since the open timeout is longer than plenty
+    // of presses, so only clean up if this is still the take on screen. If it is
+    // not, stopAndInsert already owns it and is mid-transcribe.
     if (stream !== take) return;
     engine.endRecording();
     engine.onChunk = null;
@@ -169,31 +236,16 @@ async function pressStart() {
     stream = null;
     setState("idle");
     notice(
-      err.kind === "auth" ? "Deepgram rejected your key — check Settings"
+      err.kind === "auth" ? "Deepgram rejected your key. Check Settings"
         : err.kind === "offline" ? "You are offline"
         : "Could not reach Deepgram",
       "bad", 5000
     );
   });
-
-  // The take exists now, so a release that arrived during the await has
-  // something to act on. Applying it here is what stops the app sitting in
-  // holdRecording with no finger down — the first-run case, where the mic
-  // prompt swallows the entire press.
-  starting = false;
-  if (releasedWhileStarting) {
-    releasedWhileStarting = false;
-    pressEnd();
-  }
 }
 
 function pressEnd() {
-  // Released before the take finished starting: remember it, and let pressStart
-  // apply it once there is a take. Dropping it here is what left the app stuck.
-  if (starting) {
-    releasedWhileStarting = true;
-    return;
-  }
+  if (starting) { releasedWhileStarting = true; return; }
   if (state === "holdRecording") {
     if (Date.now() - pressedAt < TAP_THRESHOLD_MS) {
       setState("toggleRecording"); // quick tap: stay recording hands-free
@@ -205,12 +257,9 @@ function pressEnd() {
   }
 }
 
-/** Call synchronously inside the user gesture where possible: the promise-valued
+/** Must be called synchronously inside the user gesture: the promise-valued
  * ClipboardItem is what lets the write survive the network round trip on
- * Safari (docs/RESEARCH.md #4). The one path that cannot is a release deferred
- * out of pressStart, where the gesture is long gone — that take falls through
- * to the lower clipboard tiers and the visible Copy button, which is exactly
- * what the tiering is for. */
+ * Safari (docs/RESEARCH.md #4). */
 function stopAndInsert() {
   if (!stream) { setState("idle"); return; }
   const s = stream;
@@ -251,10 +300,17 @@ function finishTake(text, sec) {
   const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   history.addEntry({ ts, text, sec }).catch(() => {});
   bridge.appendHistory(JSON.stringify({ ts, text, sec }));
+
+  // The one moment worth asking someone to install: they have just watched
+  // their own voice turn into text and the answer is not theoretical. Asking on
+  // arrival, before the app has proved anything, is how install prompts teach
+  // people to dismiss install prompts. No-op unless this is iOS Safari, where
+  // installing is the difference between keeping your key and losing it.
+  installer.offerAfterSuccess();
 }
 
-// Clipboard tiers (SPEC-PWA 1.4). Tier 3 — the visible Copy button on the
-// result card — is always available regardless.
+// Clipboard tiers (SPEC-PWA 1.4). Tier 3, the visible Copy button on the
+// result card, is always available regardless.
 function writeClipboardTiered(transcriptPromise) {
   const setBadge = (ok) => {
     $("result-badge").textContent = ok ? "copied" : "tap copy";
@@ -336,8 +392,8 @@ bridge.onPasteResult = (r) => {
   if (!r.ok) {
     notice(
       r.reason === "elevated"
-        ? "That window is elevated — transcript left on the clipboard, paste it yourself"
-        : "Could not paste — transcript is on the clipboard",
+        ? "That window is elevated. The transcript is on the clipboard, paste it yourself"
+        : "Could not paste. The transcript is on the clipboard",
       "warn", 5000
     );
   }
@@ -503,7 +559,7 @@ async function saveAndTestKey(inputEl, statusEl) {
     await settings.setApiKey(key);
     statusEl("Valid", "ok");
     $("setup-card").hidden = true;
-    notice("Key saved — hold the button and speak", "ok");
+    notice("Key saved. Hold the button and speak", "ok");
   } else {
     statusEl(
       r.kind === "auth" ? "Key rejected by Deepgram" : r.kind === "offline" ? "You are offline" : "Could not reach Deepgram",
@@ -577,13 +633,41 @@ $("debug-wav").addEventListener("click", async () => {
   for (const c of chunks) { all.set(c, off); off += c.length; }
   status.textContent = "playing back…";
   const audio = new Audio(URL.createObjectURL(int16ToWav(all)));
-  audio.onended = () => { status.textContent = "done — correct pitch means the resampler is right"; };
+  audio.onended = () => { status.textContent = "done. Correct pitch means the resampler is right"; };
   audio.play();
 });
+
+// ---------------------------------------------------------------- install
+
+const installer = new Installer(
+  {
+    button: $("install-btn"),
+    card: $("install-card"),
+    cardButton: $("install-card-btn"),
+    sheet: $("install-sheet"),
+    panel: $("install-panel"),
+    title: $("install-title"),
+    lede: $("install-lede"),
+    visual: $("install-visual"),
+    steps: $("install-steps"),
+    doButton: $("install-do"),
+    copyButton: $("install-copy"),
+    closeButton: $("install-close"),
+  },
+  notice
+);
 
 // ---------------------------------------------------------------- boot
 
 async function boot() {
+  // Which build this is. The EXE ships with the web core, so its version
+  // normally matches; if someone has mixed the two, say both numbers rather
+  // than picking one and being wrong.
+  const mixed = bridge.hostVersion && bridge.hostVersion !== VERSION;
+  $("about-version").textContent =
+    mixed ? `web core ${VERSION} · windows app ${bridge.hostVersion}`
+      : `${VERSION} · ${bridge.isShell ? "windows app" : "web app"}`;
+
   // Windows shell: the DPAPI-held key wins over any cached one.
   if (bridge.isShell) {
     const hostKey = await bridge.fetchKey();
@@ -610,19 +694,10 @@ async function boot() {
 
   history.requestPersistence();
 
-  // iOS install hint: Safari only, not already installed, not dismissed
-  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  if (isIos && !standalone && !localStorage.getItem("tiro.a2hsDismissed") && !bridge.isShell) {
-    $("a2hs").hidden = false;
-  }
-  $("a2hs-dismiss").addEventListener("click", () => {
-    localStorage.setItem("tiro.a2hsDismissed", "1");
-    $("a2hs").hidden = true;
-  });
+  installer.start({ isShell: bridge.isShell });
 
   window.addEventListener("online", () => notice("Back online", "ok", 1600));
-  window.addEventListener("offline", () => notice("You are offline — history still works", "warn"));
+  window.addEventListener("offline", () => notice("You are offline. History still works", "warn"));
 
   if ("serviceWorker" in navigator && !bridge.isShell) {
     navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F6F1E7">
-  <title>Tiro — hold a key, speak, done</title>
-  <meta name="description" content="Free, open dictation for Mac, Windows, and your phone. Hold a key, speak, and punctuated text lands where your cursor is. Powered by your own Deepgram key — about half a cent per minute, no subscription.">
+  <title>Tiro: hold a key, speak, done</title>
+  <meta name="description" content="Free, open dictation for Mac, Windows and your phone. Hold a key, speak, and punctuated text lands where your cursor is. Talking is about three times faster than typing, and on your own Deepgram key it costs about 46 cents an hour with no subscription.">
   <link rel="icon" href="favicon-32.png" type="image/png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <style>
-    /* Forum palette — keep in sync with shared/design-tokens.json. The mono face in
-       that file is for the apps; this page is serif and sans only. */
+    /* Forum palette; keep in sync with shared/design-tokens.json. The mono face in
+       that file is for the apps, and this page is serif and sans only. */
     :root {
       --paper-50: #FCFAF4; --paper-100: #F6F1E7; --paper-200: #EFE8D9; --paper-300: #E4DAC6;
       --ink-950: #14110B; --ink-900: #1F1A12; --ink-500: #756B57; --ink-400: #948A74; --ink-300: #B4AB96;
@@ -20,7 +20,7 @@
       --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
       --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
-      /* One gutter, one gap, one section rhythm — all three scale with the viewport
+      /* One gutter, one gap, one section rhythm, all three scaling with the viewport
          so the phone layout is the same design, not a squeezed desktop. */
       --gutter: clamp(20px, 5.5vw, 32px);
       --gap: clamp(12px, 2.4vw, 16px);
@@ -94,7 +94,7 @@
 
     .dl-grid { display: grid; gap: var(--gap); grid-template-columns: 1fr; }
     /* once detection folds the rest away, the one card left should not stretch
-       the full 920px — a lone wide card reads as a banner, not a choice */
+       the full 920px, because a lone wide card reads as a banner rather than a choice */
     .dl-grid > .dl:only-child { max-width: 460px; margin-inline: auto; }
     @media (min-width: 600px) {
       .dl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -142,8 +142,10 @@
     .btn.ghost:hover { background: var(--paper-50); border-color: var(--ink-300); }
 
     /* ---- disclosures: other platforms, first-launch notes ---- */
+    /* The notes sit at the foot of the page on purpose. Whoever needs them is looking
+       for them; everyone else should meet the argument for Tiro first. */
     .others { padding-block: 10px 0; }
-    .notes { padding-block: clamp(16px, 3.5vw, 22px) 0; }
+    .notes { padding-block: 0 clamp(34px, 7vw, 52px); }
 
     summary { cursor: pointer; list-style: none; }
     summary::-webkit-details-marker { display: none; }
@@ -175,9 +177,49 @@
     .notes .note-body > div { font-size: 13.5px; line-height: 1.55; color: var(--ink-500); }
     .notes .note-body strong { display: block; color: var(--ink-950); font-size: 13px; margin-bottom: 2px; }
 
+    /* ---- what it gives back: the two panels and the price table ---- */
+    .value { padding-block: clamp(34px, 6.5vw, 56px) 0; }
+    .value-grid { display: grid; gap: var(--gap); grid-template-columns: 1fr; }
+    @media (min-width: 600px) { .value-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .panel {
+      min-width: 0; background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: clamp(20px, 4.5vw, 26px);
+    }
+    .panel .stat {
+      display: block; font-family: var(--serif); font-weight: 500;
+      font-size: clamp(36px, 7.4vw, 46px); line-height: 1; color: var(--clay-500);
+    }
+    .panel strong { display: block; font-size: 15.5px; color: var(--ink-950); margin: 10px 0 6px; }
+    .panel p { font-size: 14.5px; color: var(--ink-500); text-wrap: pretty; }
+    /* these two carry real numbers rather than housekeeping, so they take the
+       darker ink and clear 4.5:1 against the paper */
+    .panel .fine, .compare-note { color: var(--ink-500); }
+    .panel .fine { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--border-subtle); }
+
+    /* The comparison is the argument, so it stays a real table. On a narrow screen it
+       scrolls inside its own box rather than widening the page. */
+    .compare {
+      margin-top: var(--gap); overflow-x: auto; -webkit-overflow-scrolling: touch;
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+    }
+    .compare table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+    .compare caption {
+      text-align: left; padding: clamp(15px, 3.4vw, 18px) clamp(16px, 3.6vw, 20px) 10px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--ink-400);
+    }
+    .compare th, .compare td { padding: 11px clamp(13px, 3vw, 20px); text-align: right; }
+    .compare thead th { font-size: 12px; font-weight: 600; color: var(--ink-400); white-space: nowrap; }
+    .compare tbody th { text-align: left; font-weight: 500; color: var(--ink-900); }
+    .compare tbody td { color: var(--ink-500); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .compare tbody tr + tr :is(th, td) { border-top: 1px solid var(--border-subtle); }
+    .compare tbody .me { background: var(--clay-100); }
+    .compare tbody .me :is(th, td) { color: var(--clay-600); font-weight: 600; }
+    .compare-note { margin-top: 10px; }
+
     /* ---- how it works ---- */
     .how { padding-block: clamp(34px, 6.5vw, 56px) clamp(24px, 5vw, 40px); }
-    .how h3, .facts h3 {
+    .how h3, .facts h3, .value h3 {
       font-family: var(--serif); font-weight: 500;
       font-size: clamp(22px, 3.4vw, 28px); color: var(--ink-950);
       text-align: center; margin-bottom: clamp(18px, 3.4vw, 26px); text-wrap: balance;
@@ -194,7 +236,7 @@
     .step p { font-size: 13.5px; color: var(--ink-500); text-wrap: pretty; }
 
     /* ---- fine print ---- */
-    .facts { padding-block: 0 clamp(36px, 7vw, 56px); }
+    .facts { padding-block: 0 clamp(24px, 5vw, 36px); }
     .facts ul { max-width: 660px; margin-inline: auto; list-style: none; display: grid; gap: 10px; }
     .facts li {
       background: #fff; border: 1px solid var(--border); border-radius: 12px;
@@ -214,7 +256,9 @@
     }
     .site-footer a { color: var(--ink-500); text-decoration: none; padding-block: 6px; }
     .site-footer a:hover { color: var(--clay-600); }
-    .site-footer .colophon { flex-basis: 100%; }
+    /* stamped by scripts/gen-version.mjs; sits at the far end of the row, and wraps
+       under the links rather than crowding them on a narrow screen */
+    .site-footer .version { margin-left: auto; font-size: 12.5px; letter-spacing: 0.04em; }
   </style>
 </head>
 <body>
@@ -236,10 +280,10 @@
   <section class="hero">
     <div class="wrap">
       <h1>Hold a key. Speak.<br><em>Punctuated text</em>, where your cursor is.</h1>
-      <p class="lede">A free, open dictation tool for Mac, Windows, and your phone.
-        It runs on your own Deepgram key, so there is no account, no telemetry,
-        and no server in between.</p>
-      <span class="price">≈ $0.005 a minute · no subscription</span>
+      <p class="lede">A free, open dictation tool for Mac, Windows and your phone.
+        It runs on your own Deepgram key, so there is no account to make and no
+        server of ours in the middle.</p>
+      <span class="price">≈ 46¢ an hour · no subscription</span>
     </div>
   </section>
 
@@ -257,9 +301,8 @@
     <div class="dl" id="dl-mac">
       <span class="caps">macOS 13+</span>
       <h2>Tiro for Mac</h2>
-      <p>A menu-bar app by <a href="https://github.com/mypip-io/tiro">MyPip</a>. Hold
-        <strong>Fn</strong> anywhere and dictate into any app. One universal file for
-        Apple Silicon and Intel.</p>
+      <p>A menu-bar app. Hold <strong>Fn</strong> anywhere and dictate into any app.
+        One universal file for Apple Silicon and Intel.</p>
       <a class="btn" href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-macOS.zip">Download for Mac</a>
       <span class="detected"></span>
       <span class="fine">Unsigned, so the first launch needs <strong>Open&nbsp;Anyway</strong> in System Settings.</span>
@@ -272,7 +315,9 @@
         clipboard before you lift your thumb. Installs to the home screen.</p>
       <a class="btn ghost" href="/app/" id="web-link">Open the web app</a>
       <span class="detected"></span>
-      <span class="fine">It cannot type into other apps, so you paste. That is a platform rule, not a gap.</span>
+      <span class="fine" id="web-install-note">Nothing to download. Open it, then use the
+        <strong>Install</strong> button in the top corner to add it to your home screen.</span>
+      <span class="fine">It cannot type into other apps, so you paste. Browsers do not allow anything else.</span>
     </div>
   </section>
 
@@ -280,6 +325,77 @@
     <summary>Other platforms</summary>
     <div class="other-grid dl-grid"></div>
   </details>
+
+  <section class="value wrap">
+    <h3>Two things you get back</h3>
+    <div class="value-grid">
+      <div class="panel">
+        <span class="stat">3×</span>
+        <strong>Faster than your hands</strong>
+        <p>Most people type around 40 words a minute and talk around 150. The message
+          that takes four minutes to write takes about ninety seconds to say, and you
+          are looking at the screen the whole time instead of the keyboard.</p>
+        <p class="fine">A thousand words a day is roughly eighteen minutes back, every
+          day. Over a working year that is about seventy-five hours.</p>
+      </div>
+      <div class="panel">
+        <span class="stat">46¢</span>
+        <strong>An hour, at cost</strong>
+        <p>You buy the minutes you actually speak, straight from Deepgram, at the price
+          Deepgram charges everyone. No subscription, no seat, no plan to remember to
+          cancel, and no month where you pay for silence.</p>
+        <p class="fine">A new Deepgram account comes with $200 of credit: around 430
+          hours of dictation before you spend anything of your own.</p>
+      </div>
+    </div>
+
+    <div class="compare">
+      <table>
+        <caption>What a month of dictation costs</caption>
+        <thead>
+          <tr><td></td><th scope="col">1 hour</th><th scope="col">10 hours</th></tr>
+        </thead>
+        <tbody>
+          <tr class="me"><th scope="row">Tiro, on your own key</th><td>$0.46</td><td>$4.62</td></tr>
+          <tr><th scope="row">Wispr Flow Pro</th><td>$15.00</td><td>$15.00</td></tr>
+          <tr><th scope="row">superwhisper Pro</th><td>$8.49</td><td>$8.49</td></tr>
+          <tr><th scope="row">Aqua Voice Pro</th><td>$8.00</td><td>$8.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine compare-note">Deepgram streaming nova-3 at $0.0077 a minute, August 2026.
+      Past about 32 hours a month — an hour of solid dictation every single day — a $15
+      subscription becomes the cheaper way to buy it.</p>
+  </section>
+
+  <section class="how wrap">
+    <h3>How it works</h3>
+    <div class="steps">
+      <div class="step"><span class="n">01</span><strong>Get a Deepgram key</strong>
+        <p>Free from Deepgram's console. New accounts include credit for hundreds of hours.</p></div>
+      <div class="step"><span class="n">02</span><strong>Paste it into Tiro</strong>
+        <p>The key stays on your device. Tiro has no server, so nobody else ever holds it.</p></div>
+      <div class="step"><span class="n">03</span><strong>Hold, speak, release</strong>
+        <p>The mic is always warm, so even the first word is caught. A quick tap records hands-free.</p></div>
+      <div class="step"><span class="n">04</span><strong>Text lands finished</strong>
+        <p>Punctuation, capitalisation, emails and numbers formatted, pasted where you were typing.</p></div>
+    </div>
+  </section>
+
+  <section class="facts wrap">
+    <h3>The honest fine print</h3>
+    <ul>
+      <li><strong>Your key, your bill.</strong> There is no Tiro account and no Tiro server.
+        Audio goes from your machine to Deepgram on your own key, and the bill is theirs
+        to send, not ours.</li>
+      <li><strong>No Electron.</strong> The Mac app is native Swift; Windows uses the Edge WebView
+        already on the machine. Small binaries, no bundled browser.</li>
+      <li><strong>Your history stays local.</strong> One plain JSONL file you can grep, export,
+        and carry between the Mac, Windows and web versions.</li>
+      <li><strong>Open source, MIT.</strong> Every line is on GitHub and the build is one script,
+        so you can compile it yourself rather than trust a download.</li>
+    </ul>
+  </section>
 
   <section class="wrap notes">
     <details>
@@ -312,40 +428,12 @@
     </details>
   </section>
 
-  <section class="how wrap">
-    <h3>How it works</h3>
-    <div class="steps">
-      <div class="step"><span class="n">01</span><strong>Get a Deepgram key</strong>
-        <p>Free from Deepgram's console. New accounts include credit for hundreds of hours.</p></div>
-      <div class="step"><span class="n">02</span><strong>Paste it into Tiro</strong>
-        <p>The key stays on your device. Tiro has no server, so nobody else ever holds it.</p></div>
-      <div class="step"><span class="n">03</span><strong>Hold, speak, release</strong>
-        <p>The mic is always warm, so even the first word is caught. A quick tap records hands-free.</p></div>
-      <div class="step"><span class="n">04</span><strong>Text lands finished</strong>
-        <p>Punctuation, capitalisation, emails and numbers formatted, pasted where you were typing.</p></div>
-    </div>
-  </section>
-
-  <section class="facts wrap">
-    <h3>The honest fine print</h3>
-    <ul>
-      <li><strong>You pay Deepgram, not us.</strong> Streaming nova-3 is $0.0048 a minute, so a
-        $15/month subscription buys what about 52 hours of dictation costs here.</li>
-      <li><strong>No Electron.</strong> The Mac app is native Swift; Windows uses the Edge WebView
-        already on the machine. Small binaries, no bundled browser.</li>
-      <li><strong>Your history stays local.</strong> One plain JSONL file you can grep, export,
-        and carry between the Mac, Windows and web versions.</li>
-      <li><strong>Open source, MIT.</strong> A fork of <a href="https://github.com/mypip-io/tiro">mypip-io/tiro</a>,
-        extended to Windows and the web.</li>
-    </ul>
-  </section>
-
   <footer class="site-footer">
     <div class="wrap">
       <span>MIT licensed</span>
       <a href="https://github.com/Gabriel-Dalton/tiro">Source</a>
       <a href="https://github.com/Gabriel-Dalton/tiro/releases">All releases</a>
-      <span class="colophon">No cookies, no analytics. This page is one static file.</span>
+      <span class="version">v1.0.0</span>
     </div>
   </footer>
 
@@ -353,7 +441,7 @@
     // Lead with the download that fits the visitor's machine, and keep the rest
     // one click away. Detection only ever *reorders* what is already on the page:
     // if it guesses wrong, or JavaScript never runs, every download stays visible
-    // and reachable. Nothing here is sent anywhere — it is all local.
+    // and reachable. Nothing here is sent anywhere; it all stays in the browser.
     (function () {
       var ua = navigator.userAgent;
       var data = navigator.userAgentData;
@@ -374,9 +462,30 @@
       var reason = isIOS ? "Detected iPhone or iPad"
                  : isAndroid ? "Detected Android"
                  : isLinux ? "Detected Linux or ChromeOS"
-                 : isMac ? "Detected macOS — one file for Apple Silicon and Intel"
+                 : isMac ? "Detected macOS. One file for Apple Silicon and Intel"
                  : isWindows ? "Detected Windows"
                  : "";
+
+      // On a phone the web app is not a consolation prize, it is the product, and
+      // "Open the web app" buries the thing people actually want. Lead with the
+      // install, and hand over to /app/?install=1 so the walkthrough is already
+      // open when they land. On iOS that walkthrough is the only install path
+      // there is, since Apple exposes no API for it.
+      if (isIOS || isAndroid) {
+        var webLink = document.getElementById("web-link");
+        if (webLink) {
+          webLink.href = "/app/?install=1";
+          webLink.className = "btn";
+          webLink.textContent = isIOS ? "Install on your iPhone" : "Install on your phone";
+        }
+        var installNote = document.getElementById("web-install-note");
+        if (installNote) {
+          installNote.innerHTML = isIOS
+            ? "Two taps: <strong>Share</strong>, then <strong>Add to Home Screen</strong>. Tiro shows " +
+              "you where. Use <strong>Safari</strong>, the only iPhone browser Apple lets add apps."
+            : "One tap. Your browser will ask to add Tiro to your home screen.";
+        }
+      }
 
       if (!pick) return;
 

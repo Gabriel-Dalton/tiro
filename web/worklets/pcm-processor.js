@@ -1,6 +1,6 @@
 // Audio-thread side of capture. Deliberately dumb: copy mono Float32 frames and
 // post them to the main thread. Ring buffer, resampling and state all live in
-// src/audio.js — never add logic here.
+// src/audio.js. Never add logic here.
 class PCMProcessor extends AudioWorkletProcessor {
   process(inputs) {
     const channel = inputs[0] && inputs[0][0];
