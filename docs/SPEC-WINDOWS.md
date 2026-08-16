@@ -118,7 +118,8 @@ contained change, which is why it is safe to try WebView2 first.
 
 ## Out of scope for this phase
 
-- Installer, signing, winget manifest. Phase 5.
+- Installer, winget manifest. Phase 5. Authenticode signing landed ahead of that phase because
+  SmartScreen blocks first launches without it — see [SIGNING.md](SIGNING.md).
 - Any UI written in XAML beyond the tray, the pill and the WebView host. All product UI is the
   web core.
 - Windows 10 support. Check WebView2 runtime presence if this comes up later; it is guaranteed

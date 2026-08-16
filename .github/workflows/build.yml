@@ -16,6 +16,10 @@
 # Publishing happens in one job that waits for both builds, so a release always
 # carries both assets. Attaching from each build job separately would race, with
 # two jobs trying to create the same release at once.
+#
+# Release builds of the Windows EXE are Authenticode-signed by SignPath Foundation
+# when the repository carries the settings docs/SIGNING.md describes; without them
+# the same ZIP is produced unsigned.
 
 name: build
 
@@ -36,6 +40,15 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: read # SignPath reads back the artifact this job uploads
+    env:
+      # Signing is opt-in and configured entirely from repository settings, so a fork
+      # or a pull request — neither of which can see the secret — still builds a working
+      # (unsigned) EXE instead of failing. See docs/SIGNING.md for the setup.
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,9 +65,63 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish
 
+      # SignPath Foundation signs releases, not every push: its free tier is for
+      # published open-source builds, and each signing request is a human-auditable
+      # record rather than something to spend on a branch build.
+      - name: Decide whether this build gets signed
+        id: signing
+        shell: pwsh
+        run: |
+          $isRelease = '${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '') }}' -eq 'true'
+          $configured = -not [string]::IsNullOrWhiteSpace($env:SIGNPATH_API_TOKEN) -and
+                        -not [string]::IsNullOrWhiteSpace($env:SIGNPATH_ORGANIZATION_ID)
+          $sign = $isRelease -and $configured
+          "sign=$($sign.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          if ($sign) { "Signing this build with SignPath." }
+          elseif ($isRelease) { "::warning::Releasing an unsigned Windows build — SignPath is not configured (docs/SIGNING.md)." }
+          else { "Not a release build; skipping signing." }
+
+      - name: Upload the unsigned build for SignPath
+        id: unsigned
+        if: steps.signing.outputs.sign == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tiro-Windows-x64-unsigned
+          path: publish/
+          if-no-files-found: error
+
+      - name: Sign with SignPath
+        if: steps.signing.outputs.sign == 'true'
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'tiro' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'windows-zip' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Verify the signature
+        if: steps.signing.outputs.sign == 'true'
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature signed/Tiro.exe
+          if ($sig.Status -ne 'Valid') { throw "Tiro.exe came back $($sig.Status), not Valid." }
+          "Signed by $($sig.SignerCertificate.Subject)"
+
       - name: Zip
         shell: pwsh
-        run: Compress-Archive -Path publish/* -DestinationPath Tiro-Windows-x64.zip
+        # `signed` exists only when the steps above ran, so an unsigned build still ships.
+        # SignPath returns the artifact's own layout, but a nested folder would quietly
+        # produce a ZIP nobody can run, so check before packing rather than after.
+        run: |
+          $source = if (Test-Path signed) { 'signed' } else { 'publish' }
+          if (-not (Test-Path (Join-Path $source 'Tiro.exe'))) {
+            throw "$source/Tiro.exe is missing — the ZIP layout would be wrong."
+          }
+          Compress-Archive -Path "$source/*" -DestinationPath Tiro-Windows-x64.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -133,8 +200,10 @@ jobs:
 
             The web app needs no download — open `/app/` on the site and Add to Home Screen.
 
-            Both builds are unsigned. Windows SmartScreen asks once: **More info → Run anyway**.
-            On macOS, right-click the app and choose **Open** the first time.
+            If Windows SmartScreen stops the app, unblock the ZIP **before** extracting it —
+            right-click it → Properties → tick **Unblock** → OK — or, from the dialog itself,
+            choose **More info → Run anyway**. On macOS, right-click the app and choose
+            **Open** the first time.
 
             First run asks for a Deepgram API key, free at
             [console.deepgram.com](https://console.deepgram.com). It is stored on your device

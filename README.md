@@ -45,8 +45,10 @@ gets full parity with the Mac.
 
 - **Windows**: grab `Tiro-Windows-x64.zip` from the
   [latest release](https://github.com/Gabriel-Dalton/tiro/releases/latest) (or a `build`
-  workflow artifact), unzip anywhere, run `Tiro.exe`. It sits in the tray; hold **Right Alt**
-  in any app to dictate. Unsigned build, so SmartScreen asks once.
+  workflow artifact). Right-click the ZIP → Properties → tick **Unblock** before extracting,
+  then run `Tiro.exe`. It sits in the tray; hold **Right Alt** in any app to dictate.
+  Unblocking is what keeps SmartScreen quiet — if it does interrupt, **More info → Run
+  anyway**. [`docs/SIGNING.md`](docs/SIGNING.md) explains why, and how releases get signed.
 - **macOS**: `Tiro-macOS.zip` from the same release, or build locally with `./make-app.sh`.
 - **Web / iPhone**: open the deployed site's `/app/` over HTTPS, then Add to Home Screen.
   Everything (`getUserMedia`, service worker, install) requires a secure origin, so the
