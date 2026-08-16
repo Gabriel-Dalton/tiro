@@ -256,8 +256,10 @@
     }
     .site-footer a { color: var(--ink-500); text-decoration: none; padding-block: 6px; }
     .site-footer a:hover { color: var(--clay-600); }
-    /* stamped by scripts/gen-version.mjs; sits at the far end of the row, and wraps
-       under the links rather than crowding them on a narrow screen */
+    /* stamped by scripts/gen-version.mjs, text and href together; sits at the far end
+       of the row, and wraps under the links rather than crowding them on a narrow
+       screen. It links to its own tag, not to /latest: the number names what this page
+       describes, so clicking it has to reach those notes and not whatever shipped since. */
     .site-footer .version { margin-left: auto; font-size: 12.5px; letter-spacing: 0.04em; }
   </style>
 </head>
@@ -433,7 +435,7 @@
       <span>MIT licensed</span>
       <a href="https://github.com/Gabriel-Dalton/tiro">Source</a>
       <a href="https://github.com/Gabriel-Dalton/tiro/releases">All releases</a>
-      <span class="version">v1.0.0</span>
+      <a class="version" href="https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.0.1">v1.0.1</a>
     </div>
   </footer>
 
