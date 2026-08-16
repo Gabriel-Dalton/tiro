@@ -53,6 +53,14 @@ not wired to this moment.
 
 ### PWA-02 · Critical · The first tap can leave the app stuck recording, and orphan a billed socket
 
+> **Fixed.** `pressStart` now claims the async gap with a `starting` flag and
+> `pressEnd` records a release that lands inside it, which `pressStart` applies once
+> there is a take to apply it to. Re-entry is also blocked outright — the guard is now
+> `state !== "idle"` rather than a list of two states — and the `stream.start()` failure
+> path checks it still owns the current take before tearing anything down. Verified in
+> Chromium against a stalled `getUserMedia`: the bug reproduces on the previous commit
+> and does not on this one.
+
 **`web/src/app.js:99-156`, `web/src/app.js:249-265`**
 
 `pressStart()` is `async` and the `pointerdown` listener does not await it:
@@ -113,6 +121,11 @@ and otherwise say "Could not reach Deepgram — check your connection", which is
 every case including the auth one.
 
 ### PWA-04 · High · iOS zooms the page whenever a text field is tapped
+
+> **Fixed.** Text inputs and the hotkey `select` are pinned to 16px, after the `font`
+> shorthand that would otherwise reset it. The viewport meta is untouched, so pinch-zoom
+> still works. Verified by reading computed styles on an iPhone 13 viewport: four controls
+> sat at 15px before, all four are at 16px now.
 
 **`web/styles/app.css:82-90`, `web/styles/app.css:17`**
 
@@ -474,14 +487,24 @@ nobody has noticed.
 
 ## Suggested order
 
-1. **Test PWA-01 on a real iPhone.** Everything about the PWA storage design depends on the
+1. ~~**PWA-02**~~ — done.
+2. ~~**PWA-04**~~ — done.
+3. **Test PWA-01 on a real iPhone.** Everything about the PWA storage design depends on the
    answer, and the answer takes ten minutes to get.
-2. **PWA-02** — a stuck first take, on first run, on the priority platform, that quietly
-   bills. Small, contained fix.
-3. **WIN-01** — decide the AltGr policy before the Windows build gets any real distribution.
+4. **WIN-01** — decide the AltGr policy before the Windows build gets any real distribution.
    Shipping it and changing it later is worse than deciding now.
-4. **PWA-04, PWA-03** — the two things a new phone user hits in their first sixty seconds.
-5. **MAC-01, WIN-02** — both are cases where the product tells the user something that is
+5. **PWA-03** — the "Deepgram rejected your key" misdiagnosis, which a new phone user on a
+   captive portal hits in their first sixty seconds.
+6. **MAC-01, WIN-02** — both are cases where the product tells the user something that is
    not true. Cheap to fix, and they undermine trust in the parts that are accurate.
 
 Everything below that is real but can queue.
+
+## On verification
+
+The two fixes above were checked by driving the real page in Chromium — a stalled
+`getUserMedia` for PWA-02, computed styles on an iPhone 13 viewport for PWA-04 — with the
+previous commit used as a baseline to confirm each check actually catches the bug it
+claims to. Those harnesses live outside the repo, because the repo has no test
+infrastructure to put them in (see Cross-cutting). Wiring them into CI is worth doing and
+is not done here.

@@ -79,10 +79,16 @@ main {
 
 /* ---------- controls ---------- */
 
+/* 16px is the floor that stops mobile Safari zooming the viewport when a field
+   takes focus, and it does not zoom back out on blur — the body font is 15px,
+   so inheriting it left the setup card's key field (the first thing a new user
+   taps) zooming the page and pushing the tab bar off-screen. Must come after
+   the `font` shorthand, which resets font-size. */
 input[type="password"], input[type="search"], input[type="text"] {
   flex: 1;
   min-width: 160px;
   font: inherit;
+  font-size: 16px;
   padding: 8px 11px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-button);
@@ -95,6 +101,7 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 }
 select {
   font: inherit;
+  font-size: 16px; /* same zoom floor as the text inputs above */
   padding: 7px 10px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-button);

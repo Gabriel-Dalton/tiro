@@ -21,6 +21,12 @@ let pressedAt = 0;
 let stream = null;      // DeepgramStream for the current take
 let timerHandle = null;
 let recordStartedAt = 0;
+// pressStart has to await the mic before there is a take to hold, and the very
+// first press on iOS waits on a modal permission prompt. These two carry the
+// press across that gap: without them the release lands on an idle app, does
+// nothing, and the take starts anyway with no finger on it.
+let starting = false;
+let releasedWhileStarting = false;
 
 const engine = new AudioEngine();
 engine.onDeviceChange = () => notice("Mic changed — reconnected", "warn");
@@ -97,8 +103,11 @@ function notice(text, tone = "warn", ms = 3200) {
 // ---------------------------------------------------------------- recording
 
 async function pressStart() {
-  if (state === "transcribing") return;
-  if (state === "toggleRecording") return; // handled on release: stop-and-insert
+  // Only a genuinely idle app starts a take. Re-entering while one is already
+  // running (or still starting) used to overwrite `stream`, leaving the first
+  // socket unreferenced — still open, still streaming, still billing, with
+  // nothing left able to abort it.
+  if (starting || state !== "idle") return;
 
   const key = settings.getApiKey();
   if (!key) {
@@ -112,14 +121,21 @@ async function pressStart() {
     return;
   }
 
+  // Stamp the press before the await, and claim the gap. A release arriving
+  // during it is remembered rather than dropped.
+  pressedAt = Date.now();
+  starting = true;
+  releasedWhileStarting = false;
+
   try {
     await engine.start(); // no-op when already warm
   } catch {
+    starting = false;
+    releasedWhileStarting = false;
     notice("Microphone unavailable — check permissions", "bad", 5000);
     return;
   }
 
-  pressedAt = Date.now();
   stream = new DeepgramStream(key);
   stream.onInterim = (interim, finals) => {
     $("live").hidden = false;
@@ -140,11 +156,17 @@ async function pressStart() {
   engine.beginRecording();
   setState("holdRecording");
 
-  stream.start().catch((err) => {
-    // The socket never opened; kill the take with a precise message.
+  const take = stream;
+  take.start().catch((err) => {
+    // The socket never opened; kill the take with a precise message. Connecting
+    // can outlast the take itself (the open timeout is longer than plenty of
+    // presses), so only clean up if this is still the take on screen — otherwise
+    // stopAndInsert already owns it and is mid-transcribe.
+    if (stream !== take) return;
     engine.endRecording();
     engine.onChunk = null;
-    if (stream) { stream.abort(); stream = null; }
+    stream.abort();
+    stream = null;
     setState("idle");
     notice(
       err.kind === "auth" ? "Deepgram rejected your key — check Settings"
@@ -153,9 +175,25 @@ async function pressStart() {
       "bad", 5000
     );
   });
+
+  // The take exists now, so a release that arrived during the await has
+  // something to act on. Applying it here is what stops the app sitting in
+  // holdRecording with no finger down — the first-run case, where the mic
+  // prompt swallows the entire press.
+  starting = false;
+  if (releasedWhileStarting) {
+    releasedWhileStarting = false;
+    pressEnd();
+  }
 }
 
 function pressEnd() {
+  // Released before the take finished starting: remember it, and let pressStart
+  // apply it once there is a take. Dropping it here is what left the app stuck.
+  if (starting) {
+    releasedWhileStarting = true;
+    return;
+  }
   if (state === "holdRecording") {
     if (Date.now() - pressedAt < TAP_THRESHOLD_MS) {
       setState("toggleRecording"); // quick tap: stay recording hands-free
@@ -167,9 +205,12 @@ function pressEnd() {
   }
 }
 
-/** Must be called synchronously inside the user gesture: the promise-valued
+/** Call synchronously inside the user gesture where possible: the promise-valued
  * ClipboardItem is what lets the write survive the network round trip on
- * Safari (docs/RESEARCH.md #4). */
+ * Safari (docs/RESEARCH.md #4). The one path that cannot is a release deferred
+ * out of pressStart, where the gesture is long gone — that take falls through
+ * to the lower clipboard tiers and the visible Copy button, which is exactly
+ * what the tiering is for. */
 function stopAndInsert() {
   if (!stream) { setState("idle"); return; }
   const s = stream;
