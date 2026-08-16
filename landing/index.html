@@ -274,6 +274,22 @@
     .step strong { display: block; font-size: 15px; color: var(--ink-950); margin: 4px 0 4px; }
     .step p { font-size: 13.5px; color: var(--ink-500); text-wrap: pretty; }
 
+    /* ---- getting a key: the signpost ---- */
+    .keycta { padding-block: clamp(4px, 1.5vw, 10px) clamp(30px, 6vw, 48px); scroll-margin-top: 12px; }
+    .keycta-box {
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: clamp(18px, 4vw, 24px);
+      display: flex; flex-wrap: wrap; align-items: center; gap: 14px var(--gap);
+    }
+    /* min-width:0 so a long line wraps inside the box instead of widening it, and
+       flex:1 so the button is pushed to the far end on a wide screen */
+    .keycta-text { flex: 1 1 300px; min-width: 0; }
+    .keycta-text strong { display: block; font-size: 16px; color: var(--ink-950); }
+    .keycta-text p { margin-top: 4px; font-size: 14px; color: var(--ink-500); text-wrap: pretty; }
+    /* the .btn default is full width, which is right in a download card and wrong here */
+    .keycta .btn { flex: none; width: auto; margin-top: 0; padding-inline: 24px; }
+    @media (max-width: 519px) { .keycta .btn { width: 100%; } }
+
     /* ---- fine print ---- */
     .facts { padding-block: 0 clamp(24px, 5vw, 36px); }
     .facts ul { max-width: 660px; margin-inline: auto; list-style: none; display: grid; gap: 10px; }
@@ -313,6 +329,7 @@
       <span class="brand">Tiro</span>
       <nav class="site-nav">
         <a href="#downloads">Download</a>
+        <a href="/api-key/">Get a key</a>
         <a href="https://github.com/Gabriel-Dalton/tiro">GitHub</a>
       </nav>
     </div>
@@ -493,6 +510,19 @@
         <p>The mic is always warm, so even the first word is caught. A quick tap records hands-free.</p></div>
       <div class="step"><span class="n">04</span><strong>Text lands finished</strong>
         <p>Punctuation, capitalisation, emails and numbers formatted, pasted where you were typing.</p></div>
+    </div>
+  </section>
+
+  <!-- Getting a key is the only step anyone gets stuck on, and the walkthrough for it
+       is a whole page. This is the signpost to it, not a second copy of it. -->
+  <section class="wrap keycta" id="api-key">
+    <div class="keycta-box">
+      <div class="keycta-text">
+        <strong>Never made an API key before?</strong>
+        <p>Five steps with pictures, from signing up to pasting it into Tiro. About two
+          minutes, and Deepgram does not ask for a card.</p>
+      </div>
+      <a class="btn" href="/api-key/">Show me how</a>
     </div>
   </section>
 
