@@ -1,13 +1,65 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300" role="img"
-     aria-label="Placeholder for a screenshot of the Deepgram console sidebar, with API Keys highlighted under Manage">
-  <rect width="640" height="300" fill="#111214"/>
-  <rect x="1" y="1" width="638" height="298" fill="none" stroke="#2f3237" stroke-width="2" stroke-dasharray="10 7"/>
-  <text x="320" y="132" text-anchor="middle" fill="#8b9097"
-        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="2">
-    SCREENSHOT PLACEHOLDER
-  </text>
-  <text x="320" y="168" text-anchor="middle" fill="#e6e8ea"
-        font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="19">
-    Deepgram sidebar — “API Keys” under Manage
-  </text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 452" width="260" height="452" role="img"
+     aria-label="The Deepgram console sidebar. Under a Manage heading, the items are Dashboard, API Keys (highlighted), Usage, Project and Team, and Billing.">
+  <title>Deepgram console sidebar, with API Keys under Manage</title>
+  <rect width="260" height="452" fill="#111214"/>
+
+  <!-- wordmark -->
+  <g transform="translate(20 24)">
+    <path d="M2 2 L11 2 A7 7 0 0 1 11 16 L2 16 Z M2 9 L7 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="16px" font-weight="700" fill="#ffffff" letter-spacing="-.01em" x="20" y="14">Deepgram</text>
+    <rect x="212" y="3" width="13" height="12" rx="2" fill="none" stroke="#8b9097" stroke-width="1.3"/>
+    <path d="M218.5 4 V14" stroke="#8b9097" stroke-width="1.3"/>
+  </g>
+
+  <!-- Explore -->
+  <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="12px" fill="#8b9097" letter-spacing=".02em" x="20" y="76">Explore</text>
+
+  <g transform="translate(20 92)">
+    <circle fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" cx="7" cy="7" r="6.2"/><path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M7 3.4 A3.6 3.6 0 0 0 7 10.6"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Speech to Text</text>
+    <path fill="none" stroke="#8b9097" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M134 5 L138 9 L142 5"/>
+  </g>
+  <g transform="translate(20 128)">
+    <path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M7 1.6 a2.6 2.6 0 0 1 2.6 2.6 v3.2 a2.6 2.6 0 0 1 -5.2 0 V4.2 A2.6 2.6 0 0 1 7 1.6 Z M2.6 7.6 a4.4 4.4 0 0 0 8.8 0 M7 12 v1.6"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Text to Speech</text>
+  </g>
+  <g transform="translate(20 164)">
+    <path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M1.6 8.6 V7 a5.4 5.4 0 0 1 10.8 0 v1.6 M1.6 7.6 h2.2 v4.4 H1.6 Z M10.2 7.6 h2.2 v4.4 h-2.2 Z"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Voice Agent</text>
+  </g>
+  <g transform="translate(20 200)">
+    <path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M5.4 2 a2.6 2.6 0 0 0 0 10 M8.6 2 a2.6 2.6 0 0 1 0 10 M7 2.4 v9.4"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Text Intelligence</text>
+  </g>
+
+  <!-- Manage -->
+  <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="12px" fill="#8b9097" letter-spacing=".02em" x="20" y="256">Manage</text>
+
+  <g transform="translate(20 272)">
+    <path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M1.6 6.4 L7 1.8 l5.4 4.6 V12 a1 1 0 0 1 -1 1 H2.6 a1 1 0 0 1 -1 -1 Z"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Dashboard</text>
+  </g>
+
+  <!-- API Keys: the highlighted row -->
+  <rect x="0" y="298" width="260" height="34" fill="#26262b"/>
+  <rect x="0" y="298" width="3" height="34" fill="#13ef93"/>
+  <g transform="translate(20 306)">
+    <circle fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" cx="4.4" cy="9" r="3.2"/><path fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M7.2 7.4 L13 2.2 M10.6 3.4 l1.6 1.6"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#ffffff" x="24" y="11">API Keys</text>
+  </g>
+
+  <g transform="translate(20 344)">
+    <path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M1.6 12.4 h11 M3 9.6 L6 5.8 l2.8 2.4 L12.4 3"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Usage</text>
+    <path fill="none" stroke="#8b9097" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M78 5 L82 9 L86 5"/>
+  </g>
+  <g transform="translate(20 380)">
+    <circle fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" cx="5" cy="5" r="2.4"/><path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M1.2 12.4 a3.9 3.9 0 0 1 7.6 0 M10 3.2 a2.2 2.2 0 0 1 0 4 M11.2 12.4 a3.4 3.4 0 0 0 -1.6 -2.8"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Project &amp; Team</text>
+  </g>
+  <g transform="translate(20 416)">
+    <circle fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" cx="7" cy="7" r="6.2"/><path fill="none" stroke="#c9ccd1" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M7 3.6 v6.8 M5.2 5.4 h3 a1.6 1.6 0 0 1 0 3.2 h-2 a1.6 1.6 0 0 0 0 3.2 h3"/>
+    <text font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif" font-size="13.5px" fill="#c9ccd1" x="24" y="11">Billing</text>
+    <path fill="none" stroke="#8b9097" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M78 5 L82 9 L86 5"/>
+  </g>
 </svg>
