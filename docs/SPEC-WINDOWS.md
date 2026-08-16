@@ -111,6 +111,10 @@ contained change, which is why it is safe to try WebView2 first.
 - Speaking slightly before pressing still captures the first word.
 - Tap-to-toggle hands-free works, including a pause mid-sentence.
 - Unplugging a USB headset mid-session does not require restarting the app.
+- Plugging one *in* mid-session also switches to it. The old track stays open and happy in that
+  case, so nothing but the device list changing gives it away; the web core watches for that and
+  reopens the mic against the current system default. Mid-take it waits for the take to end
+  rather than throwing away the words being spoken.
 - Pasting into an elevated window gives a clear message rather than failing silently.
 - The hook does not make typing feel laggy in any other application.
 - Two launches result in one running app.
@@ -118,8 +122,11 @@ contained change, which is why it is safe to try WebView2 first.
 
 ## Out of scope for this phase
 
-- Installer, winget manifest. Phase 5. Authenticode signing landed ahead of that phase because
-  SmartScreen blocks first launches without it — see [SIGNING.md](SIGNING.md).
+- Installer, winget manifest. Phase 5, and both are now settled: the manifest is checked in and
+  built by CI ([PACKAGING.md](PACKAGING.md)), and there is no installer because winget takes the
+  portable ZIP directly and Tiro has nothing for an installer to do. Authenticode signing landed
+  ahead of that phase because SmartScreen blocks first launches without it — see
+  [SIGNING.md](SIGNING.md).
 - Any UI written in XAML beyond the tray, the pill and the WebView host. All product UI is the
   web core.
 - Windows 10 support. Check WebView2 runtime presence if this comes up later; it is guaranteed

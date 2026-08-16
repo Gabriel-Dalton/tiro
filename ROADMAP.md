@@ -123,15 +123,36 @@ app survives a mic device change (unplugging headphones) without needing a resta
 
 ### Phase 5 — Parity and extras
 
-Not committed work. Revisit once phases 1 to 4 have been used in anger for a fortnight.
+Phases 0 to 4 are green. This phase was never a single deliverable, so it is tracked item by
+item rather than as one "done when".
 
-- Packaging: signed installer or winget manifest for the Windows app.
-- History portability between devices. Deliberately unresolved, because every option so far
-  requires a server, which breaks the project's "no server of ours" promise.
-- **Native iOS keyboard extension.** The only path to true in-any-app dictation on iPhone.
-  Requires a Swift app with a `UIInputViewController`, an Apple Developer account, a Mac with
-  Xcode to build and sign, and App Store review. Deferred on purpose: build the PWA, live with
-  the extra paste step, and only pay this cost if it actually proves annoying.
+- **Packaging — done.** Authenticode signing via SignPath ([docs/SIGNING.md](docs/SIGNING.md)),
+  and a winget manifest generated and attached to every release
+  ([docs/PACKAGING.md](docs/PACKAGING.md)). No installer: winget takes the portable ZIP
+  directly, and Tiro registers no services, no file associations, and writes its autostart key
+  when you tick the box rather than at install time. An MSI would add a second artifact to sign
+  and buy nothing. Listing in the winget catalogue still depends on Microsoft's review.
+- **History portability — as far as it goes without a server.** JSONL export and import work in
+  both directions and share upstream's format, so a Mac `history.jsonl`, a Windows export and a
+  PWA export are the same file and move between devices by any means you like. Live sync stays
+  unresolved on purpose: every option needs a server, which breaks the "no server of ours"
+  promise, and that promise is worth more than the convenience.
+- **Native iOS keyboard extension — still deferred, and now the only open item.** The only path
+  to true in-any-app dictation on iPhone. Requires a Swift app with a `UIInputViewController`,
+  an Apple Developer account, a Mac with Xcode to build and sign, and App Store review. None of
+  that can be produced from this repo's CI, which is Linux, Windows and a hosted Mac runner
+  without signing identities. Build the PWA, live with the extra paste step, and only pay this
+  cost if it actually proves annoying.
+
+Two smaller things landed alongside, both closing gaps in earlier phases rather than adding
+scope:
+
+- The mic now follows a device being **plugged in**, not only unplugged. Phase 4's criterion
+  covered the headset leaving; the headset arriving left you recording from the laptop mic.
+- CI regenerates the design tokens and icon set and fails on drift. Phase 0's "done when" was
+  true when written and had nothing keeping it true — and the Windows EXE ships the *committed*
+  `web/` verbatim, so drift would have reached desktop users while the site regenerated on
+  deploy and looked fine.
 
 ## Non-goals
 
