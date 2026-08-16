@@ -1,11 +1,11 @@
 /* Tiro PWA, "Forum" direction: warm paper, dark ink, one clay accent, serif
  * display. Colour comes from tokens.css, generated out of
- * shared/design-tokens.json — this file names only the semantic tokens (--bg,
+ * shared/design-tokens.json. This file names only the semantic tokens (--bg,
  * --surface, --accent…), which is what lets light and dark share one stylesheet.
  *
  * Type rule: the serif carries display type and anything the user dictated; the
  * sans carries the interface; the mono is reserved for figures you might read
- * off or compare — the timer, timestamps, prices, the version. Setting labels
+ * off or compare: the timer, timestamps, prices, the version. Setting labels
  * and buttons in mono is what made the app read like a terminal.
  */
 
@@ -155,7 +155,7 @@ main {
 #view-record.active {
   display: flex;
   flex-direction: column;
-  /* the whole group — button, live text, result — is what gets centred, so a
+  /* the whole group (button, live text, result) is what gets centred, so a
      transcript appearing does not shove the card down onto the tab bar */
   justify-content: center;
   /* the viewport, less the header and less what main already reserves for the
@@ -209,8 +209,8 @@ body.needs-setup .stage { padding: var(--s4) 0 0; }
 }
 
 /* Small caps labels: the sans, not the mono. Same job, half the noise.
-   Named specifically enough to beat `.card h3` above — a card's section label
-   is a heading, and it must not inherit the display serif at 19px. */
+   Named specifically enough to beat `.card h3` above, because a card's section
+   label is a heading and must not inherit the display serif at 19px. */
 .caps, .card h3.caps, .card-head h3.caps {
   font-family: var(--font-sans);
   font-size: 11.5px;
@@ -348,9 +348,9 @@ select {
 }
 /* a field and its button sit on one line while there is room for both; `width:
    100%` on the input alone would push every button onto a line of its own */
-/* min-width, because a flex item's automatic minimum is its *intrinsic* one —
-   for an input that is the browser's default 20-character size, which is what
-   pushed every Save button onto a line of its own. */
+/* min-width, because a flex item's automatic minimum is its *intrinsic* one,
+   and for an input that is the browser's default 20-character size, which is
+   what pushed every Save button onto a line of its own. */
 .field-row > input, .field-row > select { flex: 1 1 190px; width: auto; min-width: 132px; }
 .field-row > label { font-size: 13.5px; color: var(--text-muted); flex: none; }
 .field-row .btn { min-height: 44px; }
@@ -561,8 +561,8 @@ select {
   padding: var(--s1) 0;
   background: var(--bg);
 }
-/* The transcript gets the full width — it is the thing you came to read — and
-   the timestamp and the actions sit under it on one line. Squeezing a
+/* The transcript gets the full width, since it is the thing you came to read,
+   and the timestamp and the actions sit under it on one line. Squeezing a
    two-column layout onto a phone left the text wrapping every four words. */
 .history-entry {
   background: var(--surface);
@@ -845,11 +845,11 @@ select {
   max-width: 30ch;
 }
 .toolbar-figure .point {
-  font-size: 20px;
-  line-height: 1;
+  display: block;
   color: var(--accent);
   animation: nudge 1.6s ease-in-out infinite;
 }
+.toolbar-figure .point svg { display: block; width: 20px; height: 20px; margin-inline: auto; }
 .toolbar-figure.ipad .point { animation-name: nudge-up; }
 @keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
 @keyframes nudge-up { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }

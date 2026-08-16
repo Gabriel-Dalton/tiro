@@ -79,6 +79,22 @@ const BAR_ICON = {
 const barSlot = (name) =>
   `<span class="sb-slot"><svg viewBox="0 0 24 24" aria-hidden="true">${BAR_ICON[name]}</svg></span>`;
 
+/** The pointer at the toolbar, drawn rather than set in type. It used to be a
+ * text arrow, and text arrows come out however the platform font draws them:
+ * the tab bar's old glyphs went as far as rendering in colour on iOS. These two
+ * default to text presentation so they never did that, but it is the same
+ * dependency, and there is no reason for the one arrow that has to line up with
+ * a drawing of Safari's toolbar to be the only thing here we do not draw.
+ * `dir` is 1 for down, -1 for up; shaft and head mirror about the box centre. */
+const pointArrow = (dir) => {
+  const tip = dir > 0 ? 20.5 : 3.5, tail = dir > 0 ? 3.5 : 20.5, back = tip - dir * 5;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 ${tail} V${tip}"/><path d="M6.6 ${back} 12 ${tip} 17.4 ${back}"/>
+    </g>
+  </svg>`;
+};
+
 /** A drawing of the toolbar the Share button lives in, marked. On iPhone that
  * bar is at the bottom of the screen, directly below this sheet, so the arrow
  * points at the real thing. iPad puts it top-right instead. */
@@ -95,7 +111,7 @@ function toolbarDiagram() {
 
   if (IS_IPAD) {
     return `<figure class="toolbar-figure ipad">
-      <span class="point up" aria-hidden="true">↑</span>
+      <span class="point up" aria-hidden="true">${pointArrow(-1)}</span>
       <div class="safari-bar" aria-hidden="true">
         ${barSlot("back")}${barSlot("forward")}
         <span class="sb-url">tiro</span>
@@ -112,7 +128,7 @@ function toolbarDiagram() {
       ${barSlot("back")}${barSlot("forward")}${target}${barSlot("book")}${barSlot("tabs")}
     </div>
     <figcaption>Safari's toolbar, at the very bottom of your screen right now</figcaption>
-    <span class="point down" aria-hidden="true">↓</span>
+    <span class="point down" aria-hidden="true">${pointArrow(1)}</span>
   </figure>`;
 }
 

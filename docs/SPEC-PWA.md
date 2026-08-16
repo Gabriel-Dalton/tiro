@@ -174,6 +174,15 @@ tradeoff in one line rather than burying it.
 
 - `manifest.webmanifest`: standalone display, portrait, Forum palette theme and background
   colours, 192/512 and maskable icons.
+- **The manifest colours are the light theme, and cannot be anything else.** A manifest has no
+  way to branch on `prefers-color-scheme`, so `theme_color` and `background_color` name one
+  pair. Once the document has loaded, the per-scheme `<meta name="theme-color" media="...">`
+  tags in the head take over and the browser chrome follows the system, so the manifest pair
+  only governs what shows before the app paints: the launch screen and the task switcher. A
+  phone in dark mode therefore gets a light launch screen for as long as the shell takes to
+  come up. The only real fix is `apple-touch-startup-image`, which does accept a media query
+  but needs an exact-size asset per device, so it waits until there is a reason to generate
+  that matrix. Tracked as PWA-13.
 - `apple-touch-icon` in the head. iOS ignores manifest icons for the home screen.
 - `viewport-fit=cover` plus `env(safe-area-inset-*)` padding, or the button sits under the home
   indicator.

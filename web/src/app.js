@@ -372,8 +372,8 @@ talk.addEventListener("pointercancel", (e) => {
 });
 talk.addEventListener("contextmenu", (e) => e.preventDefault());
 
-// The button was pointer-only, which left anyone on a keyboard — or on a switch
-// or a screen reader driving the focused control — with no way to dictate at
+// The button was pointer-only, which left anyone on a keyboard, or on a switch
+// or a screen reader driving the focused control, with no way to dictate at
 // all. Space and Enter hold it: down starts the take, up ends it, exactly like a
 // finger. `preventDefault` stops the page scrolling and stops the browser
 // synthesising a click that would fire a second press.
