@@ -6,8 +6,10 @@
 
 **Hold a key. Speak. Your words land in whatever box your cursor is in.**
 
-Native macOS dictation powered by [Deepgram](https://deepgram.com) — the accuracy of a
-$15/month dictation subscription, at about **$0.0043 per minute**, in an app you own.
+Dictation on the Mac, Windows and your phone, powered by [Deepgram](https://deepgram.com) — the
+accuracy of a $15/month subscription at **$0.0043 a minute on the Mac and $0.0077 on Windows and
+the web**, in an app you own. The two rates are different transports, not a typo; see
+[docs/RESEARCH.md](docs/RESEARCH.md) #2.
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black) ![Swift](https://img.shields.io/badge/Swift-5.9-F05138) ![License: MIT](https://img.shields.io/badge/License-MIT-green) ![No Electron](https://img.shields.io/badge/Electron-none-blue)
 
@@ -249,6 +251,8 @@ server, and there is deliberately no server.
 - [docs/PACKAGING.md](docs/PACKAGING.md): the winget manifest, and how a release is submitted
 - [docs/RESEARCH.md](docs/RESEARCH.md): verified platform constraints, with sources. Read
   this first; several obvious approaches are dead ends.
+- [docs/COMPETITIVE.md](docs/COMPETITIVE.md): what Wispr Flow users praise and complain about,
+  with sources graded by confidence, and what of it belongs on our roadmap
 - [docs/SPEC-PWA.md](docs/SPEC-PWA.md) and [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): build specs
 
 Two findings from that research worth surfacing here, because they change the design:
@@ -257,10 +261,12 @@ Two findings from that research worth surfacing here, because they change the de
   **streaming WebSocket API** is built for client-side use and works, so that is what every
   client here uses. Streaming costs more than batch — **$0.0077/min** against $0.0043/min — and
   it is the only option a browser has.
-- Upstream's quoted $0.0043/min is the *pre-recorded* rate, so it understates what dictation
-  actually costs. The real number is $0.0077/min, or about **46¢ an hour**. The savings argument
-  still holds easily: break-even against a $15/month subscription is about 32 hours of dictation
-  a month.
+- That makes the fork's two new clients cost more to run than the Mac app. Upstream's
+  $0.0043/min is the *pre-recorded* rate and is correct for the app it describes; streaming is
+  **$0.0077/min**, about **46¢ an hour**. Quote whichever matches the platform you are talking
+  about — never one number for all three. The savings argument holds easily either way:
+  break-even against a $15/month subscription is about **32 hours** a month on streaming, 58 on
+  the Mac.
 
 Everything below this line is upstream's README, describing the macOS app.
 
@@ -277,14 +283,20 @@ Tiro is that direct call, wrapped in the UX you actually want:
 
 | | monthly cost at 1 h of dictation | at 10 h |
 |---|---|---|
-| **Tiro** (Deepgram nova-3 streaming, pay-as-you-go) | **~$0.46** | **~$4.62** |
+| **Tiro** (Deepgram nova-3, pay-as-you-go) | **~$0.26** | **~$2.58** |
 | Wispr Flow Pro | $15.00 | $15.00 |
 | superwhisper Pro | $8.49 | $8.49 |
 | Aqua Voice Pro | $8.00 | $8.00 |
 
-A new Deepgram account includes **$200 of free credit** — roughly **26,000 minutes**, about
-**430 hours**, of dictation before you pay anything at all. Tiro's Settings page shows your live usage, real
+A new Deepgram account includes **$200 of free credit** — roughly **46,000 minutes** of
+dictation before you pay anything at all. Tiro's Settings page shows your live usage, real
 cost, and what you're saving. *(Prices as of Aug 2026.)*
+
+> **Fork note.** These are upstream's figures and they are correct for the macOS app, which
+> uses Deepgram's pre-recorded endpoint at $0.0043/min. The PWA and the Windows app must stream
+> (a browser cannot POST to the CORS-blocked REST API), which costs $0.0077/min — so on those
+> two, read $0.46 and $4.62 rather than $0.26 and $2.58, and 26,000 minutes of free credit
+> rather than 46,000.
 
 ## What it does
 
@@ -325,6 +337,8 @@ Tiro walks you through these in a setup window:
 1. **Deepgram API key** — sign up free at [console.deepgram.com](https://console.deepgram.com)
    (no card needed, $200 credit included), create an API key, paste it into Tiro's Settings.
    "Save & test" validates it against the API and shows your credit balance.
+   [`docs/API-KEY.md`](docs/API-KEY.md) walks through it with screenshots if the console is
+   unfamiliar territory.
 2. **Microphone** — allow the standard macOS prompt.
 3. **Accessibility** — System Settings → Privacy & Security → Accessibility → enable Tiro,
    then relaunch. This is what lets Tiro see the hotkey from any app and paste for you.

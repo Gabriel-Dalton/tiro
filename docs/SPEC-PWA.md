@@ -154,8 +154,10 @@ IndexedDB, schema exactly as in [ARCHITECTURE.md](ARCHITECTURE.md).
 ### 2.2 Usage and savings
 
 - Minutes and spend this month, from local history.
-- Streaming rate in **one** constant, currently $0.0048/min. Comparison against Wispr Flow Pro at
-  $15/month. Break-even is around 52 hours a month.
+- Streaming rate in **one** constant, currently $0.0077/min — `deepgramStreamingPerMin` in
+  `shared/design-tokens.json`. Comparison against Wispr Flow Pro at $15/month. Break-even is
+  around 32 hours a month. (An earlier draft of this line said $0.0048 and 52 hours, from a
+  transposed rate in [RESEARCH.md](RESEARCH.md) #2; both were wrong.)
 - Daily bars for the last 31 days, and the comparison bars, matching upstream's Settings view.
 - Label it a local estimate and link to the Deepgram console for the real balance. Do not present
   a computed figure as a live account balance.

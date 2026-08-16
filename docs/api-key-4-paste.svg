@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300" role="img"
+     aria-label="Placeholder for a screenshot of Tiro's setup card, with the key pasted into the field and Save and test ready">
+  <rect width="640" height="300" fill="#f6f1ea"/>
+  <rect x="1" y="1" width="638" height="298" fill="none" stroke="#d6cec2" stroke-width="2" stroke-dasharray="10 7"/>
+  <text x="320" y="132" text-anchor="middle" fill="#8a8175"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="2">
+    SCREENSHOT PLACEHOLDER
+  </text>
+  <text x="320" y="168" text-anchor="middle" fill="#2b2721"
+        font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="19">
+    Tiro’s setup card — key pasted, “Save &amp; test”
+  </text>
+</svg>

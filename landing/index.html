@@ -203,10 +203,13 @@
       background: #fff; border: 1px solid var(--border); border-radius: 14px;
     }
     .compare table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+    /* Table captions take the serif, like every other heading here. They used to be
+       11px uppercase tracked out to 0.13em, which reads as a monospaced technical
+       label rather than as this page's voice — the page has no mono face at all. */
     .compare caption {
-      text-align: left; padding: clamp(15px, 3.4vw, 18px) clamp(16px, 3.6vw, 20px) 10px;
-      font-size: 11px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
-      color: var(--ink-400);
+      text-align: left; padding: clamp(15px, 3.4vw, 18px) clamp(16px, 3.6vw, 20px) 11px;
+      font-family: var(--serif); font-size: clamp(17px, 2.5vw, 19px); font-weight: 500;
+      letter-spacing: 0; text-transform: none; color: var(--ink-950);
     }
     .compare th, .compare td { padding: 11px clamp(13px, 3vw, 20px); text-align: right; }
     .compare thead th { font-size: 12px; font-weight: 600; color: var(--ink-400); white-space: nowrap; }
@@ -216,6 +219,42 @@
     .compare tbody .me { background: var(--clay-100); }
     .compare tbody .me :is(th, td) { color: var(--clay-600); font-weight: 600; }
     .compare-note { margin-top: 10px; }
+
+    /* The feature table compares words rather than figures, so it ranges left and is
+       allowed to wrap. Here it is a whole column that is ours, not a row: the highlight
+       is only a signpost, and every cell still says which product it means in words,
+       so nothing depends on seeing the colour. */
+    .compare-feat { margin-top: clamp(14px, 2.6vw, 20px); }
+    /* These need to out-specify `.compare tbody td`, which sets nowrap for the figures in
+       the cost table above. `:is()` takes its most specific argument, so a bare
+       `:is(th, td)` loses that battle and the answers run into the next column. */
+    .compare-feat thead th,
+    .compare-feat tbody th,
+    .compare-feat tbody td { text-align: left; white-space: normal; }
+    /* Widths come from the colgroup, not from content: left to itself the table gives the
+       row labels whatever the longest answer does not want, and they end up in a column
+       four words wide. */
+    /* min-width keeps the three columns readable on a phone; the wrapper's overflow-x
+       turns the overflow into a scroll inside the card rather than widening the page. */
+    .compare-feat table { table-layout: fixed; min-width: 580px; }
+    .compare-feat :is(thead th, tbody td):first-of-type { background: var(--clay-100); }
+    .compare-feat tbody td:first-of-type { color: var(--clay-600); font-weight: 600; }
+    .compare-feat tbody td { font-variant-numeric: normal; }
+    /* Row-label icons. Decorative only — every row still says in words what it is
+       about, so the icon carries no meaning of its own and is hidden from assistive
+       tech. Stroked in currentColor at the label's own ink, sized in ch so they
+       track the text if it scales. */
+    /* The flex box is an inner span, never the th itself: a th set to flex stops being
+       a table-cell, and the colgroup widths above stop applying to it. */
+    .compare-feat tbody th > span { display: flex; align-items: flex-start; gap: 9px; }
+    .compare-feat .ico {
+      flex: none; width: 17px; height: 17px; stroke: var(--ink-400); fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+      transform: translateY(3px);
+    }
+    /* A row where the honest answer is "they do, we don't". Marked so it reads as
+       deliberate rather than as an oversight. */
+    .compare-feat tbody .theirs td:first-of-type { color: var(--ink-500); font-weight: 500; }
 
     /* ---- how it works ---- */
     .how { padding-block: clamp(34px, 6.5vw, 56px) clamp(24px, 5vw, 40px); }
@@ -256,8 +295,10 @@
     }
     .site-footer a { color: var(--ink-500); text-decoration: none; padding-block: 6px; }
     .site-footer a:hover { color: var(--clay-600); }
-    /* stamped by scripts/gen-version.mjs; sits at the far end of the row, and wraps
-       under the links rather than crowding them on a narrow screen */
+    /* stamped by scripts/gen-version.mjs, text and href together; sits at the far end
+       of the row, and wraps under the links rather than crowding them on a narrow
+       screen. It links to its own tag, not to /latest: the number names what this page
+       describes, so clicking it has to reach those notes and not whatever shipped since. */
     .site-footer .version { margin-left: auto; font-size: 12.5px; letter-spacing: 0.04em; }
   </style>
 </head>
@@ -363,16 +404,89 @@
         </tbody>
       </table>
     </div>
-    <p class="fine compare-note">Deepgram streaming nova-3 at $0.0077 a minute, August 2026.
-      Past about 32 hours a month — an hour of solid dictation every single day — a $15
+    <p class="fine compare-note"><strong>Method.</strong> Deepgram Nova-3 streaming on the
+      <a href="https://deepgram.com/pricing">pay-as-you-go tier</a> at $0.0077 a minute, billed
+      by the second, checked August 2026 — the rate the web and Windows apps pay. The Mac app
+      uses Deepgram's pre-recorded endpoint at $0.0043 a minute, so it costs about $0.26 an hour
+      rather than 46¢. Competitor prices are each vendor's own list price for a single monthly
+      seat. Past about 32 hours a month — an hour of solid dictation every single day — a $15
       subscription becomes the cheaper way to buy it.</p>
+
+    <!-- Ground rules for this table, so it stays defensible as both products move:
+         every claim in the Wispr Flow column is something Wispr Flow documents about
+         itself — its price, its free-plan cap, its context awareness, its AI cleanup,
+         the platforms it ships on. Nothing here rests on a third-party benchmark or on
+         a disputed report, and no row describes a competitor's behaviour that they
+         have not published themselves. The last two rows are ones we lose; they stay.
+         See docs/COMPETITIVE.md for the sources and the confidence grading. -->
+    <!-- One sprite, referenced by <use> per row, so ten icons cost one definition.
+         aria-hidden throughout: each repeats its row label rather than adding to it. -->
+    <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+      <defs>
+        <symbol id="i-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4v9.2M14.4 9.6a2.6 2.6 0 0 0-2.4-1.4c-1.4 0-2.4.8-2.4 1.9s.9 1.6 2.4 1.9 2.4.8 2.4 1.9-1 1.9-2.4 1.9a2.6 2.6 0 0 1-2.4-1.4"/></symbol>
+        <symbol id="i-credit" viewBox="0 0 24 24"><rect x="3" y="5.6" width="18" height="12.8" rx="2.2"/><path d="M3 10h18"/></symbol>
+        <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.6"/><path d="M5.4 19.4a6.6 6.6 0 0 1 13.2 0"/></symbol>
+        <symbol id="i-key" viewBox="0 0 24 24"><circle cx="6.8" cy="12" r="3.8"/><path d="M10.6 12H21M18 12v3.4M14.4 12v2.6"/></symbol>
+        <symbol id="i-screen" viewBox="0 0 24 24"><rect x="2.8" y="4.4" width="18.4" height="12.4" rx="2"/><path d="M8.6 20.4h6.8M12 16.8v3.6"/></symbol>
+        <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4l10-10a2.4 2.4 0 0 0-3.4-3.4L4.6 16.6 4 20Z"/><path d="M13.6 8.2 16.8 11.4"/></symbol>
+        <symbol id="i-code" viewBox="0 0 24 24"><path d="m8.4 8.6-4.6 3.6 4.6 3.6M15.6 8.6l4.6 3.6-4.6 3.6M13.4 5.4l-2.8 13.2"/></symbol>
+        <symbol id="i-devices" viewBox="0 0 24 24"><rect x="2.6" y="5" width="12.4" height="9.4" rx="1.8"/><rect x="16.6" y="9.6" width="4.8" height="9.4" rx="1.4"/><path d="M6.6 18h5.2"/></symbol>
+        <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.6" y="2.8" width="10.8" height="18.4" rx="2.4"/><path d="M10.6 5.8h2.8"/></symbol>
+        <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.6 9.2a14 14 0 0 1 18.8 0M6 12.8a9.2 9.2 0 0 1 12 0M9.4 16.4a4.4 4.4 0 0 1 5.2 0"/><circle cx="12" cy="19.8" r=".9" fill="currentColor" stroke="none"/></symbol>
+      </defs>
+    </svg>
+
+    <div class="compare compare-feat">
+      <table>
+        <caption>Everything else, side by side</caption>
+        <colgroup><col style="width:25%"><col style="width:39%"><col style="width:36%"></colgroup>
+        <thead>
+          <tr><td></td><th scope="col">Tiro</th><th scope="col">Wispr Flow Pro</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-coin"/></svg>What you pay</span></th>
+            <td>46¢ an hour, at cost</td><td>$15 a month, whether you speak or not</td></tr>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-credit"/></svg>Before you pay anything</span></th>
+            <td>$200 of Deepgram credit, around 430 hours</td><td>2,000 words a week, about 13 minutes</td></tr>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-person"/></svg>Account</span></th>
+            <td>None. There is nothing to sign into</td><td>Required</td></tr>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-key"/></svg>Whose API key</span></th>
+            <td>Yours, and it never leaves your device</td><td>Not supported</td></tr>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-screen"/></svg>Reads your screen</span></th>
+            <td>Never. Audio goes to Deepgram, nothing else goes anywhere</td>
+            <td>Yes, for context awareness</td></tr>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-pencil"/></svg>Rewrites what you said</span></th>
+            <td>No. The transcript is what was heard</td><td>Yes, an AI cleanup pass</td></tr>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-code"/></svg>Source code</span></th>
+            <td>MIT, all of it, on GitHub</td><td>Closed</td></tr>
+          <tr><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-devices"/></svg>Linux and iPad</span></th>
+            <td>Both, through the web app</td><td>Neither</td></tr>
+          <tr class="theirs"><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-phone"/></svg>Types straight into any iPhone app</span></th>
+            <td>No — you get the transcript on your clipboard and paste it</td>
+            <td>Yes, through a keyboard extension</td></tr>
+          <tr class="theirs"><th scope="row"><span><svg class="ico" aria-hidden="true"><use href="#i-wifi"/></svg>Works with no internet</span></th>
+            <td>No</td><td>No</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine compare-note"><strong>Method.</strong> Every Wispr Flow cell is drawn from
+      what Wispr Flow publishes about itself, checked August 2026: its
+      <a href="https://wisprflow.ai/pricing">pricing page</a> for the $15/month and the
+      2,000-words-a-week free cap, and its
+      <a href="https://docs.wisprflow.ai/">help centre</a> for context awareness, the AI cleanup
+      pass and the platforms it ships on. No row uses a third-party benchmark, so there are no
+      accuracy, latency or memory figures here — every such number in circulation was published
+      by a company selling a rival. The last two rows are the ones we lose: dictating straight
+      into another app on an iPhone needs a native keyboard extension, which a web app cannot
+      be, and neither product transcribes without a connection.</p>
   </section>
 
   <section class="how wrap">
     <h3>How it works</h3>
     <div class="steps">
       <div class="step"><span class="n">01</span><strong>Get a Deepgram key</strong>
-        <p>Free from Deepgram's console. New accounts include credit for hundreds of hours.</p></div>
+        <p>Free from Deepgram's console. New accounts include credit for hundreds of hours.
+          <a href="https://github.com/Gabriel-Dalton/tiro/blob/main/docs/API-KEY.md" target="_blank" rel="noopener">How to find it</a>.</p></div>
       <div class="step"><span class="n">02</span><strong>Paste it into Tiro</strong>
         <p>The key stays on your device. Tiro has no server, so nobody else ever holds it.</p></div>
       <div class="step"><span class="n">03</span><strong>Hold, speak, release</strong>
@@ -433,7 +547,7 @@
       <span>MIT licensed</span>
       <a href="https://github.com/Gabriel-Dalton/tiro">Source</a>
       <a href="https://github.com/Gabriel-Dalton/tiro/releases">All releases</a>
-      <span class="version">v1.0.0</span>
+      <a class="version" href="https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.0.1">v1.0.1</a>
     </div>
   </footer>
 

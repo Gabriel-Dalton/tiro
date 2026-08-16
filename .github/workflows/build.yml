@@ -86,6 +86,37 @@ jobs:
           fi
           echo "Generated files match VERSION and shared/design-tokens.json."
 
+      # The release job already refuses to publish a tag that disagrees with VERSION,
+      # but that only fires while a release is being cut. It cannot catch VERSION
+      # sitting behind a release that already shipped, which is exactly what happened
+      # when the file was introduced: v1.0.1 was live, and VERSION was seeded 1.0.0, so
+      # the download page advertised a version one patch behind itself and nothing
+      # complained. This closes that side: VERSION may equal the latest release, or run
+      # ahead of it while the next one is being prepared, but it may never trail it.
+      - name: Fail if VERSION is behind the latest published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A fork, or a repository with no releases yet, has nothing to compare against.
+          latest=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name 2>/dev/null || true)
+          if [ -z "$latest" ]; then
+            echo "No published release to compare against; nothing to check."
+            exit 0
+          fi
+          current=$(tr -d '[:space:]' < VERSION)
+          released="${latest#v}"
+          if [ "$current" = "$released" ]; then
+            echo "VERSION ($current) matches the latest release ($latest)."
+            exit 0
+          fi
+          # sort -V puts the lower version first, so if VERSION sorts first it trails.
+          if [ "$(printf '%s\n%s\n' "$released" "$current" | sort -V | head -1)" = "$current" ]; then
+            echo "::error::VERSION is $current but $latest is already published. Bump VERSION to at least $released and run: node scripts/gen-version.mjs"
+            exit 1
+          fi
+          echo "VERSION ($current) is ahead of the latest release ($latest), which is the normal pre-release state."
+
   # The web core is the product on the phone and the whole UI inside the Windows
   # app, so it gets a real browser rather than a linter. Fast, and it gates
   # nothing: a red smoke test should not stop you shipping the Mac build.

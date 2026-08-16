@@ -40,24 +40,50 @@ be sitting in their browser storage.
 - [Deepgram discussion #686: CORS on REST](https://github.com/orgs/deepgram/discussions/686)
 - [Deepgram: Token-based authentication](https://developers.deepgram.com/guides/fundamentals/token-based-authentication)
 
-## 2. Streaming is cheaper than batch, not more expensive
+## 2. Streaming costs about 1.8× batch, and we have no choice about it
 
-Worth stating because the intuition runs the other way, and because it means switching transport
-costs us nothing.
+**Corrected August 2026.** This section previously claimed streaming was *cheaper* than batch,
+quoted **$0.0048/min** for it, and derived a 52-hour break-even from that. All three were wrong:
+the two rates were transposed, and $0.0048 matches no published nova-3 rate on any tier. The
+error reached [SPEC-PWA.md](SPEC-PWA.md) and the roadmap before it was caught. The shipped
+constants were never wrong — `shared/design-tokens.json` and `web/src/tokens.js` have both always
+read $0.0077 — so no user was ever shown a wrong price. Recorded rather than quietly deleted,
+because the wrong version was cited for months.
 
-| nova-3, pay as you go | per minute |
-|---|---|
-| Streaming | **$0.0048** |
-| Pre-recorded (what upstream uses) | $0.0077 |
+| nova-3, pay as you go | per minute | per hour |
+|---|---|---|
+| Pre-recorded / batch (what the **macOS** app uses) | $0.0043 | $0.26 |
+| Streaming (what the **PWA and Windows** use) | **$0.0077** | **$0.46** |
 
-Upstream's README quotes **$0.0043/min** for pre-recorded nova-3. That figure no longer matches
-Deepgram's published pricing, which reads $0.0077/min today. Use $0.0048 for the streaming path
-and **put the rate in one constant**, because it has already moved once.
+Deepgram bills per second, and both tiers are pay-as-you-go list prices. Growth, a committed-spend
+plan of roughly $4,000/year, discounts them; nothing here assumes it.
 
-The savings comparison against Wispr Flow Pro at $15/month still holds comfortably: break-even
-is roughly 52 hours of dictation per month.
+So streaming is about **1.8× the cost of batch**, and finding #1 means a browser cannot use batch
+at all. That is the honest trade: the fork's two new clients pay 46¢ an hour where the Mac app
+pays 26¢, in exchange for existing on those platforms.
 
-- [Deepgram pricing](https://deepgram.com/pricing)
+**Consequence for the arithmetic**, all of which now checks out:
+
+- Break-even against Wispr Flow Pro at $15/month: `15 / 0.0077 = 1,948 min` ≈ **32 hours a
+  month** on streaming. On the Mac's batch rate it is `15 / 0.0043 = 3,488 min` ≈ **58 hours**,
+  which is the figure upstream quotes and it is correct for the app it describes.
+- A new account's $200 credit: `200 / 0.0077 = 25,974 min` ≈ **26,000 minutes, 433 hours** of
+  streaming. Upstream's **46,000 minutes** is the same $200 at the batch rate, and is also right.
+
+Two rules follow, and the second is why this mistake was survivable:
+
+1. **Never quote one rate for all three clients.** The Mac app bills batch, the PWA and Windows
+   bill streaming, and the difference is nearly double. Say which.
+2. **Keep the rate in one constant.** It lives in `shared/design-tokens.json` as
+   `deepgramStreamingPerMin` and is generated into `web/src/tokens.js`. Prose drifts; that
+   constant did not.
+
+- [Deepgram pricing](https://deepgram.com/pricing) — the primary source; check it before
+  requoting, since the rate has moved before
+- [Nova-3 explained: $0.0043/min batch, $0.0077 streaming](https://convertaudiototext.com/blog/deepgram-nova-3-explained)
+- [Deepgram pricing 2026: nova-3 at $0.46/hr](https://brasstranscripts.com/blog/deepgram-pricing-per-minute-2025-real-time-vs-batch)
+- [Gladia's breakdown of Deepgram pricing tiers](https://www.gladia.io/blog/deepgram-pricing) —
+  useful for the pay-as-you-go vs Growth distinction
 
 ## 3. A PWA cannot type into other apps on iOS (load-bearing)
 
