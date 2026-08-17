@@ -664,6 +664,60 @@ for (const scheme of ["light", "dark"]) {
   await ctx.close();
 }
 
+// ------------------------------- what "Save & test" is allowed to blame
+//
+// A socket that closes before it opens used to be read as a rejected key
+// whenever the browser believed it was online. 1006 is what a browser reports
+// for both a refused handshake and a connection that never arrived, and
+// navigator.onLine is true on a captive portal, so a working key behind a hotel
+// wifi login was reported as rejected. The test may only blame the key when
+// Deepgram says so.
+{
+  // Close before open with a given code, which is the shape of every failure
+  // this is about.
+  const CLOSING_SOCKET = (code) => {
+    window.__closeCode = code;
+    class DeadWS {
+      constructor(url) {
+        this.url = url;
+        this.readyState = 0;
+        setTimeout(() => {
+          this.readyState = 3;
+          this.onclose && this.onclose({ code: window.__closeCode });
+        }, 20);
+      }
+      send() {}
+      close() {}
+    }
+    DeadWS.OPEN = 1;
+    DeadWS.CLOSED = 3;
+    window.WebSocket = DeadWS;
+  };
+
+  const testWithClose = async (code) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.addInitScript(CLOSING_SOCKET, code);
+    await page.goto("http://localhost:8099/");
+    await page.waitForTimeout(300);
+    await page.locator("#setup-key").fill("dg_a_key_that_works_fine");
+    await page.locator("#setup-save").click();
+    await page.waitForTimeout(1200);
+    const text = await page.locator("#setup-status").innerText();
+    await ctx.close();
+    return text;
+  };
+
+  const ambiguous = await testWithClose(1006);
+  check("1006 does not accuse the key: the test never got an answer",
+    !/reject|key/i.test(ambiguous) || /check your connection/i.test(ambiguous), ambiguous);
+  check("1006 says what actually happened", /deepgram/i.test(ambiguous), ambiguous);
+
+  const refused = await testWithClose(1008);
+  check("1008 is Deepgram refusing the key, and is reported as such",
+    /reject/i.test(refused), refused);
+}
+
 await browser.close();
 server.close();
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
