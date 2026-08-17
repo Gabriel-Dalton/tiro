@@ -54,8 +54,13 @@ API key unless you tick the box that says otherwise.
 
 ![The install prompt on first run](windows/install-prompt.png)
 
-Uninstalling asks once, and asks the question that actually matters rather than burying it: the
-history, settings and saved key are kept unless you tick the box that says to delete them.
+The app itself is the same web core the phone runs, inside a WebView2 window:
+
+![The Windows app window](windows/app-window.png)
+
+Uninstalling asks once, and asks the question that actually matters rather than burying it:
+
+![The uninstall prompt, with the data checkbox](windows/uninstall-prompt.png)
 
 Two things in here were harder than they look, and both are worth knowing if you ever ship a
 Windows build of anything:
@@ -163,13 +168,21 @@ Anyone updating this document: these are drawn from real hardware, never staged 
 | `windows/tray-menu.png` | The tray menu open, showing the install and pin items |
 | `windows/start-menu.png` | Start search finding Tiro, and the pin-to-taskbar option |
 | `windows/apps-and-features.png` | The Apps and Features entry, with version and publisher |
-| `windows/uninstall-prompt.png` | The uninstall prompt, with the "also delete my data" checkbox |
 | `phone-home-screen.png` | Tiro installed on an iPhone Home Screen, beside other apps |
 | `phone-take.png` | A finished take on the phone, transcript on screen |
 
-`windows/install-prompt.png` is done. It was cropped out of a screenshot taken during the install
-QA rather than staged, which is the standard the rest should meet.
+Done: `windows/install-prompt.png`, `windows/uninstall-prompt.png`, `windows/app-window.png`. All
+three are captures of the running app, not mock-ups.
 
-Capturing these from a script was tried and abandoned: on a multi-monitor scaled desktop the UI
-Automation rectangles and the screen capture disagree about where a window is, and the captures came
-out of the wrong monitor entirely. Win+Shift+S is the answer.
+They are taken with `PrintWindow`, which hands the window a device context and lets it draw itself.
+The first attempt read the screen instead, using UI Automation rectangles for the crop, and produced
+pictures of the wrong monitor: on a scaled multi-monitor desktop those two live in different
+coordinate spaces. `PrintWindow` has no coordinates in it at all, so none of that matters, and it
+captures a window that is behind another one.
+
+**The pill cannot be captured without a person**, and that is by design rather than a gap:
+`KeyboardHook.cs` ignores injected input, so that the Ctrl+V the app sends to paste a transcript
+cannot re-trigger the hotkey. A synthesised Right Alt does nothing at all. The button inside the
+window is no way round it either, because WebView2 does not expose its accessibility tree to a plain
+client. So the waveform has to be somebody's actual voice, which is the right answer anyway: a
+silent take photographs as a flat line.
