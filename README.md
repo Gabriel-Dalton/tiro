@@ -48,6 +48,16 @@ gets full parity with the Mac.
 | Landing page | **Built**, with download links for all three | [`landing/`](landing/) |
 | Native iOS keyboard | Deferred, phase 5 | none yet |
 
+The two clients this fork adds, running the same `web/` files. Screenshots of the real thing rather
+than mock-ups: `node scripts/shoot-web.mjs` drives a take through the shipped web core in a browser
+and photographs it. More of them, and what is still missing, in [docs/FORK.md](docs/FORK.md).
+
+<div align="center">
+<img src="docs/web/phone-recording.png" width="200" alt="Tiro on a phone, mid-take: the button red and reading Listening, with a running clock">
+<img src="docs/web/phone-take.png" width="200" alt="Tiro on a phone: a finished take, the transcript on a card with Copy and Share">
+<img src="docs/web/desktop-take.png" width="370" alt="The same finished take at Windows window width, the layout widening rather than changing">
+</div>
+
 ### Getting the apps
 
 - **Windows**: grab `Tiro-Windows-x64.exe` from the
@@ -320,6 +330,17 @@ type in the mono, no overflow at 320 px, dictation driven entirely from the keyb
 focus trap in the install sheet. Deepgram is stubbed and the microphone is Chromium's
 synthetic device, so it needs no key, no network and no audio hardware. The `build` workflow
 runs it on every push.
+
+The same harness takes the screenshots in this README and in [docs/FORK.md](docs/FORK.md):
+
+```bash
+node scripts/shoot-web.mjs      # writes docs/web/*.png
+```
+
+It runs a take through the shipped web core at phone and desktop widths and photographs the
+result, so no picture of the app is ever a mock-up or a hand-cropped screenshot. Regenerate
+them in the same pull request as an interface change; they are committed on purpose, so a
+clone of the repository renders the documents without running anything.
 
 One deliberate deviation from [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md): the native host
 frame is WinForms rather than WinUI 3, because it provides the tray icon and WebView2 with a plain

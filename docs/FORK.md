@@ -39,6 +39,16 @@ The reason to mention the architecture at all is that it decides how much of thi
 `web/` alone is a self-contained thing that runs on any static host, and it does not need the
 Windows half to exist.
 
+These are the same files in both places. Left, `web/` at an iPhone viewport; right, the identical
+build at the width the WebView2 window opens at on Windows. The layout widens; nothing forks.
+
+<div align="center">
+<img src="web/phone-take.png" width="250" alt="Tiro on a phone: a finished take, the transcript on a card with Copy and Share beneath it">
+<img src="web/desktop-take.png" width="460" alt="The same finished take at desktop width, the layout widening rather than changing">
+</div>
+
+The macOS app, which this fork carries unchanged:
+
 ![The app's history view](history.png)
 
 ---
@@ -110,6 +120,29 @@ are Safari's engine without that row in the share sheet.
 <img src="install-iphone-other-browser.png" width="300" alt="The install sheet in Chrome on iPhone, offering a Copy link button and directing the reader to Safari">
 </div>
 
+### The rest of it, at phone width
+
+First run asks for a key and says what dictation costs before asking for anything; a take shows the
+clock and a halo tracking the microphone; history stays on the device and exports as the same JSONL
+the Mac and Windows write; Usage is arithmetic over that history, set against the subscriptions this
+replaces.
+
+<div align="center">
+<img src="web/phone-setup.png" width="185" alt="First run: a card explaining the Deepgram key, what it costs, and a field to paste one into">
+<img src="web/phone-recording.png" width="185" alt="Mid-take: the button red and reading Listening, with a running clock and a Discard button">
+<img src="web/phone-history.png" width="185" alt="History grouped by day, each take with its time, its length, and copy and delete buttons">
+<img src="web/phone-usage.png" width="185" alt="Usage: minutes this month, estimated cost, a per-day chart, and a comparison against paid subscriptions">
+<img src="web/phone-settings.png" width="185" alt="Settings: the API key stored on the device, Canadian spelling, and the warm microphone option">
+</div>
+
+Dark mode is the same interface through the semantic tokens rather than a second stylesheet, which
+is the part worth checking with your own eyes:
+
+<div align="center">
+<img src="web/phone-history-dark.png" width="235" alt="The history view in dark mode, the same layout on a near-black surface">
+<img src="web/phone-idle.png" width="235" alt="The dictate view at rest in light mode, one button reading Hold to talk">
+</div>
+
 ---
 
 ## Smaller things that might be of more use than the platforms
@@ -157,22 +190,28 @@ Stated plainly, because you would find all of it in an afternoon:
 
 ---
 
-## Pictures still to take
+## Where the pictures come from
 
-Anyone updating this document: these are drawn from real hardware, never staged or mocked up.
+Nothing here is a mock-up, and the distinction worth keeping is which of two ways a shot was taken.
 
-| File | What it should show |
-|---|---|
-| `windows/pill-recording.png` | The pill mid-take, over another application, waveform moving |
-| `windows/pill-transcribing.png` | The same pill with the sweep crossing it |
-| `windows/tray-menu.png` | The tray menu open, showing the install and pin items |
-| `windows/start-menu.png` | Start search finding Tiro, and the pin-to-taskbar option |
-| `windows/apps-and-features.png` | The Apps and Features entry, with version and publisher |
-| `phone-home-screen.png` | Tiro installed on an iPhone Home Screen, beside other apps |
-| `phone-take.png` | A finished take on the phone, transcript on screen |
+**The web core photographs itself.** `docs/web/*.png` are written by `node scripts/shoot-web.mjs`,
+which runs the shipped `web/` in a real Chromium against the same stubbed Deepgram socket and
+synthetic microphone the smoke suite uses, drives a take through the app's own state machine, and
+screenshots what comes out. No key, no network, no hardware: the transcript on the card is the one
+that take produced and the halo is wherever the audio put it. Regenerate them in the pull request
+that changes the interface, so this document cannot advertise a version of the app that no longer
+exists.
 
-Done: `windows/install-prompt.png`, `windows/uninstall-prompt.png`, `windows/app-window.png`. All
-three are captures of the running app, not mock-ups.
+Two caveats on those, because they are the sort a reader should not have to find. Chromium at an
+iPhone viewport draws the layout and the type faithfully and **is not iOS**: it cannot draw Safari's
+chrome, the Home Screen, or the real share sheet, so the shots needing those are still in the table
+below. And the history list is seeded with written sample sentences rather than anybody's dictation,
+because four takes run for the camera would all be stamped the same minute and a history screenshot
+is about a list over time. The rendering, the grouping and the arithmetic on Usage are the app's own.
+
+**The Windows shell has to be photographed by hand.** Done: `windows/install-prompt.png`,
+`windows/uninstall-prompt.png`, `windows/app-window.png`, all three captures of the running app on
+Windows 11.
 
 They are taken with `PrintWindow`, which hands the window a device context and lets it draw itself.
 The first attempt read the screen instead, using UI Automation rectangles for the crop, and produced
@@ -186,3 +225,17 @@ cannot re-trigger the hotkey. A synthesised Right Alt does nothing at all. The b
 window is no way round it either, because WebView2 does not expose its accessibility tree to a plain
 client. So the waveform has to be somebody's actual voice, which is the right answer anyway: a
 silent take photographs as a flat line.
+
+### Still to take
+
+Each of these needs a person at the machine, and the two pill shots need one at the keyboard.
+
+| File | What it should show |
+|---|---|
+| `windows/pill-recording.png` | The pill mid-take, over another application, waveform moving |
+| `windows/pill-transcribing.png` | The same pill with the sweep crossing it |
+| `windows/tray-menu.png` | The tray menu open, showing the install and pin items |
+| `windows/start-menu.png` | Start search finding Tiro, and the pin-to-taskbar option |
+| `windows/apps-and-features.png` | The Apps and Features entry, with version and publisher |
+| `phone-home-screen.png` | Tiro installed on an iPhone Home Screen, beside other apps |
+| `phone-safari-real.png` | The install walkthrough on a real iPhone, Safari's own toolbar below it |
