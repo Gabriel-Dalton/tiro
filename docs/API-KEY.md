@@ -25,6 +25,11 @@ only decides what the dashboard shows you first, so it isn't a decision you can 
 In the sidebar on the left there's a **Manage** section. **API Keys** is in it, directly under
 Dashboard.
 
+Deepgram has been moving this: newer consoles put **API Keys** under **Settings** instead, reached
+from the projects dropdown at the top left. Either way it is called API Keys, and the surest route
+is to skip the hunt entirely — <https://console.deepgram.com/signup?jump=keys> lands on the right
+page whether you are signing up or already signed in.
+
 ![The Deepgram sidebar, with API Keys under Manage](api-key-1-nav.svg)
 
 ## 3. Create a key

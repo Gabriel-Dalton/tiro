@@ -14,6 +14,14 @@ const DEFAULTS = {
   desktopHotkey: false, // hold-to-talk key while the tab is focused (browser only)
   hotkeyCode: "AltRight",
   seenSetup: false,
+  // null means "nobody has said", which is not the same as off: the Canadian pass
+  // then follows the device (canadian.js looksCanadian). Storing a boolean here
+  // the moment the toggle is touched is what makes an explicit choice stick, on
+  // either side, including for a Canadian who writes to an American house style.
+  // A plain `false` default would have made the feature invisible to exactly the
+  // people it is for, which is the whole complaint against how Wispr Flow ships
+  // it (ROADMAP.md 6.3).
+  canadianSpelling: null,
 };
 
 export function getApiKey() {

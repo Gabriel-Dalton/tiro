@@ -397,6 +397,34 @@ select {
 .toggle-text { display: grid; gap: 2px; }
 .toggle-text .hint { display: block; }
 
+/* The Canadian ruleset, shown rather than asserted. A spelling pass that rewrites
+   what you said has to be able to show you exactly what it rewrites, or the only
+   way to find out is to be surprised by it mid-sentence. Collapsed by default
+   because it is ninety-odd lines and nobody reads it twice. */
+.rules { margin-top: var(--s2); }
+.rules summary {
+  cursor: pointer;
+  /* 44px, like every other target: a disclosure triangle is still a control. */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.rules summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rule-list {
+  list-style: none;
+  margin: var(--s2) 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 2px var(--s3);
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
 /* A real switch: 46×28, which is a comfortable thumb target, and it still
    reports itself to assistive technology as the checkbox it is. */
 .switch {

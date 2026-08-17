@@ -11,6 +11,7 @@ import * as settings from "./settings.js";
 import { bridge } from "./bridge.js";
 import { Installer } from "./install.js";
 import { ShareSheet } from "./share.js";
+import * as canadian from "./canadian.js";
 import { sheetIsOpen } from "./sheet.js";
 import { VERSION } from "./version.js";
 
@@ -467,6 +468,25 @@ function pressEnd() {
 /** Must be called synchronously inside the user gesture: the promise-valued
  * ClipboardItem is what lets the write survive the network round trip on
  * Safari (docs/RESEARCH.md #4). */
+/**
+ * Is the Canadian pass on? An explicit choice wins; otherwise the device decides.
+ * Read at the moment a take finishes rather than cached, so turning the toggle off
+ * takes effect on the next thing you say rather than the next launch.
+ */
+function canadianOn() {
+  const chosen = settings.getSettings().canadianSpelling;
+  return chosen === null || chosen === undefined ? canadian.looksCanadian() : !!chosen;
+}
+
+/**
+ * Applied once, to the finished transcript, before anything sees it: the result
+ * card, the clipboard, history, and the paste the Windows host performs. One
+ * place, so those four can never disagree about what was said.
+ */
+function canadianPass(text) {
+  return canadianOn() ? canadian.toCanadian(text) : text;
+}
+
 function stopAndInsert() {
   if (!stream) { setState("idle"); return; }
   const s = stream;
@@ -494,7 +514,7 @@ function stopAndInsert() {
     if (token !== takeToken) { s.abort(); throw new Error("discarded"); }
     const sec = Math.round(engine.endRecording() * 10) / 10;
     engine.onChunk = null;
-    const text = await s.finish();
+    const text = canadianPass(await s.finish());
     if (finishing === s) finishing = null; // finish() closed it
     // Discarded while the finals were still draining. Drop the text on the
     // floor: no result card, no history, no clipboard, no paste. cancelTake has
@@ -1068,6 +1088,15 @@ $("set-warm").addEventListener("change", async (e) => {
     engine.stop();
   }
 });
+// Touching this stores a boolean, which is what makes the choice stick either way
+// and stops the device deciding for somebody who has already said no.
+$("set-canadian").addEventListener("change", (e) => {
+  settings.setSetting("canadianSpelling", e.target.checked);
+  $("set-canadian-hint").textContent = e.target.checked
+    ? "On. Colour, centre, defence, kilometre, with organize and recognize kept as they are, "
+      + "and postal codes spaced the way Canada Post writes them."
+    : "Off. Transcripts are left exactly as Deepgram returned them.";
+});
 $("set-hotkey-on").addEventListener("change", (e) => settings.setSetting("desktopHotkey", e.target.checked));
 $("set-hotkey").addEventListener("change", (e) => settings.setSetting("hotkeyCode", e.target.value));
 
@@ -1173,6 +1202,30 @@ async function boot() {
 
   const s = settings.getSettings();
   $("set-warm").checked = s.micWarm;
+
+  // The box reflects what is actually happening, which for a Canadian device with
+  // nobody having chosen is "on". Saying so is the point: the failure this feature
+  // exists to fix is a setting nobody knows is there.
+  $("set-canadian").checked = canadianOn();
+  if (s.canadianSpelling === null || s.canadianSpelling === undefined) {
+    $("set-canadian-hint").textContent = canadianOn()
+      ? "On, because this device is set to Canada. Colour, centre, defence, kilometre, with "
+        + "organize and recognize kept as they are."
+      : "Off, because this device is not set to Canada. Turn it on if you write Canadian English.";
+  }
+  const list = $("canadian-rules");
+  for (const r of canadian.rules()) {
+    const li = document.createElement("li");
+    li.textContent = `${r.from} → ${r.to}`;
+    list.appendChild(li);
+  }
+  // Naming what it will not touch is worth as much as naming what it will: these
+  // are the words a spelling pass gets wrong, and saying so is how someone knows
+  // it will not mangle "check the box".
+  $("canadian-left-alone").textContent =
+    "Left alone on purpose, because only the sentence can say which is meant: "
+    + canadian.LEFT_ALONE.map(([a, b]) => `${a}/${b}`).join(", ")
+    + ". Canadian keeps the American -ize, so organize and recognize are not changed either.";
   $("set-hotkey-on").checked = s.desktopHotkey;
   $("set-hotkey").value = s.hotkeyCode;
   if (settings.getApiKey()) {
