@@ -58,6 +58,10 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   time out and silently unhook you.
 - Handle the hook being dropped by the OS and reinstall it.
 - Same 0.35 s hold/tap threshold as everywhere else.
+- **Escape discards the take**, and the same hook watches for it. Arm that watch only while a
+  take is actually running: a hook that swallows Escape all the time breaks every dialog and
+  menu on the machine. While a take *is* running, swallowing it is right, because you pressed it
+  to stop dictating and not to dismiss whatever is behind the pill.
 
 ### 4.2 Paste
 
@@ -81,7 +85,15 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
 - Autostart via the `Run` registry key, off by default and toggleable in settings.
 - Single instance via a named mutex. Upstream hit a real crash from two copies fighting over the
   mic, so activate the existing window instead of starting a second process.
-- A small always-on-top status pill near the cursor while recording, matching the macOS one.
+- A small always-on-top status pill near the cursor while recording, matching the macOS one:
+  pulsing dot, live waveform, clock. The waveform is driven by a `level` message from the web
+  core, already smoothed and normalised there, so this meter and the PWA's halo cannot disagree
+  about what your voice looks like.
+- The pill carries the two controls the hotkey cannot express: **X to discard** and **check to
+  finish now**. It must answer `WM_MOUSEACTIVATE` with `MA_NOACTIVATE`, or clicking it
+  deactivates the window being dictated into and the transcript pastes into the wrong place.
+  Both buttons act by posting to the web core rather than locally: it owns the take, the socket
+  and the history, and a second authority over any of those is how the two ends drift apart.
 - Log to `%APPDATA%\Tiro\tiro.log`.
 - **Update check.** Nothing installs this app, so nothing updates it. Once a week at most, and
   never during launch, ask GitHub for the latest release tag and compare it numerically with

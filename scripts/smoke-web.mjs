@@ -58,6 +58,10 @@ await new Promise((r) => server.listen(8099, r));
 const browser = await chromium.launch({
   // a synthetic mic, so a real take can run end to end without hardware
   args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+  // Sandboxes and locked-down CI images often ship a Chromium already and block
+  // the download Playwright would otherwise insist on. Point this at that binary
+  // rather than pinning the npm version to whatever the image happens to carry.
+  executablePath: process.env.TIRO_CHROMIUM || undefined,
 });
 let failures = 0;
 const check = (name, ok, extra = "") => {
@@ -293,6 +297,7 @@ const FAKE_SOCKET = () => {
       this.readyState = 0;
       this.sentBytes = 0;
       window.__wsCount = (window.__wsCount || 0) + 1;
+      window.__wsOpen = (window.__wsOpen || 0) + 1;
       setTimeout(() => { this.readyState = 1; this.onopen && this.onopen(); }, 30);
     }
     send(data) {
@@ -311,7 +316,11 @@ const FAKE_SOCKET = () => {
       this.sentBytes += data.byteLength || 0;
       window.__audioBytes = (window.__audioBytes || 0) + (data.byteLength || 0);
     }
-    close() { this.readyState = 3; setTimeout(() => this.onclose && this.onclose({ code: 1000 }), 0); }
+    close() {
+      if (this.readyState !== 3) window.__wsOpen--;
+      this.readyState = 3;
+      setTimeout(() => this.onclose && this.onclose({ code: 1000 }), 0);
+    }
   }
   FakeWS.OPEN = 1;
   FakeWS.CLOSED = 3;
@@ -367,7 +376,20 @@ const FAKE_SOCKET = () => {
     (await page.evaluate(() => window.__audioBytes || 0)) > 0,
     `${await page.evaluate(() => window.__audioBytes || 0)} bytes`);
 
+  const bytesAtRelease = await page.evaluate(() => window.__audioBytes || 0);
   await page.mouse.up();
+  // Inside TAIL_SEC (0.5 s). The tail exists so the last word is not clipped,
+  // and for a long time it did not work: stopAndInsert nulls the module-level
+  // `stream` before sleeping, and the engine's chunk handler closed over exactly
+  // that variable, so every chunk in the tail evaluated to `null && …`. The
+  // audio was captured and billed and never sent. Nothing noticed, because the
+  // transcript still arrives — just without whatever you said last.
+  await page.waitForTimeout(380);
+  const bytesInTail = await page.evaluate(() => window.__audioBytes || 0);
+  check("the tail actually streams, rather than just delaying CloseStream",
+    bytesInTail > bytesAtRelease,
+    `${bytesAtRelease} bytes at release, ${bytesInTail} during the tail`);
+
   await page.waitForTimeout(2000);
   check("halo settles back to invisible after the take",
     (await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById("halo")).opacity))) < 0.02);
@@ -388,6 +410,155 @@ const FAKE_SOCKET = () => {
   check("the take is written to history",
     (await page.locator("#history-list").innerText()).includes("hello from the fake mic"));
   check("no page errors during a full take", errors.length === 0, errors.join(" | "));
+
+  await ctx.close();
+}
+
+// ------------------------------------------------------------ discarding a take
+//
+// Cancel is the one path where being wrong is expensive in the opposite
+// direction from everything else here: a discard that half-works still pastes
+// your words into someone else's window.
+{
+  const ctx = await browser.newContext({ permissions: ["microphone", "clipboard-write", "clipboard-read"] });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.addInitScript(FAKE_SOCKET);
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+
+  check("no Discard control before a take starts", await page.locator("#discard").isHidden());
+
+  const box = await page.locator("#talk").boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  check("Discard appears once a take is running", await page.locator("#discard").isVisible());
+
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  check("Escape ends the take", /hold to talk/i.test(await page.locator("#talk-label").innerText()));
+  check("Escape says so", /discarded/i.test(await page.locator("#toast-text").innerText()));
+  await page.mouse.up();
+  // Long enough for the tail, the socket's finals and the fake transcript to
+  // have arrived had anything still been listening for them.
+  await page.waitForTimeout(2000);
+  check("a discarded take leaves no transcript on screen",
+    await page.locator("#result-card").isHidden());
+  check("a discarded take is not billed to history",
+    (await page.evaluate(() => localStorage.getItem("tiro.history"))) === null ||
+    !(await page.evaluate(() => localStorage.getItem("tiro.history") || "")).includes("fake mic"));
+
+  // Now the harder half: discard after the audio is already on its way, which
+  // is when most people notice they did not mean it.
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();               // held, so this transcribes
+  await page.waitForTimeout(120);
+  check("Discard is still offered while transcribing", await page.locator("#discard").isVisible());
+  await page.locator("#discard").click();
+  // Straight after the click, well inside TAIL_SEC. Discarding while
+  // transcribing has to close the socket itself: the take's own tail is asleep,
+  // and the stream is no longer reachable through `stream`. Miss it and the
+  // socket stays open with its keepalive armed for as long as the page lives.
+  await page.waitForTimeout(120);
+  check("discarding mid-transcribe closes the socket rather than orphaning it",
+    (await page.evaluate(() => window.__wsOpen)) === 0,
+    `${await page.evaluate(() => window.__wsOpen)} still open`);
+  await page.waitForTimeout(2200);     // past the tail and the fake finals
+  check("discarding mid-transcribe drops the result", await page.locator("#result-card").isHidden());
+  check("no page errors across two discards", errors.length === 0, errors.join(" | "));
+
+  // And the take after a discard still works, which is what the take token is
+  // really protecting: a stale tail must not poison the next one.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); // off the Discard button
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await page.waitForTimeout(2200);
+  check("the take after a discard still lands",
+    (await page.locator("#result-text").innerText()).includes("hello from the fake mic"));
+
+  await ctx.close();
+}
+
+// -------------------------------------------------- the Windows shell bridge
+//
+// Same core, WebView2 seam faked. This covers the two messages the pill lives
+// on: the level stream that drives its waveform, and the cancel/stop commands
+// its buttons send back.
+{
+  const ctx = await browser.newContext({ permissions: ["microphone"] });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.addInitScript(() => {
+    localStorage.setItem("tiro.apiKey", "test-key-not-real");
+    window.__sent = [];
+    // The Windows app's normal state is a tray icon with its window hidden, and
+    // a hidden WebView2 produces no frames, so requestAnimationFrame never
+    // fires. Kill it outright here: the halo is allowed to stop, the pill's
+    // level feed is not, and the first version of this shipped with the feed
+    // riding on the halo's loop.
+    window.requestAnimationFrame = () => 0;
+    window.chrome = {
+      webview: {
+        addEventListener: (type, fn) => { if (type === "message") window.__hostSend = (m) => fn({ data: m }); },
+        postMessage: (m) => window.__sent.push(m),
+      },
+    };
+  });
+  await page.addInitScript(FAKE_SOCKET);
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+
+  check("the core knows it is inside the shell",
+    await page.evaluate(() => window.__sent.some((m) => m.type === "ready")));
+
+  // The host drives the take through the global hotkey, exactly as the C# hook does.
+  await page.evaluate(() => window.__hostSend({ type: "hotkey", phase: "down" }));
+  await page.waitForTimeout(1200);
+
+  const levels = await page.evaluate(() =>
+    window.__sent.filter((m) => m.type === "level").map((m) => m.value));
+  check("the mic level reaches the host with requestAnimationFrame dead",
+    levels.length > 0, `${levels.length} messages`);
+  check("the level is a real signal, not a stuck number",
+    new Set(levels).size > 3, `${new Set(levels).size} distinct values`);
+  check("the level stays inside 0..1",
+    levels.every((v) => v >= 0 && v <= 1), `range ${Math.min(...levels)}..${Math.max(...levels)}`);
+  // The feed runs at 20 Hz and repeats are dropped, so a second of audio must
+  // not arrive as one message per animation frame.
+  check("the level is paced by the feed, not by the frame rate",
+    levels.length < 40, `${levels.length} messages in ~1.2s`);
+
+  // The pill's check: finish now, from a window that is not this one.
+  await page.evaluate(() => window.__hostSend({ type: "stop" }));
+  await page.waitForTimeout(2200);
+  check("the pill's check finishes the take and hands the host a transcript",
+    await page.evaluate(() => window.__sent.some(
+      (m) => m.type === "transcript" && /hello from the fake mic/.test(m.text))));
+  const parked = await page.evaluate(() => {
+    const l = window.__sent.filter((m) => m.type === "level");
+    return l.length ? l[l.length - 1].value : null;
+  });
+  check("the level parks at zero so the pill's bars do not freeze", parked === 0, `last level ${parked}`);
+
+  // The pill's X, mid-take.
+  await page.evaluate(() => { window.__sent.length = 0; window.__hostSend({ type: "hotkey", phase: "down" }); });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => window.__hostSend({ type: "cancel" }));
+  await page.waitForTimeout(2200);
+  check("the pill's X discards without handing the host anything to paste",
+    await page.evaluate(() => !window.__sent.some((m) => m.type === "transcript")));
+  check("the host is told the take is over",
+    await page.evaluate(() => {
+      const s = window.__sent.filter((m) => m.type === "state");
+      return s.length > 0 && s[s.length - 1].state === "idle";
+    }));
+  check("no page errors on the shell path", errors.length === 0, errors.join(" | "));
 
   await ctx.close();
 }

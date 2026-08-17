@@ -11,7 +11,8 @@
 > this document has not had a full second pass and should get one.
 >
 > **Since then**, the interface rebuild in #20 has resolved **PWA-08** in full, and added
-> **PWA-13**, which is new and cosmetic. **PWA-09** was re-checked against that rebuild and
+> **PWA-13**, which is new and cosmetic. The desktop-pill branch resolves **WIN-05** and adds
+> **PWA-14**, which is new, pre-dates this audit, and was missed by it. **PWA-09** was re-checked against that rebuild and
 > still stands: `app.js:348` still queues the fallback badge off the transcript promise
 > rather than off the clipboard write, so the happy path still flashes "tap copy" first.
 
@@ -289,6 +290,28 @@ query, so the flash can be removed on iOS, but it needs one exact-size asset per
 `scripts/gen-icons.mjs` would have to grow the whole matrix. Not worth it until someone
 reports it. Recorded here so the next person does not re-derive why the colours are one-sided.
 
+### PWA-14 · High · The tail streams nothing, so the last word is clipped anyway
+
+> **Fixed on `claude/wispr-flow-desktop-widget-7x52cw`.** `stopAndInsert` now re-points
+> `engine.onChunk` at the take it just captured, and `smoke-web.mjs` asserts the byte count
+> grows during the tail.
+
+**`web/src/app.js:304` (the handler in `pressStart`), `web/src/app.js:357-368` (`stopAndInsert`)**
+
+`pressStart` installs `engine.onChunk = (c) => stream && stream.send(c)`, closing over the
+module-level `stream`. `stopAndInsert` sets `stream = null` on its second line, then sleeps
+for `TAIL_SEC` with the comment "keep streaming through the tail so the last word is not
+clipped".
+
+For that entire half second the handler evaluates `null && …` and sends nothing. The audio is
+still captured, still counted into `recordedSamples`, and still billed through the duration
+`endRecording()` returns — it simply never reaches Deepgram. Measured on the fake socket: zero
+bytes sent between the release and `CloseStream`, 508 ms apart.
+
+So the tail delayed the close without using the delay, and the exact failure it was written to
+prevent — losing whatever you said last — happened on every take. Nothing caught it because
+the transcript still arrives and still looks like a sentence.
+
 ---
 
 ## Windows — `windows/`
@@ -383,6 +406,13 @@ there, so nothing exploits it — but the comment says the intent was specifical
 and narrowing it to `CoreWebView2PermissionKind.Microphone` costs one line.
 
 ### WIN-05 · Medium · No recovery if the WebView2 process dies
+
+> **Fixed on `claude/wispr-flow-desktop-widget-7x52cw`.** Both `ProcessFailed` and a failed
+> `NavigationCompleted` now drop `_webReady` and report the `blocked` state. It was promoted
+> from "live-looking app that does nothing" by the global Escape hook added on that branch:
+> the hook is armed by the last state the page reported, so a crash mid-take left Escape
+> swallowed system-wide, with nothing able to un-arm it but a message from the dead page.
+> The outbox those messages now queue into is still unbounded, which is WIN-08.
 
 **`windows/Tiro.Windows/MainForm.cs:97-129`**
 

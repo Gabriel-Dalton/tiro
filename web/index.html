@@ -173,7 +173,13 @@
              does not shift under your thumb the moment recording starts. -->
         <div class="stage-meta">
           <p class="hint" id="talk-hint">Hold and speak. A quick tap keeps it recording hands-free.</p>
-          <p class="timer" id="timer" hidden>0:00</p>
+          <div class="take-meta" id="take-meta" hidden>
+            <p class="timer is-blank" id="timer">0:00</p>
+            <!-- The shortcut is aria-hidden: it is a reminder for people who can
+                 see the key, and it would otherwise make the button announce
+                 itself as "Discard Esc". -->
+            <button type="button" class="discard" id="discard">Discard<kbd aria-hidden="true">Esc</kbd></button>
+          </div>
         </div>
       </div>
 

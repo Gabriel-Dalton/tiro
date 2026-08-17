@@ -21,8 +21,24 @@ const $ = (id) => document.getElementById(id);
 let state = "idle";
 let pressedAt = 0;
 let stream = null;      // DeepgramStream for the current take
+// The same take once stopAndInsert has taken it off `stream` and is draining
+// finals. It has to stay reachable: discarding while transcribing otherwise has
+// nothing to close, and the socket stays open with its keepalive armed for as
+// long as the page lives. That is the orphaned billed socket of PWA-02, reached
+// by a different road.
+let finishing = null;
 let timerHandle = null;
 let recordStartedAt = 0;
+
+// Identifies the take in flight. Discarding one bumps it, which is how a
+// discarded take's own async tail knows it is stale.
+//
+// A boolean would be wrong here, and the race is not theoretical: cancelling
+// while transcribing returns to idle immediately, but the socket is still
+// draining finals and can take another second to resolve. Nothing stops the
+// user starting a fresh take inside that second, and a shared flag would be
+// cleared by the new take just in time for the discarded one to paste.
+let takeToken = 0;
 
 const engine = new AudioEngine();
 engine.onDeviceChange = () => notice("Mic changed, reconnected", "warn");
@@ -36,13 +52,23 @@ function setState(next) {
   talk.classList.toggle("transcribing", next === "transcribing");
   head.classList.toggle("recording", next === "holdRecording" || next === "toggleRecording");
   const recording = next === "holdRecording" || next === "toggleRecording";
-  $("timer").hidden = !recording;
+  const live = recording || next === "transcribing";
+  // Blanked rather than hidden once the clock stops: removing it re-centres the
+  // row and slides Discard sideways at the exact moment someone is reaching for
+  // it. A frozen clock would read as still counting, so it keeps its box and
+  // gives up its digits.
+  $("timer").classList.toggle("is-blank", !recording);
+  // Discard outlives the timer by one state: once the audio is sent there is no
+  // clock left to run, but there is still a transcript you may not want pasted,
+  // and that is the moment people realise it.
+  $("take-meta").hidden = !live;
   // The timer takes the hint's slot while a take runs, so the page does not
   // reflow under a thumb that is mid-press.
-  $("talk-hint").classList.toggle("is-faded", recording);
+  $("talk-hint").classList.toggle("is-faded", live);
   // Drive the halo from the state itself, not from one branch below: a take
-  // that starts in toggle mode has to breathe too.
-  if (next === "holdRecording" || next === "toggleRecording") startHalo();
+  // that starts in toggle mode has to breathe too. The pill's feed starts with
+  // it and stops itself once the bars have fallen.
+  if (next === "holdRecording" || next === "toggleRecording") { startHalo(); startLevelFeed(); }
   if (next === "idle") {
     label.textContent = "Hold to talk";
     head.textContent = "ready";
@@ -108,6 +134,57 @@ function isRecordingState() {
   return state === "holdRecording" || state === "toggleRecording";
 }
 
+/** RMS as the meter should draw it: 0 at room tone, 1 at a firm speaking voice,
+ * with the curve bent to open up the quiet end where normal speech lives.
+ * Shared, because the halo and the Windows pill must agree. */
+function normaliseLevel(rms) {
+  const norm = (rms - HALO_FLOOR) / (HALO_CEIL - HALO_FLOOR);
+  return Math.pow(Math.max(0, Math.min(1, norm)), 0.6);
+}
+
+// ------------------------------------------------- level feed for the host
+//
+// The halo's own loop cannot carry this. It runs on requestAnimationFrame, and
+// the Windows app's normal state is a tray icon with its window hidden: WebView2
+// marks a hidden host window invisible, Chromium stops producing frames for an
+// invisible page, and rAF stops being called. The take itself is unaffected,
+// because the AudioWorklet runs on the audio thread, so everything would look
+// fine and the pill's waveform would simply never move for anyone who had closed
+// the window. Which is everyone.
+//
+// So the pill gets its own clock. setInterval survives an invisible page, though
+// only because MainForm passes --disable-background-timer-throttling; without
+// that flag Chromium clamps hidden-page timers to one second and the waveform
+// would tick once a second instead of twenty times.
+const LEVEL_HZ_MS = 50;
+// Per-tick equivalents of the halo's per-frame rates at 60 Hz: three frames fit
+// in 50 ms, so 1-(1-0.45)^3 and 1-(1-0.12)^3. Same feel, different clock.
+const LEVEL_ATTACK = 0.83;
+const LEVEL_DECAY = 0.32;
+let levelTimer = null;
+let levelValue = 0;
+
+function startLevelFeed() {
+  if (levelTimer || !bridge.isShell) return;
+  levelValue = 0;
+  levelTimer = setInterval(() => {
+    const target = isRecordingState() ? normaliseLevel(engine.level) : 0;
+    levelValue += (target - levelValue) * (target > levelValue ? LEVEL_ATTACK : LEVEL_DECAY);
+    bridge.setLevel(levelValue);
+    // Stop once it has settled, not the moment recording stops, so the bars fall
+    // rather than snapping flat.
+    if (!isRecordingState() && levelValue < 0.01) stopLevelFeed();
+  }, LEVEL_HZ_MS);
+}
+
+function stopLevelFeed() {
+  if (!levelTimer) return;
+  clearInterval(levelTimer);
+  levelTimer = null;
+  levelValue = 0;
+  bridge.setLevel(0);
+}
+
 function startHalo() {
   if (haloRunning) return; // one loop only, however many times we are called
   haloRunning = true;
@@ -117,12 +194,7 @@ function startHalo() {
     const recording = isRecordingState();
     // Target is the voice while recording, and zero once it stops, so the ring
     // eases back down instead of snapping off mid-pulse.
-    let target = 0;
-    if (recording) {
-      const norm = (engine.level - HALO_FLOOR) / (HALO_CEIL - HALO_FLOOR);
-      // gamma < 1 opens up the quiet end, where normal speech actually lives
-      target = Math.pow(Math.max(0, Math.min(1, norm)), 0.6);
-    }
+    const target = recording ? normaliseLevel(engine.level) : 0;
     const rate = target > haloValue ? HALO_ATTACK : HALO_DECAY;
     haloValue += (target - haloValue) * rate;
 
@@ -228,11 +300,22 @@ async function pressStart() {
 
   starting = true;
   releasedWhileStarting = false;
+  const token = ++takeToken; // any earlier take's tail is now stale
   try {
     await engine.start(); // no-op when already warm
   } catch {
     starting = false;
     notice("No microphone. Check permissions", "bad", 5000);
+    return;
+  }
+
+  // Discarded while the mic was still opening. On first run that window is the
+  // whole permission prompt, which is exactly when someone realises they hit
+  // the wrong key, so this is the likeliest cancel of all and the one that
+  // would otherwise come back to life as a live take seconds later.
+  if (token !== takeToken) {
+    starting = false;
+    releasedWhileStarting = false;
     return;
   }
 
@@ -309,14 +392,35 @@ function stopAndInsert() {
   if (!stream) { setState("idle"); return; }
   const s = stream;
   stream = null;
+  finishing = s;
   setState("transcribing");
+  const token = takeToken;
+
+  // Re-point the engine at the take we just took off `stream`. The chunk handler
+  // set up in pressStart closes over the module-level `stream`, which the line
+  // above just set to null, so for the whole of TAIL_SEC it evaluated to
+  // `null && …` and sent nothing. The tail existed but was empty: the last half
+  // second of speech was captured, counted as billable, and then dropped on the
+  // floor, which is precisely the clipped last word it was added to prevent.
+  engine.onChunk = (c) => s.send(c);
 
   const transcriptPromise = (async () => {
     // keep streaming through the tail so the last word is not clipped
     await new Promise((r) => setTimeout(r, TAIL_SEC * 1000));
+    // Discarded during the tail. Bail *before* touching the engine, not after
+    // the transcript arrives: cancelTake has already detached it, and by now the
+    // user may well have started a fresh take. Checking only at the end meant
+    // this stale tail called endRecording() and nulled onChunk on the take that
+    // replaced it, which killed the next take's audio silently.
+    if (token !== takeToken) { s.abort(); throw new Error("discarded"); }
     const sec = Math.round(engine.endRecording() * 10) / 10;
     engine.onChunk = null;
     const text = await s.finish();
+    if (finishing === s) finishing = null; // finish() closed it
+    // Discarded while the finals were still draining. Drop the text on the
+    // floor: no result card, no history, no clipboard, no paste. cancelTake has
+    // already put the UI back to idle, so there is nothing to undo here.
+    if (token !== takeToken) throw new Error("discarded");
     finishTake(text, sec);
     if (!text) throw new Error("empty"); // reject: never clobber the clipboard with ""
     return text;
@@ -328,6 +432,47 @@ function stopAndInsert() {
     // The Windows host pastes into the focused app via SendInput instead.
     transcriptPromise.then((text) => bridge.sendTranscript(text)).catch(() => {});
   }
+}
+
+/** Throw the take away. The counterpart to stopAndInsert, and the thing that was
+ * missing entirely: before this, everything you said reached the clipboard or
+ * the focused app whether you meant it to or not, and the only way out of a
+ * misfire was to undo the paste afterwards.
+ *
+ * Two shapes, because the audio has already left the building in the second:
+ *  - still recording: abort the socket, nothing was ever transcribed
+ *  - transcribing: the take is mid-flight, so bump the token and let its own
+ *    tail discover it is stale. Deepgram still bills for the seconds already
+ *    streamed; discarding is about not pasting, not about a refund. */
+function cancelTake() {
+  // `starting` matters as much as the state does: between the press and the mic
+  // opening the state is still "idle", and that gap is where a first-run
+  // permission prompt lives.
+  if (state === "idle" && !starting) return;
+  takeToken++;
+
+  // Detach the engine in both shapes, not just while recording. When the take is
+  // already transcribing its own tail is asleep in TAIL_SEC and will bail on the
+  // stale token before it reaches endRecording, so if this does not release the
+  // mic nothing will: it stays flagged as recording and keeps billing samples to
+  // a take nobody will ever read.
+  // `stream` while recording, `finishing` while transcribing. Closing it here
+  // rather than leaving it to the stale tail matters: the tail is asleep in
+  // TAIL_SEC, so waiting for it keeps a live socket open for half a second after
+  // the user has already been told the take is gone.
+  const s = stream || finishing;
+  stream = null;
+  finishing = null;
+  engine.endRecording();
+  engine.onChunk = null;
+  if (s) s.abort();
+
+  $("live").hidden = true;
+  $("live-final").textContent = "";
+  $("live-interim").textContent = "";
+  setState("idle");
+  if (!settings.getSettings().micWarm) engine.stop();
+  notice("Discarded", "warn", 2000);
 }
 
 function finishTake(text, sec) {
@@ -455,10 +600,39 @@ window.addEventListener("keyup", (e) => {
   pressEnd();
 });
 
+// Escape discards the take, anywhere in the app, including from inside a text
+// field: reaching for it mid-dictation means one thing.
+//
+// The install sheet also binds Escape (install.js), and both would fire if it
+// were open during a take, so this stands down while it is up. That ordering is
+// the conventional one and the safer one: dismissing the sheet is undoable, and
+// throwing a take away is not.
+//
+// In the Windows shell this only fires when the Tiro window itself has focus,
+// which it usually does not. The host hooks Escape globally and sends
+// {type:"cancel"} instead, landing on the same function.
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (state === "idle" && !starting) return;
+  if (!$("install-sheet").hidden) return;
+  e.preventDefault();
+  cancelTake();
+});
+
+$("discard").addEventListener("click", (e) => {
+  e.preventDefault();
+  cancelTake();
+});
+
 // Windows shell: global hotkey events arrive over the bridge.
 bridge.onHotkey = (phase) => {
   if (phase === "down") pressStart();
   else pressEnd();
+};
+// The pill's X and check, clicked in whatever app the user is dictating into.
+bridge.onCancel = () => cancelTake();
+bridge.onStop = () => {
+  if (isRecordingState()) stopAndInsert();
 };
 bridge.onPasteResult = (r) => {
   if (!r.ok) {
@@ -517,8 +691,15 @@ for (const t of document.querySelectorAll(".tab")) {
 // Escape closes the install sheet, so it closes a standing offer too. A thing
 // on screen that will not go away on the key everyone reaches for is a thing
 // people learn to work around.
+//
+// It stands down during a take, because Escape now also discards one. An offer
+// raised before the take started is still on screen, so without this the one
+// key press would both throw the recording away and mark the release dismissed,
+// and dismissing is remembered: that version would never be offered again.
+// Discarding is what the user meant; the offer can wait.
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if (state !== "idle") return;
   if ($("toast").dataset.open !== "true" || $("toast-dismiss").hidden) return;
   $("toast-dismiss").click();
 });

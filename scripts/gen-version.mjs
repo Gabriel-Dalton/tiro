@@ -61,16 +61,24 @@ function stamp(file, pattern, replacement) {
 
 stamp("web/sw.js", /const CACHE = "tiro-[^"]*";/, `const CACHE = "tiro-${version}";`);
 
-// The footer version links to its own tag rather than to /latest, so the number and
-// the notes it opens can never describe different releases. The tag page exists only
-// once the release is published, which leaves a window: bump VERSION, deploy, and the
-// link 404s until the tag is pushed. That window is the same one in which the site is
-// already naming a version nobody can download, and the release job refuses to publish
-// a tag that disagrees with VERSION, so it closes on its own at the moment it matters.
+// The footer version used to link to its own tag, so that the number and the notes it
+// opened could never describe different releases. The cost of that was a window — bump
+// VERSION, deploy, and the link 404s until the tag is pushed — and the reasoning here
+// was that the window closes on its own at the moment it matters.
+//
+// It does not. `VERSION` is allowed to run ahead of the latest release while the next
+// one is being prepared, and preparing 1.2.0 took long enough that the live site spent
+// a day offering a dead link to a tag nobody had cut yet. A 404 in the footer is worse
+// than a number one release ahead of the notes: it reads as a broken site rather than
+// as work in progress.
+//
+// So it points at /releases/latest, which always resolves. The number still names what
+// the site is running, and during a prepare window it is one ahead of what the link
+// opens — which is exactly what is true.
 stamp(
   "landing/index.html",
   /<a class="version" href="[^"]*">[^<]*<\/a>/,
-  `<a class="version" href="https://github.com/Gabriel-Dalton/tiro/releases/tag/v${version}">v${version}</a>`
+  `<a class="version" href="https://github.com/Gabriel-Dalton/tiro/releases/latest">v${version}</a>`
 );
 
 console.log(`stamped ${version} into the web app, service worker, Windows build and landing page`);

@@ -511,8 +511,50 @@ select {
 /* The hint fades rather than being removed: it is the button's description, and
    a description that vanishes mid-take is one a screen reader can no longer
    reach. Invisible, still announced. */
-.stage .hint.is-faded { opacity: 0; }
+/* pointer-events matters now that Discard shares this slot: the hint is still
+   laid out at full size on top of it, so an invisible paragraph was swallowing
+   every click aimed at the button underneath. */
+.stage .hint.is-faded { opacity: 0; pointer-events: none; }
 .timer { font-size: 17px; font-weight: 600; color: var(--accent-strong); }
+
+/* Timer and Discard share the hint's slot, so the page still does not reflow
+   when a take starts. The row is centred as a unit and the timer keeps a fixed
+   width, or Discard would slide sideways every time the clock ticks past a
+   wider digit and become a moving target under a thumb. */
+.take-meta { display: flex; align-items: center; justify-content: center; gap: var(--s3); }
+.take-meta .timer { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+.take-meta .timer.is-blank { visibility: hidden; }
+.discard {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1;
+  min-height: 32px;
+  padding: 0 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-subtle-c);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s var(--ease), border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.discard:hover { color: var(--bad-fg); border-color: var(--bad-fg); background: var(--bad-bg); }
+.discard kbd {
+  font: inherit;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: var(--surface-active);
+}
+/* The shortcut is the real affordance on a desktop and dead weight on a phone,
+   where there is no Esc key to press. */
+@media (pointer: coarse) { .discard kbd { display: none; } }
 
 /* ---------- live transcript + result ---------- */
 
