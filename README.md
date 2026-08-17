@@ -25,8 +25,13 @@ This is a fork of [mypip-io/tiro](https://github.com/mypip-io/tiro) by
 [Toby Stapleton](https://www.linkedin.com/in/tobystapleton95), extending it to the two platforms
 it does not cover: **the iPhone, and Windows.**
 
-Upstream solved the hard part, and the macOS app below is his, unmodified. What it has no story
-for is the phone, and there is no Windows build. This fork adds both, around a shared core.
+Upstream solved the hard part, and the macOS app below is his, unmodified — `git diff upstream/main
+-- Sources/` is empty, on purpose, so anything here can be taken or left without unpicking it from
+his work. What it has no story for is the phone, and there is no Windows build. This fork adds both,
+around a shared core.
+
+[**docs/FORK.md**](docs/FORK.md) is the summary of what the fork adds and what is not finished,
+written for upstream to read.
 
 One thing to be upfront about: **a PWA cannot type into other apps on iOS.** There is no global
 hotkey, no background mic, and no API for inserting text into another app's text field. Wispr
