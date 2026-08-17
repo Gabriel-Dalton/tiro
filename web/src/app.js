@@ -717,8 +717,14 @@ async function saveAndTestKey(inputEl, statusEl, button) {
     document.body.classList.remove("needs-setup");
     notice("Key saved. Hold the button and speak", "ok");
   } else {
+    // "Could not reach Deepgram" rather than anything about the key: the test
+    // never got an answer, so it has learned nothing about the key, and saying
+    // otherwise sends people to replace one that works. Only r.kind === "auth"
+    // means Deepgram itself refused it.
     statusEl(
-      r.kind === "auth" ? "Key rejected by Deepgram" : r.kind === "offline" ? "You are offline" : "Could not reach Deepgram",
+      r.kind === "auth" ? "Key rejected by Deepgram"
+        : r.kind === "offline" ? "You are offline"
+        : "No answer from Deepgram. Check your connection, then the key",
       "bad"
     );
   }

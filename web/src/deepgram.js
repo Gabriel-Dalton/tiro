@@ -21,13 +21,32 @@ const OPEN_TIMEOUT_MS = 8000;
 const FINAL_TIMEOUT_MS = 6000;
 
 /** Error with a `kind` the UI can map to the right message:
- *  "auth" (key rejected), "offline", "network", "timeout". */
+ *  "auth" (Deepgram looked at the key and said no), "offline", "network", "timeout". */
 export class DeepgramError extends Error {
   constructor(kind, message) {
     super(message);
     this.kind = kind;
   }
 }
+
+// The only close codes that actually mean "the key is bad".
+//
+// This used to be decided by `navigator.onLine`: a socket that closed before it
+// opened was called a rejected key whenever the browser thought it was online.
+// That is wrong in the case that matters. A browser reports a handshake the
+// server refused and a connection that never arrived with the same code, 1006,
+// and gives no status line to tell them apart, so DNS failure, a corporate
+// proxy blocking wss://, TLS interception, a captive portal and any Deepgram
+// 5xx all came back as "Deepgram rejected your key". `navigator.onLine` is
+// specifically true on a captive portal, which is exactly where someone first
+// tries this on a phone. People re-pasted a correct key, were told again it was
+// wrong, and concluded the app was broken.
+//
+// So: claim rejection only when Deepgram says so, and otherwise say we could
+// not reach it, which is true in every remaining case including a real auth
+// failure behind a 1006.
+const AUTH_CLOSE_CODES = new Set([1008, 4001]);
+const closeKind = (code) => (AUTH_CLOSE_CODES.has(code) ? "auth" : "network");
 
 export class DeepgramStream {
   constructor(apiKey) {
@@ -85,13 +104,14 @@ export class DeepgramStream {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
-          // The handshake never succeeded. A rejected key surfaces as an
-          // immediate close (HTTP 401 under the hood); a dead network usually
-          // hits the timeout instead. Distinguish them: the fixes differ.
-          if (navigator.onLine) {
+          // The handshake never succeeded. `navigator.onLine` is trusted in one
+          // direction only: false means definitely offline, true means nothing.
+          if (!navigator.onLine) {
+            reject(new DeepgramError("offline", "You are offline."));
+          } else if (closeKind(e.code) === "auth") {
             reject(new DeepgramError("auth", "Deepgram rejected the key."));
           } else {
-            reject(new DeepgramError("offline", "You are offline."));
+            reject(new DeepgramError("network", `Could not reach Deepgram (${e.code}).`));
           }
           return;
         }
@@ -213,9 +233,13 @@ export function testKey(apiKey) {
       try { ws.send(JSON.stringify({ type: "CloseStream" })); ws.close(); } catch {}
       resolve({ ok: true });
     };
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       clearTimeout(timer);
-      resolve({ ok: false, kind: navigator.onLine ? "auth" : "offline" });
+      if (!navigator.onLine) { resolve({ ok: false, kind: "offline" }); return; }
+      // Same rule as start(): only Deepgram gets to call a key bad. A test that
+      // cannot get an answer has not proved anything about the key, and must
+      // not tell someone to go and change one that works.
+      resolve({ ok: false, kind: closeKind(e.code), code: e.code });
     };
   });
 }
