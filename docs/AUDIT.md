@@ -231,10 +231,10 @@ length take, close most of this.
 
 ### PWA-09 · Low · The "copied" badge flashes "tap copy" first on the happy path
 
-> **Fixed on main.** The badge is gone. The Copy button is the confirmation now: it becomes
-> **Copied** when the clipboard write resolves, and a failure leaves the untouched Copy
-> button, which is the instruction the chip was trying to give. Nothing is queued off the
-> transcript promise any more, so there is no state to flash. `web/src/app.js`, `setCopied`.
+> **Fixed on main.** The badge is gone. The Copy button is the confirmation now: pressing it
+> turns it into **Copied**, and a failure leaves the untouched Copy button, which is the
+> instruction the chip was trying to give. The automatic write reports nothing at all, so
+> there is no state left to flash. `web/src/app.js`, `setCopied`.
 
 **`web/src/app.js:217-242`**
 

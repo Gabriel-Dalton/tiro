@@ -123,11 +123,16 @@ The critical path, and the thing most likely to fail silently. Three tiers, in o
 3. If that rejects too, reveal the transcript in a selectable field with a visible Copy button
    and select its contents.
 
-Tier 3 is not optional, and that button is also the confirmation: it reads **Copied**, with a
-check, from the moment the write lands, whether the write was the automatic one or a press.
-Only success is reported. A failure leaves the plain **Copy** button, which is the instruction
-a failure needs. This replaced a chip in the corner of the card reading "copied" / "tap copy",
-which was missed by everyone it was written for, because it is not where the tap is.
+Tier 3 is not optional, and that button is also the confirmation: pressing it turns it into
+**Copied**, with a check, and it stays that way until there is a different transcript. This
+replaced a chip in the corner of the card reading "copied" / "tap copy", which was missed by
+everyone it was written for, because it is not where the tap is.
+
+The button answers a press and nothing else. Tiers 1 and 2 report neither success nor failure:
+having the card arrive already reading **Copied** was tried, and although it is true, it reads
+as a state the user did not cause and cannot tell apart from one they did. A failure says
+nothing either, because what it leaves behind is the plain **Copy** button, which is the
+instruction a failure needs.
 
 Sharing is the secondary action, and it is Tiro's own sheet rather than `navigator.share()`
 alone (`web/src/share.js`). Most browsers have no `navigator.share` at all, which used to hide

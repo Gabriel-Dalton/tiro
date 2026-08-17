@@ -410,16 +410,24 @@ const FAKE_SOCKET = () => {
   // it is not where the tap is.
   check("no confirmation chip left in the card head",
     (await page.locator("#result-card .badge").count()) === 0);
-  check("the automatic copy reports itself on the button",
+  // The automatic write still happens, and still says nothing: a card that
+  // arrives already reading "Copied" is reporting a state the user did not
+  // cause and cannot tell apart from one they did.
+  check("the transcript reaches the clipboard with nothing pressed",
+    (await page.evaluate(() => navigator.clipboard.readText())).includes("hello from the fake mic"));
+  check("but the button waits to be pressed rather than saying so",
+    (await page.locator("#result-copy").innerText()).trim() === "Copy",
+    await page.locator("#result-copy").innerText());
+  check("and carries no copied state before a press",
+    await page.locator("#result-copy.is-done").count() === 0);
+
+  await page.locator("#result-copy").click();
+  await page.waitForTimeout(120);
+  check("pressing Copy answers Copied",
     (await page.locator("#result-copy").innerText()).trim() === "Copied",
     await page.locator("#result-copy").innerText());
   check("and the button carries the copied state, not just the word",
     await page.locator("#result-copy.is-done").count() === 1);
-
-  await page.locator("#result-copy").click();
-  await page.waitForTimeout(120);
-  check("pressing Copy still answers Copied",
-    (await page.locator("#result-copy").innerText()).trim() === "Copied");
   check("the clipboard has the transcript in it",
     (await page.evaluate(() => navigator.clipboard.readText())).includes("hello from the fake mic"));
 

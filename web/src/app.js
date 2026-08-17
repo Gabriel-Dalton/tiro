@@ -514,10 +514,16 @@ function finishTake(text, sec) {
  * away from the button, in the size of a label rather than an answer. The
  * button says it about itself instead, where the tap already is.
  *
- * "Copied" is a statement about the clipboard, so it stands until there is a
- * different transcript to copy, rather than timing out. Pressing an already
- * copied button therefore changes no text at all, which would leave the second
- * press unanswered: restarting the animation is what answers it. */
+ * It answers a press and nothing else. The automatic clipboard write below
+ * still happens on every take, and reporting that here was tried: the card
+ * arrived already reading "Copied", which is true, and reads as a state you did
+ * not cause and cannot tell apart from one you did. So the automatic write says
+ * nothing, and this word means "you pressed it, and it worked".
+ *
+ * It then stands until there is a different transcript to copy, rather than
+ * timing out, because it is a statement about the clipboard. Pressing an
+ * already copied button therefore changes no text at all, which would leave the
+ * second press unanswered: restarting the animation is what answers it. */
 function setCopied(done) {
   const button = $("result-copy");
   $("result-copy-label").textContent = done ? "Copied" : "Copy";
@@ -531,24 +537,26 @@ function setCopied(done) {
 // Clipboard tiers (SPEC-PWA 1.4). Tier 3, the visible Copy button on the
 // result card, is always available regardless.
 //
-// Only success is reported. The failure state used to be a warn-coloured "tap
-// copy", and it flashed up on the happy path as well (AUDIT PWA-09), because it
-// was queued off the transcript promise, which necessarily settles before the
-// clipboard write it feeds. What a failure leaves behind now is the untouched
-// Copy button, which is the instruction that chip was trying to give.
+// This reports nothing, either way. Success is silent because the button is an
+// answer to a press and this is not one (see setCopied). Failure is silent
+// because what it leaves behind is the untouched Copy button, which is the
+// instruction a failure needs. The old chip tried to say both and got the happy
+// path wrong as well (AUDIT PWA-09): its "tap copy" was queued off the
+// transcript promise, which necessarily settles before the clipboard write it
+// feeds, so it flashed up on every successful copy.
 function writeClipboardTiered(transcriptPromise) {
   try {
     // Tier 1: promise-valued ClipboardItem, created synchronously in the gesture.
     const item = new ClipboardItem({
       "text/plain": transcriptPromise.then((t) => new Blob([t], { type: "text/plain" })),
     });
-    navigator.clipboard.write([item]).then(() => setCopied(true), () => tier2());
+    navigator.clipboard.write([item]).catch(() => tier2());
   } catch {
     tier2();
   }
   function tier2() {
     transcriptPromise.then(
-      (t) => navigator.clipboard.writeText(t).then(() => setCopied(true), () => {}),
+      (t) => navigator.clipboard.writeText(t).catch(() => {}),
       () => {} // empty transcript: nothing to copy
     );
   }

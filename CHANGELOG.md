@@ -43,10 +43,11 @@ Knowing when to update, and being able to read what changed.
 
 ### Changed
 
-- **The Copy button says when it has copied.** It becomes **Copied**, with a check, where
-  your finger already is. The confirmation used to be a small chip in the opposite corner of
-  the card, which is not where anyone was looking, so the most common action in the app
-  appeared to do nothing. *(Web, Windows.)*
+- **Press Copy and it says Copied**, with a check, where your finger already is. The
+  confirmation used to be a small chip in the opposite corner of the card, which is not where
+  anyone was looking, so the most common action in the app appeared to do nothing. Your
+  transcript still reaches the clipboard on its own the moment a take ends, as it always has;
+  the button now answers the press rather than that. *(Web, Windows.)*
 
 ### Fixed
 
