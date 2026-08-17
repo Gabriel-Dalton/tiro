@@ -30,6 +30,12 @@ static class Program
         // TaskDialogs that run before Application.Run ever does.
         ApplicationConfiguration.Initialize();
 
+        // Also before any window, which now includes those two dialogs: Windows
+        // reads the Application User Model ID when a window is first created and
+        // never re-reads it, so this is the only place it can be set. See
+        // StartMenu.
+        StartMenu.SetProcessId();
+
         // What Apps and Features launches. Ahead of the mutex because it has to
         // be able to stop the running copy, not queue behind it.
         if (argv.Contains("--uninstall"))

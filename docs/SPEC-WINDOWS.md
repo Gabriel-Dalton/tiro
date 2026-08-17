@@ -94,7 +94,36 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   deactivates the window being dictated into and the transcript pastes into the wrong place.
   Both buttons act by posting to the web core rather than locally: it owns the take, the socket
   and the history, and a second authority over any of those is how the two ends drift apart.
-- Log to `%APPDATA%\Tiro\tiro.log`.
+- **The pill also says why a press produced nothing.** Every reason a take cannot start — no
+  API key, offline, no microphone, Deepgram refusing the key — is reported by the web core
+  with `notice()`, which writes into a window the shell keeps hidden whenever the global
+  hotkey is the thing being used. That made a refused press *completely* silent: no pill,
+  because the state machine never left idle and so sent no state, and no message, because the
+  only copy of it was on a page nobody was looking at. From the keyboard it was
+  indistinguishable from the hook being dead, which is the single worst thing this app can
+  look like. So refusals travel over the bridge as `{type:"problem", text, open}` and land on
+  the pill, where the take would have been. The web core sets `open` for the ones the app can
+  actually fix, which is the missing key and a rejected one; those pills are clickable and
+  open the window on Settings, and the rest are read and dismissed. Six seconds, then it takes
+  itself down — nothing else will, because no further state is coming.
+- **Pinning to the taskbar.** Windows has no API for an unpackaged app to pin itself; the
+  shell verb went away in Windows 10 and the replacement (`TaskbarManager`) requires package
+  identity. The user does the pinning. The app does the two things that make it work:
+  - **A fixed Application User Model ID**, `GabrielDalton.Tiro`, set with
+    `SetCurrentProcessExplicitAppUserModelID` before any window exists — Windows reads it at
+    window creation and never re-reads it. Without one, Windows derives an identity from the
+    executable's path, and a portable EXE has no stable path: the next release is downloaded
+    as `Tiro (1).exe` and every existing pin is orphaned. The Start Menu shortcut carries the
+    same ID in `System.AppUserModel.ID`; if the two disagree, the pinned shortcut and the
+    live window are treated as different applications and you get two taskbar buttons.
+  - **A Start Menu shortcut**, written once on first run, because Start search cannot find an
+    EXE sitting in `Downloads` and the window is hidden most of the time, which leaves no
+    taskbar button to pin either. Written once and no more: whether it has been written is
+    recorded in settings rather than inferred from the file, so deleting it is respected
+    instead of being undone on the next launch. The tray's **Pin to the taskbar…** writes it
+    again on request and names both routes.
+- Log to `%APPDATA%\Tiro\tiro.log`. A refused take is logged too: "nothing happened" is the
+  hardest report to act on after the fact, and this is the file that answers it.
 - **Update check.** Nothing installs this app, so nothing updates it. Once a week at most, and
   never during launch, ask GitHub for the latest release tag and compare it numerically with
   the running version. If it is newer, show it in the tray menu and offer the release page;

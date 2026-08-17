@@ -20,12 +20,41 @@ something is added or the interface changes, the last when the fix is the whole 
 
 Nothing yet.
 
-## [1.2.0] — 2026-08-17
-
-Knowing when to update, and being able to read what changed.
+## [1.3.0] — 2026-08-17
 
 ### Added
 
+- Pin Tiro to the taskbar, and keep it pinned. Tiro now writes a Start Menu shortcut on first
+  run, so **Start → type Tiro → Pin to taskbar** works even though nothing installed the app;
+  **Pin to the taskbar…** in the tray menu repeats the steps and writes the shortcut again if
+  you removed it. Removing it sticks rather than being undone on the next launch. The pin also
+  survives updates now: Tiro declares a fixed identity instead of letting Windows derive one
+  from wherever the EXE happens to sit, which is what used to leave a dead pinned button after
+  the next download, and what used to split the pin and the running window into two separate
+  taskbar icons. On the Mac, Tiro is already in the Dock while it runs: right-click → Options →
+  **Keep in Dock**. *(Windows.)*
+- A hotkey press that could not record used to say nothing at all. Holding the hotkey with no
+  Deepgram key saved, or offline, or with no microphone available, produced no widget, no
+  message and no sound: the explanation was written into the Tiro window, which is hidden
+  exactly when the global hotkey is the thing you are using. There was no way to tell it apart
+  from the hotkey not working, and the honest reading was that the app was broken. Every one of
+  those reasons now appears on the recording widget, where the take would have been, and a
+  missing or rejected key is clickable and opens Tiro on the settings it needs. *(Windows.)*
+
+## [1.2.0] — 2026-08-17
+
+The Windows release. A recording widget you can see and drive without leaving the app you
+are typing in. Plus knowing when to update at all.
+
+### Added
+
+- **The Windows recording widget.** A pill above the taskbar for as long as a take is
+  running, on whichever monitor your cursor is on: a pulsing dot, your voice as a live
+  waveform, a clock, and the two controls the hotkey has no way to express — **X to throw
+  the take away** and **a check to finish it now**. **Escape discards** from anywhere while
+  a take is in flight, and is left alone the rest of the time so it does not break every
+  dialog and menu on the machine. Clicking the pill does not steal focus, so the transcript
+  still pastes into the window you were dictating into. *(Windows.)*
 - **Tiro tells you when there is a new version**, rather than leaving you to notice. The web
   app names the version waiting and offers **Update**; the Windows app reads GitHub's latest
   release once a week and offers it in the app and in the tray menu. It does not fire for
@@ -192,7 +221,8 @@ covered.
   the same JSONL file so it moves between them.
 - **No account, no server, no telemetry.** Your Deepgram key talks straight to Deepgram.
 
-[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.1.0
 [1.0.1]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.0.1

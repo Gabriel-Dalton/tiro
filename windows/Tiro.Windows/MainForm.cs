@@ -209,6 +209,21 @@ sealed class MainForm : Form
                 StateChanged?.Invoke(msg.GetProperty("state").GetString() ?? "idle");
                 break;
 
+            case "problem":
+            {
+                // A press that produced no take. This window is where the web
+                // core's own toast went, and it is usually hidden, so without
+                // this the user pressed the hotkey and nothing whatsoever
+                // happened on screen. Goes to the log too: "nothing happened" is
+                // the hardest report to act on after the fact.
+                var text = msg.TryGetProperty("text", out var textEl) ? textEl.GetString() ?? "" : "";
+                var open = msg.TryGetProperty("open", out var openEl) && openEl.ValueKind == JsonValueKind.True;
+                if (text.Length == 0) break;
+                Log.Write($"take refused: {text}");
+                TakeRefused?.Invoke(text, open);
+                break;
+            }
+
             case "level":
                 // Already smoothed and normalised by the web core, which is what
                 // keeps this meter and the PWA's halo from disagreeing. The
@@ -279,6 +294,12 @@ sealed class MainForm : Form
 
     /// <summary>Mic level 0..1 while a take runs, for the pill's waveform.</summary>
     public event Action<float>? LevelChanged;
+
+    /// <summary>A hotkey press that could not start a take, and whether opening
+    /// the app is a useful answer to it. The bool is the web core's call, not a
+    /// guess made here: it knows which refusals have something to fix in the
+    /// app and which are the network or the microphone.</summary>
+    public event Action<string, bool>? TakeRefused;
 
     public void PostHotkey(bool down) => PostToWeb(new { type = "hotkey", phase = down ? "down" : "up" });
 

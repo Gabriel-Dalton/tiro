@@ -37,6 +37,13 @@ sealed class TrayContext : ApplicationContext
         // over any of those is how the two ends drift apart.
         _pill.CancelClicked += () => _mainForm.PostCancel();
         _pill.StopClicked += () => _mainForm.PostStop();
+        _pill.OpenRequested += () => _mainForm.ShowAndFocus();
+
+        // A hotkey press that could not start a take. Without this the press was
+        // silent: the web core's toast is in a window that is hidden whenever
+        // the global hotkey is the thing being used, so "nothing happened" and
+        // "the hook is dead" looked identical from the keyboard.
+        _mainForm.TakeRefused += (text, openable) => _pill.ShowProblem(text, openable);
 
         foreach (var state in new[] { "idle", "recording", "transcribing", "blocked" })
         {
@@ -70,6 +77,11 @@ sealed class TrayContext : ApplicationContext
             menu.Items.Add("Install Tiro on this PC", null, (_, _) => InstallAndRestart());
         }
 
+        // Both of these stay. Installing is about where the EXE lives; pinning is
+        // about the shortcut, which a portable copy is entitled to have too. The
+        // pin help is also the repair route for a shortcut someone deleted, and
+        // that is worth having whether or not the app was ever installed.
+        menu.Items.Add("Pin to the taskbar…", null, (_, _) => PinHelp());
         menu.Items.Add("View log", null, (_, _) =>
         {
             try { System.Diagnostics.Process.Start("notepad.exe", Log.PathOnDisk); } catch { }
@@ -136,6 +148,16 @@ sealed class TrayContext : ApplicationContext
         // the warm mic and the hotkey pipeline, is alive before it is ever shown.
         _mainForm.Show();
         if (startHidden) _mainForm.Hide();
+
+        // Once, on the first launch that ever gets here. Windows can only pin
+        // something it can find, and a portable EXE sitting in Downloads is not
+        // in Start search. Deleting it afterwards sticks, because the flag is
+        // what is checked, not the file.
+        if (!_settings.StartMenuShortcut && StartMenu.EnsureShortcut())
+        {
+            _settings.StartMenuShortcut = true;
+            SettingsStore.Save(_settings);
+        }
 
         Log.Write("tray ready");
 
@@ -249,6 +271,33 @@ sealed class TrayContext : ApplicationContext
             _updateItem.Visible = true;
         }
         _tray.Text = $"Tiro {Build.Version}. Version {version} is available.";
+    }
+
+    /// <summary>Windows has no API that lets an unpackaged app pin itself, and
+    /// has not since Windows 10 removed the shell verb, so the honest thing is
+    /// to make both routes work and say which they are. What the app can do is
+    /// the half people cannot: put a shortcut where Start can find it, carrying
+    /// the same identity the running window has.</summary>
+    private void PinHelp()
+    {
+        var ok = StartMenu.EnsureShortcut();
+        _settings.StartMenuShortcut = ok;
+        SettingsStore.Save(_settings);
+
+        var where = ok
+            ? "Press Start, type Tiro, then right-click the result and choose Pin to taskbar."
+            : "The Start Menu shortcut could not be written. See the log for why.";
+
+        MessageBox.Show(
+            where + "\n\n" +
+            "Or, while the Tiro window is open, right-click its taskbar button and choose " +
+            "Pin to taskbar.\n\n" +
+            "Windows does not let an app pin itself, so this last step is yours. The pin will " +
+            "survive updates: Tiro registers a fixed identity rather than one derived from " +
+            "where the file happens to sit.",
+            "Pin Tiro to the taskbar",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private static void OpenReleases()

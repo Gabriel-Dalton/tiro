@@ -280,6 +280,18 @@ function notice(text, tone = "warn", ms = 3200, action = null) {
 let starting = false;
 let releasedWhileStarting = false;
 
+/** A press that produced no take, said once in each place that can show it.
+ *
+ * Every refusal below used to be a `notice()` and nothing else, which is the
+ * right answer in a browser and no answer at all in the shell, where the window
+ * holding that toast is hidden by design. Routing them through here keeps the
+ * two ends from drifting: there is one call per refusal, and both surfaces are
+ * fed from it. See bridge.problem for what the host does with it. */
+function refuseTake(text, tone = "bad", open = false) {
+  notice(text, tone, 5000);
+  bridge.problem(text, open);
+}
+
 async function pressStart() {
   if (starting) return;                    // one take may be opening at a time
   if (state === "transcribing") return;
@@ -288,13 +300,15 @@ async function pressStart() {
 
   const key = settings.getApiKey();
   if (!key) {
-    notice("Add your Deepgram key first", "warn");
+    // The view change is still worth doing even when nobody is looking: it is
+    // what the window opens onto when they take the pill up on it.
     showView("settings");
     $("settings-key").focus();
+    refuseTake("Add your Deepgram key first", "warn", true);
     return;
   }
   if (!navigator.onLine) {
-    notice("You are offline", "bad");
+    refuseTake("You are offline");
     return;
   }
 
@@ -305,7 +319,7 @@ async function pressStart() {
     await engine.start(); // no-op when already warm
   } catch {
     starting = false;
-    notice("No microphone. Check permissions", "bad", 5000);
+    refuseTake("No microphone. Check permissions");
     return;
   }
 
@@ -362,12 +376,15 @@ async function pressStart() {
     engine.onChunk = null;
     stream.abort();
     stream = null;
+    // Before the message, or the state change hides the pill the message is
+    // about to be drawn on.
     setState("idle");
-    notice(
+    refuseTake(
       err.kind === "auth" ? "Deepgram rejected your key. Check Settings"
         : err.kind === "offline" ? "You are offline"
         : "Could not reach Deepgram",
-      "bad", 5000
+      "bad",
+      err.kind === "auth"
     );
   });
 }

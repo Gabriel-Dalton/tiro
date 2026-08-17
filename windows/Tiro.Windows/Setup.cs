@@ -41,14 +41,6 @@ static class Setup
 
     public static string InstalledExe => Path.Combine(InstallDir, "Tiro.exe");
 
-    /// <summary>
-    /// The per-user Start menu. A shortcut here is what makes Tiro searchable
-    /// from the Start button and pinnable to the taskbar, which running a loose
-    /// EXE never does on its own.
-    /// </summary>
-    private static string ShortcutPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Tiro.lnk");
-
     private const string UninstallKey =
         @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Tiro";
 
@@ -250,7 +242,26 @@ static class Setup
         Directory.CreateDirectory(InstallDir);
         CopyWithRetry(exePath, InstalledExe);
         Unblock(InstalledExe);
-        CreateStartMenuShortcut();
+
+        // Pointed at the copy just written rather than at this process, which is
+        // still the download. Worth saying because the failure is quiet: a
+        // shortcut to the file in Downloads survives being installed and then
+        // stops working the day that folder is cleared out, which is the exact
+        // complaint installing was supposed to answer.
+        if (StartMenu.EnsureShortcutFor(InstalledExe))
+        {
+            // The app writes this shortcut on first run too, and remembers having
+            // done it so that deleting it sticks. Record it here as well, or the
+            // installed copy rewrites it on next launch and a user who removed it
+            // gets it back.
+            var settings = SettingsStore.Load();
+            if (!settings.StartMenuShortcut)
+            {
+                settings.StartMenuShortcut = true;
+                SettingsStore.Save(settings);
+            }
+        }
+
         WriteUninstallEntry();
     }
 
@@ -481,8 +492,21 @@ static class Setup
         Log.Write($"uninstalling{(alsoData ? ", including user data" : "")}");
         StopRunningInstance(TimeSpan.FromSeconds(10));
 
-        try { if (File.Exists(ShortcutPath)) File.Delete(ShortcutPath); }
+        try { if (File.Exists(StartMenu.ShortcutPath)) File.Delete(StartMenu.ShortcutPath); }
         catch (Exception ex) { Log.Write($"removing the shortcut failed: {ex.Message}"); }
+
+        // Removing the app un-remembers the shortcut, or a later portable copy
+        // would decide one had already been written and never write its own.
+        try
+        {
+            var settings = SettingsStore.Load();
+            if (settings.StartMenuShortcut)
+            {
+                settings.StartMenuShortcut = false;
+                SettingsStore.Save(settings);
+            }
+        }
+        catch (Exception ex) { Log.Write($"could not forget the shortcut: {ex.Message}"); }
 
         SettingsStore.SetAutostart(false, InstalledExe);
 
@@ -536,64 +560,7 @@ static class Setup
         }
     }
 
-    /// <summary>
-    /// A .lnk, written through the shell's own COM interface. There is no managed
-    /// API for this and no file format worth hand-rolling: a shortcut is a
-    /// structured binary blob, and IShellLink is what every installer uses.
-    /// </summary>
-    private static void CreateStartMenuShortcut()
-    {
-        try
-        {
-            var link = (IShellLinkW)new ShellLink();
-            link.SetPath(InstalledExe);
-            link.SetWorkingDirectory(InstallDir);
-            link.SetDescription("Hold a key, speak, and punctuated text lands where your cursor is.");
-            link.SetIconLocation(InstalledExe, 0);
-            ((System.Runtime.InteropServices.ComTypes.IPersistFile)link).Save(ShortcutPath, true);
-            Log.Write($"Start menu shortcut written to {ShortcutPath}");
-        }
-        catch (Exception ex)
-        {
-            // Worth saying, not worth failing over: the app is installed and
-            // runnable either way, it is only harder to find.
-            Log.Write($"creating the Start menu shortcut failed: {ex.Message}");
-        }
-    }
-
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DeleteFileW(string fileName);
-
-    [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
-    private class ShellLink
-    {
-    }
-
-    [ComImport, Guid("000214F9-0000-0000-C000-000000000046")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IShellLinkW
-    {
-        // The whole vtable has to be declared in order even though four methods
-        // are all this uses. Leave a gap and every call after it lands on the
-        // wrong function pointer.
-        void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder file, int maxPath, IntPtr findData, int flags);
-        void GetIDList(out IntPtr idList);
-        void SetIDList(IntPtr idList);
-        void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder name, int maxName);
-        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string name);
-        void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder dir, int maxPath);
-        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string dir);
-        void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder args, int maxArgs);
-        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string args);
-        void GetHotkey(out short hotkey);
-        void SetHotkey(short hotkey);
-        void GetShowCmd(out int showCmd);
-        void SetShowCmd(int showCmd);
-        void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder iconPath, int maxPath, out int iconIndex);
-        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string iconPath, int iconIndex);
-        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pathRel, int reserved);
-        void Resolve(IntPtr hwnd, int flags);
-        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string file);
-    }
 }
