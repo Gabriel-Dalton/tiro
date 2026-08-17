@@ -15,6 +15,14 @@
 > **PWA-14**, which is new, pre-dates this audit, and was missed by it. **PWA-09** was re-checked against that rebuild and
 > still stands: `app.js:348` still queues the fallback badge off the transcript promise
 > rather than off the clipboard write, so the happy path still flashes "tap copy" first.
+>
+> **The taskbar branch** adds the `problem` bridge message and the pill's message mode, which
+> closes a gap this audit walked past: every refusal in `pressStart` reported itself only
+> through `notice()`, and in the shell that window is hidden, so a refused hotkey press was
+> silent on every surface at once. Worth recording as a pattern rather than a finding — the
+> audit read each client for what it did wrong, and this was neither client being wrong on
+> its own, only the seam between them dropping something on the floor. A second pass should
+> read the bridge as its own surface. It is now covered in `scripts/smoke-web.mjs`.
 
 A read of every source file in the three clients: the macOS Swift app (`Sources/`), the
 Windows WebView2 shell (`windows/`), and the PWA (`web/`), plus the shared build scripts

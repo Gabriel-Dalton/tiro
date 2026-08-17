@@ -11,6 +11,7 @@
 //   web -> host:  {type:"ready"}
 //                 {type:"transcript", text}      host pastes it into the focused app
 //                 {type:"state", state}          idle|recording|transcribing|blocked
+//                 {type:"problem", text, open}   a take that could not start
 //                 {type:"level", value}          0..1 mic level for the pill waveform
 //                 {type:"getKey"} / {type:"storeKey", value}       DPAPI storage
 //                 {type:"setHotkey", code}
@@ -102,6 +103,23 @@ class Bridge {
 
   setState(state) {
     this._post({ type: "state", state });
+  }
+
+  /** A take that never started, and why.
+   *
+   * The toast this accompanies is written into a window that in the shell is
+   * normally hidden behind whatever the user is dictating into, so on Windows
+   * a refused press produced nothing at all: no pill, because the state machine
+   * never left idle and so never sent a state, and no message, because the only
+   * place the message went was a page nobody was looking at. From the keyboard
+   * it was indistinguishable from the hotkey not being hooked.
+   *
+   * `open` marks the reasons a user can actually do something about in the app
+   * itself, which is only the missing key. The host makes those clickable and
+   * leaves the rest to be read and dismissed. In a browser this does nothing:
+   * the toast is already on screen, in the window that has focus. */
+  problem(text, open = false) {
+    this._post({ type: "problem", text: String(text || ""), open: !!open });
   }
 
   /** Mic level, 0..1, for the host's pill waveform.
