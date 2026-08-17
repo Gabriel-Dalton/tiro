@@ -46,9 +46,9 @@ here, it says so rather than asserting.
 | | Critical | High | Medium | Low | Total |
 |---|---|---|---|---|---|
 | **PWA** (`web/`) | 2 | 3 | 5 | 5 | 15 |
-| **Windows** (`windows/`) | 1 | 3 | 4 | 3 | 11 |
+| **Windows** (`windows/`) | 1 | 2 | 4 | 4 | 11 |
 | **macOS** (`Sources/`) | — | 1 | 2 | 3 | 6 |
-| **Total** | **3** | **7** | **11** | **11** | **32** |
+| **Total** | **3** | **6** | **11** | **12** | **32** |
 
 The macOS app is in the best shape of the three, which matches expectations — it is
 upstream's, and it has had real use. Its one serious finding is a stale pricing constant
@@ -560,24 +560,30 @@ costs pre-roll on every first press. Neither is obviously right; the number is n
 
 ---
 
-### WIN-10 · High · The install prompt can end up invisible with the app wedged behind it
+### WIN-10 · Low · The first-run prompt opens wherever Windows puts it
 
-**`windows/Tiro.Windows/Setup.cs:189-201`, `windows/Tiro.Windows/Program.cs`**
+**`windows/Tiro.Windows/Setup.cs:173-187`**
 
-`Setup.Ask` shows a `TaskDialog` before `Application.Run` has started, from a process that has
-no window yet and is not necessarily the foreground application. Observed repeatedly during
-hands-on QA: the dialog is dismissed, the window becomes invisible, and `TaskDialog.ShowDialog`
-never returns. The result is a live process with an invisible modal dialog, no log line, no
-tray icon, and about 50 MB of mapped image, that will sit there until it is killed. Confirmed
-by Win32 enumeration: `class=#32770 visible=False title='Tiro'`, and by the named kernel
-objects, none of which exist, so the process never reached the single-instance mutex.
+`Setup.Ask` shows its `TaskDialog` before the app has any window, so there is nothing for
+Windows to centre it on and it is placed wherever it likes. Observed opening in the
+bottom-right corner, over whatever the person was doing. For a prompt that appears unasked on
+first run and offers a three-way choice, a corner is the wrong place: it reads as a
+notification, and the reflex for something in that corner is to dismiss it. Giving the dialog
+an owner, or centring it explicitly, is the fix.
 
-**Not yet attributed.** Every occurrence was under automation that was moving the foreground
-window around, and the same code installed cleanly when the dialog genuinely had the
-foreground. So this may be an artefact of driving it from a script. It needs one human check:
-run a downloaded copy, click on another window while the prompt is up, then answer it, and see
-whether the app starts or disappears. If it reproduces it is High, because the prompt appears
-unprompted on first run and clicking away from it is the most ordinary thing a person could do.
+**This entry was filed as a High and was wrong.** It described the dialog going invisible with
+`TaskDialog.ShowDialog` never returning, leaving a live process holding an invisible modal, no
+log line and 50 MB of mapped image. That was real and repeatable, but only under automation
+that was moving the foreground window around and synthesising keystrokes into it. Checked by
+hand on Windows 11 build 26200 the way a person would hit it — start a downloaded copy, click
+another window while the prompt is up, click back, answer it — and the app answered and carried
+on: `setup postponed`, then startup, shortcut, tray, web core, WebView2, all in one second. No
+invisible dialog, nothing wedged.
+
+Recorded rather than deleted because the lesson is worth more than the finding: a test harness
+that steals focus can manufacture a convincing bug in modal code, and the check that settled it
+took a minute of a human's time against an hour of automation. The rule this repository already
+has about the difference between reading code and running it cuts both ways.
 
 ---
 
