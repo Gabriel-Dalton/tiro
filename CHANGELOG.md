@@ -20,7 +20,7 @@ something is added or the interface changes, the last when the fix is the whole 
 
 Nothing yet.
 
-## [1.2.0] — unreleased
+## [1.2.0] — 2026-08-17
 
 Knowing when to update, and being able to read what changed.
 
@@ -40,6 +40,10 @@ Knowing when to update, and being able to read what changed.
   activated as soon as it finished downloading, which could replace the running app in the
   middle of a take, with a socket open and a clipboard write pending — and said nothing
   either way. It now waits until you take the offer. *(Web.)*
+- **The version link in the site footer no longer leads to a missing page.** It pointed at
+  the tag for the version the site was built from, which does not exist until that release
+  is published — so for as long as a release was being prepared, the footer offered a dead
+  link. It points at the latest release instead. *(Website.)*
 
 ### Update notifications
 
