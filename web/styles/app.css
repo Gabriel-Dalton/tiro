@@ -732,7 +732,7 @@ select {
   background: var(--toast-bg);
   color: var(--toast-fg);
   border-radius: var(--radius-pill);
-  padding: 11px 18px;
+  padding: 7px 10px 7px 18px;
   font-size: 14px;
   max-width: min(92vw, 420px);
   box-shadow: var(--shadow-3);
@@ -746,6 +746,30 @@ select {
   transform: translate(-50%, 10px);
   pointer-events: none;
 }
+/* An offer, not an announcement: a toast that carries one has to stay put and
+   be reachable, so it does not time out and the button is a real target. */
+.toast-action {
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--clay-300);
+  background: transparent;
+  border: 1px solid rgba(244, 238, 226, 0.28);
+  border-radius: var(--radius-pill);
+  /* 44px, like every other control: these two are the only things you can press
+     in an update offer, and on a phone they are the ones being pressed. */
+  min-height: 44px;
+  padding: 0 15px;
+  margin-left: var(--s1);
+  cursor: pointer;
+  flex: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.toast-action:hover { background: rgba(244, 238, 226, 0.1); }
+.toast-dismiss { width: 44px; height: 44px; color: var(--toast-fg); opacity: 0.7; margin-right: -8px; }
+.toast-dismiss:hover { background: rgba(244, 238, 226, 0.12); color: var(--toast-fg); opacity: 1; }
+.toast-dismiss svg { width: 15px; height: 15px; }
+.toast-action:focus-visible { outline: 2px solid var(--clay-300); outline-offset: 2px; }
 .toast .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--gilt-500); flex: none; }
 .toast .dot.ok { background: var(--green-300); }
 .toast .dot.bad { background: var(--red-300); }

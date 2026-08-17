@@ -55,7 +55,13 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Full history, because check-attribution.mjs works on the commits being
+      # proposed — `git merge-base origin/main HEAD` has nothing to say in the
+      # single-commit clone checkout gives you by default, and the check would
+      # quietly degrade to scanning files only.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Pinned to the patch, not just the major. gen-icons.mjs encodes its PNGs with
       # node:zlib at level 9, so the committed bytes depend on the zlib that Node
@@ -116,6 +122,26 @@ jobs:
             exit 1
           fi
           echo "VERSION ($current) is ahead of the latest release ($latest), which is the normal pre-release state."
+
+      # The release job would catch this too, but only at the moment someone is
+      # cutting a release, which is the worst time to discover that the version
+      # you are shipping has nothing written about it. Failing here means the
+      # notes are written by whoever bumped VERSION, while they still remember
+      # what changed.
+      - name: Fail if the CHANGELOG does not describe VERSION
+        run: |
+          set -euo pipefail
+          node scripts/release-notes.mjs --tag "v$(tr -d '[:space:]' < VERSION)" > /dev/null
+          echo "CHANGELOG.md describes VERSION."
+
+      # Nothing in this repository says it was written by an AI (CLAUDE.md). A
+      # rule that lives only in a document is one every fresh session gets to
+      # rediscover after it has already published a footer, and a commit trailer
+      # cannot be taken back after a merge without rewriting published history.
+      # So it fails here, on the commits being proposed, while they can still be
+      # amended.
+      - name: Fail on AI attribution in commits or files
+        run: node scripts/check-attribution.mjs
 
   # The web core is the product on the phone and the whole UI inside the Windows
   # app, so it gets a real browser rather than a linter. Fast, and it gates
@@ -191,6 +217,27 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtraction=true
           -p:EnableCompressionInSingleFile=true
           -o publish
+
+      # The shell has almost no logic worth a test project, but version
+      # comparison is the exception: get it wrong and every user simply stops
+      # being told about updates, silently, forever. `--self-test` asserts it
+      # against the EXE that is about to ship. x64 only — the arm64 build is the
+      # same IL, and this runner cannot execute it.
+      - name: Self-test the shipped EXE
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        # Start-Process -Wait, not `&`. Tiro.exe is a GUI-subsystem binary — it
+        # has to be, or every launch would flash a console window — and the shell
+        # does not wait on those: `&` returns immediately, leaves $LASTEXITCODE
+        # untouched, and the next line reads a log the app has not written yet.
+        run: |
+          $exe = (Resolve-Path publish/Tiro.exe).Path   # Start-Process resolves against the
+          # process CWD, which PowerShell does not keep in step with Set-Location
+          $run = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          $log = Join-Path $env:APPDATA 'Tiro/tiro.log'
+          if (Test-Path $log) { Get-Content $log -Tail 40 } else { "No log at $log" }
+          if ($run.ExitCode -ne 0) { throw "Tiro.exe --self-test exited $($run.ExitCode); see the log above." }
+          "Self-test passed."
 
       # SignPath Foundation signs releases, not every push: its free tier is for
       # published open-source builds, and each signing request is a human-auditable
@@ -363,6 +410,14 @@ jobs:
           # and three loose YAML files lose it.
           (cd winget-out && zip -r ../dist/Tiro-winget-manifests.zip manifests)
 
+      # The notes are the CHANGELOG section for this version plus the evergreen
+      # download and first-run half. Running it here rather than pasting a body
+      # into this file means the notes on the release page and the notes in the
+      # repository cannot drift, and a version the CHANGELOG does not describe
+      # fails the release rather than shipping without notes.
+      - name: Build the release notes
+        run: node scripts/release-notes.mjs --tag "${{ steps.v.outputs.version }}" --releasing --out notes.md
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -370,36 +425,4 @@ jobs:
           name: Tiro ${{ steps.v.outputs.version }}
           files: dist/*.zip
           make_latest: true
-          body: |
-            Hold a key, speak, and punctuated text lands where your cursor is.
-            Bring your own Deepgram API key, at about half a cent per minute with no subscription.
-
-            Not sure which one? The [download page](https://github.com/Gabriel-Dalton/tiro#getting-the-apps)
-            picks it for you.
-
-            | Download | For |
-            |---|---|
-            | `Tiro-Windows-x64.zip` | Windows 10 and 11 on any Intel or AMD PC. Unzip and run `Tiro.exe`. It lives in the tray; hold **Right Alt** in any app to dictate. |
-            | `Tiro-Windows-arm64.zip` | Windows 11 on ARM: Snapdragon and Surface. The x64 build also runs there under emulation; this one is native. |
-            | `Tiro-macOS.zip` | macOS 13+, **universal**, so the same file runs on Apple Silicon and Intel. Move `Tiro.app` to Applications and hold **Fn**. |
-
-            Linux, ChromeOS, Android and anything older: open `/app/` on the site. The web app
-            needs no download and installs to a home screen.
-
-            **Windows 10** also needs Microsoft's free
-            [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which
-            Windows 11 already includes. Tiro checks on first run and offers it if it is missing.
-
-            If Windows SmartScreen stops the app, unblock the ZIP **before** extracting it:
-            right-click it → Properties → tick **Unblock** → OK. Or, from the dialog itself,
-            choose **More info → Run anyway**. On macOS the first launch needs
-            System Settings → Privacy & Security → **Open Anyway**; on macOS 14 and earlier,
-            right-click the app and choose **Open**.
-
-            First run asks for a Deepgram API key, free at
-            [console.deepgram.com](https://console.deepgram.com). It is stored on your device
-            and sent only to Deepgram. There is no server in between.
-
-            `Tiro-winget-manifests.zip` is not a download. It is the winget submission for
-            this version, hashes and all, ready to copy into a `winget-pkgs` clone.
-            See [docs/PACKAGING.md](https://github.com/Gabriel-Dalton/tiro/blob/main/docs/PACKAGING.md).
+          body_path: notes.md

@@ -95,6 +95,50 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   Both buttons act by posting to the web core rather than locally: it owns the take, the socket
   and the history, and a second authority over any of those is how the two ends drift apart.
 - Log to `%APPDATA%\Tiro\tiro.log`.
+- **Update check.** Nothing installs this app, so nothing updates it. Once a week at most, and
+  never during launch, ask GitHub for the latest release tag and compare it numerically with
+  the running version. If it is newer, show it in the tray menu and offer the release page;
+  otherwise say nothing. The check is the tightest thing in this spec, because it is the only
+  outbound request the app makes that is not dictation:
+  - an anonymous `GET` of a public URL, identical to opening the releases page in a browser;
+  - **no identifiers of any kind** — no account, install ID, device ID, usage or transcript
+    data. The `User-Agent` names the app and version because GitHub's API rejects requests
+    without one, and that is the whole of it;
+  - nothing is reported to us, because there is nothing to report to: this app has no server,
+    and the check reads a public endpoint rather than checking in;
+  - off is a menu item away, and is remembered;
+  - failure is silent. Offline is not worth an interruption.
+
+  Compare versions as three numbers, never as strings: `1.10.0` is newer than `1.9.0`, and a
+  string compare says the opposite, which would silently stop every user hearing about
+  updates. Anything unparseable means "no update", so a tag named something unexpected cannot
+  nag everyone every week. `Tiro.exe --self-test` asserts all of that, and CI runs it against
+  the EXE that ships.
+
+- **What is worth interrupting someone over.** Finding an update is not the same as being
+  worth a notification. The version number already says what changed, because the release
+  rules make it say so, so read it rather than inventing a signal:
+
+  | Step | Verdict | What happens |
+  |---|---|---|
+  | `1.2.0` → `1.3.0` or `2.0.0` | something was added | tray menu, tooltip, balloon, **and a banner in the app** |
+  | `1.2.0` → `1.2.1` | one fix | tray menu and tooltip only. Nobody gets pulled out of a sentence to hear that a typo was corrected |
+  | `1.2.0` → `1.2.2` or further | fixes piling up | treated as worth saying once: this is no longer a typo, it is a stack of things you are missing |
+
+  Two rules on top of that, and both matter more than the table: it is said **once per
+  version** — dismissing 1.3.0 means never being asked about 1.3.0 again, only about what
+  comes after it — and it is **never said mid-take**, because a Download button under a
+  thumb that is holding the record button is the worst possible offer. "Check for updates"
+  from the menu always answers, since then you asked.
+
+  The web core applies the identical test (`updateWorth` in `web/src/app.js`, `Classify` in
+  `UpdateCheck.cs`), so the app and the shell cannot disagree about what deserves a banner.
+
+  All of which puts the weight on whoever bumps `VERSION` choosing the right digit, since
+  that choice is what decides whether anyone is told. `CLAUDE.md`, "Which digit to bump",
+  is the decision procedure, including the two rules that resolve the hard cases: a fix
+  everyone must see ships as a minor bump rather than gaining a severity flag, and a release
+  with nothing user-visible in it does not need a version at all.
 
 ### 4.4 Storage
 

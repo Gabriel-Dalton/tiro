@@ -19,12 +19,39 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml" };
 
+// Set to deploy a "new version": the worker comes back one byte different,
+// which is exactly what the browser compares to decide there is an update. It
+// is the only way to test the update prompt without publishing something.
+let deployedVersion = "";
+
 const server = createServer((req, res) => {
   let p = join(ROOT, decodeURIComponent(req.url.split("?")[0]));
   if (p.endsWith("/")) p = join(p, "index.html");
   if (!existsSync(p)) { res.writeHead(404); res.end("no"); return; }
-  res.writeHead(200, { "content-type": TYPES[extname(p)] || "application/octet-stream" });
-  res.end(readFileSync(p));
+  let body = readFileSync(p);
+  if (deployedVersion && p.endsWith("sw.js")) {
+    // Rename the cache exactly as gen-version.mjs does on a real release. This
+    // is the difference between a test that means something and one that lies:
+    // reusing the cache name lets the installing worker overwrite the old files
+    // in place, so the page reads the new version by accident. In production
+    // both caches exist at once and `caches.match` can answer from either.
+    body = Buffer.from(
+      String(body).replace(/const CACHE = "tiro-[^"]*";/, `const CACHE = "tiro-${deployedVersion}";`)
+    );
+  }
+  // The app reads the incoming version off this file to decide both what to
+  // call the update and whether it is worth mentioning at all, so a fake deploy
+  // has to move it the way a real one would.
+  if (deployedVersion && p.endsWith("version.js")) {
+    body = Buffer.from(String(body).replace(/VERSION = "[^"]*"/, `VERSION = "${deployedVersion}"`));
+  }
+  res.writeHead(200, {
+    "content-type": TYPES[extname(p)] || "application/octet-stream",
+    // sw.js is served no-cache in production too (web/vercel.json); without it
+    // the browser can answer registration.update() from its own cache.
+    "cache-control": "no-cache",
+  });
+  res.end(body);
 });
 await new Promise((r) => server.listen(8099, r));
 
@@ -502,8 +529,9 @@ const FAKE_SOCKET = () => {
     new Set(levels).size > 3, `${new Set(levels).size} distinct values`);
   check("the level stays inside 0..1",
     levels.every((v) => v >= 0 && v <= 1), `range ${Math.min(...levels)}..${Math.max(...levels)}`);
-  // 20 Hz is the throttle; a second of audio must not arrive as 120 rAF frames.
-  check("the level is throttled rather than sent every frame",
+  // The feed runs at 20 Hz and repeats are dropped, so a second of audio must
+  // not arrive as one message per animation frame.
+  check("the level is paced by the feed, not by the frame rate",
     levels.length < 40, `${levels.length} messages in ~1.2s`);
 
   // The pill's check: finish now, from a window that is not this one.
@@ -832,6 +860,238 @@ for (const scheme of ["light", "dark"]) {
     await page.evaluate(() => document.activeElement === document.getElementById("install-btn")));
 
   await ctx.close();
+}
+
+// ------------------------------------------- being told there is a new version
+//
+// An installed web app has no App Store to tell it it is out of date, and the
+// service worker used to swap the new shell in under a running page without
+// saying anything. Three things have to hold: the new version waits rather than
+// taking over, the app offers a reload, and taking the offer actually reloads.
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.goto("http://localhost:8099/");
+
+  const controlled = await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    // `ready` resolves on activation, which on a first load can be a beat before
+    // the page is controlled.
+    for (let i = 0; i < 40 && !navigator.serviceWorker.controller; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return !!navigator.serviceWorker.controller;
+  });
+  check("the service worker takes control on first load", controlled);
+  check("no update offer when there is no update",
+    await page.locator("#toast-action").isHidden());
+
+  deployedVersion = "1.99.0"; // "ship" a new feature release while the app is open
+  const waiting = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.update();
+    for (let i = 0; i < 60 && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 100));
+    return { waiting: !!reg.waiting, stillControlledByOld: !!navigator.serviceWorker.controller };
+  });
+  check("a new version installs but waits instead of taking over",
+    waiting.waiting && waiting.stillControlledByOld, JSON.stringify(waiting));
+
+  await page.waitForSelector("#toast-action:not([hidden])", { timeout: 5000 }).catch(() => {});
+  const toast = await page.locator("#toast").innerText();
+  check("the app names the version that is ready", /1\.99\.0 is ready/i.test(toast),
+    toast.replace(/\n/g, " "));
+  check("the offer is a button, not a message that scrolls away",
+    (await page.locator("#toast-action").innerText()).trim() === "Update");
+  check("and it can be turned down", await page.locator("#toast-dismiss").isVisible());
+  // These two are the only things you can press in an update offer, and on a
+  // phone they are the ones being pressed.
+  const offerTargets = await page.evaluate(() =>
+    ["toast-action", "toast-dismiss"].map((id) => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      return { id, w: Math.round(r.width), h: Math.round(r.height) };
+    }));
+  check("the offer's own controls are 44px targets too",
+    offerTargets.every((t) => t.h >= 44 && t.w >= 44), JSON.stringify(offerTargets));
+
+  // An ordinary toast must not take the offer away with it: "Copied" used to
+  // reuse this element, strip the buttons, and close on its own timer, killing
+  // the offer for the rest of the session.
+  await page.evaluate(() => {
+    document.querySelector('.tab[data-view="history"]').click();
+  });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.waitForTimeout(300);
+  check("an ordinary message does not destroy the pending offer",
+    await page.locator("#toast-action").isHidden() ||
+      (await page.locator("#toast-action").innerText()).trim() === "Update");
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.waitForTimeout(2200);
+  check("and the offer comes back once that message has passed",
+    (await page.locator("#toast").innerText()).includes("Update"),
+    await page.locator("#toast").innerText());
+  await page.locator('.tab[data-view="record"]').click();
+  check("an offer does not time out while you are reading it",
+    await page.evaluate(async () => {
+      await new Promise((r) => setTimeout(r, 4000)); // longer than any notice()
+      return document.getElementById("toast").dataset.open === "true";
+    }));
+
+  await page.evaluate(() => { window.__beforeReload = true; });
+  await page.locator("#toast-action").click();
+  await page.waitForTimeout(2500);
+  check("Reload actually reloads onto the new version",
+    await page.evaluate(() => window.__beforeReload === undefined));
+
+  deployedVersion = "";
+  await ctx.close();
+}
+
+// ------------------------------------- what is worth interrupting someone for
+//
+// The rule, in one place so it cannot drift between the app and the shell: a
+// release that adds something is worth one interruption; a release that fixes a
+// typo is not, and lands on next launch anyway; enough fixes piled up is worth
+// saying once. And whatever is shown is shown once per version — an update
+// prompt that comes back is how people learn to dismiss them unread.
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(300);
+
+  const verdicts = await page.evaluate(async () => {
+    const { updateWorth } = await import("./src/app.js");
+    return {
+      minor: updateWorth("1.2.0", "1.3.0"),
+      major: updateWorth("1.9.9", "2.0.0"),
+      onePatch: updateWorth("1.2.0", "1.2.1"),
+      twoPatches: updateWorth("1.2.0", "1.2.2"),
+      same: updateWorth("1.2.0", "1.2.0"),
+      older: updateWorth("1.2.0", "1.1.9"),
+      tenVsNine: updateWorth("1.9.0", "1.10.0"),
+      nonsense: updateWorth("1.2.0", "nightly"),
+    };
+  });
+  check("a release that adds something is worth saying",
+    verdicts.minor === "feature" && verdicts.major === "feature", JSON.stringify(verdicts));
+  check("a single fix is not worth interrupting anyone", verdicts.onePatch === "quiet");
+  check("fixes piling up are worth saying once", verdicts.twoPatches === "fixes");
+  check("the same version, an older one, and nonsense are not updates",
+    verdicts.same === null && verdicts.older === null && verdicts.nonsense === null);
+  check("1.10.0 beats 1.9.0 here too", verdicts.tenVsNine === "feature");
+
+  await ctx.close();
+}
+
+// ------------------- a redeploy that changes no version says nothing at all
+//
+// Every push to the site produces a new worker, version bump or not: a typo in
+// a comment counts. Without this, every deploy would interrupt every user with
+// "a new version is ready", which is precisely how update prompts become things
+// people dismiss unread.
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto("http://localhost:8099/");
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.waitForTimeout(300);
+
+  deployedVersion = "same"; // salts the worker; version.js comes back unparseable
+  await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.update();
+    for (let i = 0; i < 60 && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 100));
+  });
+  await page.waitForTimeout(1500);
+  check("an unreadable or unmoved version produces no banner",
+    await page.locator("#toast-action").isHidden(),
+    await page.locator("#toast").innerText());
+
+  deployedVersion = "";
+  await ctx.close();
+}
+
+// ------------------------------- a fix-only release does not interrupt at all
+{
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto("http://localhost:8099/");
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.waitForTimeout(300);
+
+  const current = await page.evaluate(async () => (await import("./src/version.js")).VERSION);
+  const [maj, min, patch] = current.split(".").map(Number);
+  deployedVersion = `${maj}.${min}.${patch + 1}`; // one patch: a typo, not news
+
+  await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.update();
+    for (let i = 0; i < 60 && !reg.waiting; i++) await new Promise((r) => setTimeout(r, 100));
+    return !!reg.waiting;
+  });
+  await page.waitForTimeout(1200);
+  check("a fix-only release installs quietly, with no banner",
+    await page.locator("#toast-action").isHidden(),
+    await page.locator("#toast").innerText());
+
+  deployedVersion = "";
+  await ctx.close();
+}
+
+// ------------------------------- what "Save & test" is allowed to blame
+//
+// A socket that closes before it opens used to be read as a rejected key
+// whenever the browser believed it was online. 1006 is what a browser reports
+// for both a refused handshake and a connection that never arrived, and
+// navigator.onLine is true on a captive portal, so a working key behind a hotel
+// wifi login was reported as rejected. The test may only blame the key when
+// Deepgram says so.
+{
+  // Close before open with a given code, which is the shape of every failure
+  // this is about.
+  const CLOSING_SOCKET = (code) => {
+    window.__closeCode = code;
+    class DeadWS {
+      constructor(url) {
+        this.url = url;
+        this.readyState = 0;
+        setTimeout(() => {
+          this.readyState = 3;
+          this.onclose && this.onclose({ code: window.__closeCode });
+        }, 20);
+      }
+      send() {}
+      close() {}
+    }
+    DeadWS.OPEN = 1;
+    DeadWS.CLOSED = 3;
+    window.WebSocket = DeadWS;
+  };
+
+  const testWithClose = async (code) => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.addInitScript(CLOSING_SOCKET, code);
+    await page.goto("http://localhost:8099/");
+    await page.waitForTimeout(300);
+    await page.locator("#setup-key").fill("dg_a_key_that_works_fine");
+    await page.locator("#setup-save").click();
+    await page.waitForTimeout(1200);
+    const text = await page.locator("#setup-status").innerText();
+    await ctx.close();
+    return text;
+  };
+
+  const ambiguous = await testWithClose(1006);
+  check("1006 does not accuse the key: the test never got an answer",
+    !/reject|key/i.test(ambiguous) || /check your connection/i.test(ambiguous), ambiguous);
+  check("1006 says what actually happened", /deepgram/i.test(ambiguous), ambiguous);
+
+  const refused = await testWithClose(1008);
+  check("1008 is Deepgram refusing the key, and is reported as such",
+    /reject/i.test(refused), refused);
 }
 
 await browser.close();

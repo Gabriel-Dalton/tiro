@@ -224,12 +224,47 @@ function startHalo() {
 // with an attribute rather than `hidden`. A region added to the page at the
 // moment it gains text is one a screen reader is entitled to ignore.
 let toastTimer = null;
-function notice(text, tone = "warn", ms = 3200) {
+/**
+ * @param {object} [action]  {label, onClick} turns the toast into an offer: it
+ *   gains a button and stops timing out, because something you are being asked
+ *   to decide must not disappear while you are reading it.
+ */
+// A sticky offer survives the ordinary traffic that lands on top of it. Copying
+// a transcript while deciding whether to update used to wipe the offer for the
+// rest of the session: "Copied" reused this one element, cleared the buttons,
+// and took the offer down on its own 1.4 second timer.
+let standingOffer = null;
+
+function notice(text, tone = "warn", ms = 3200, action = null) {
+  if (action) standingOffer = { text, tone, action };
   $("toast-text").textContent = text;
   $("toast-dot").className = "dot " + (tone === "ok" ? "ok" : tone === "bad" ? "bad" : "");
+  const button = $("toast-action");
+  button.hidden = !action;
+  button.onclick = action ? action.onClick : null;
+  if (action) button.textContent = action.label;
+  // A sticky offer needs a way out, or it is just a banner you cannot close.
+  const dismiss = $("toast-dismiss");
+  dismiss.hidden = !action;
+  dismiss.onclick = action
+    ? () => {
+        standingOffer = null;
+        $("toast").dataset.open = "false";
+        $("toast-text").textContent = "";
+        if (action.onDismiss) action.onDismiss();
+      }
+    : null;
   $("toast").dataset.open = "true";
   if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = null;
+  if (action) return;
   toastTimer = setTimeout(() => {
+    // Hand the toast back to the offer it interrupted, rather than closing on it.
+    if (standingOffer) {
+      const { text: t, tone: n, action: a } = standingOffer;
+      notice(t, n, 0, a);
+      return;
+    }
     $("toast").dataset.open = "false";
     $("toast-text").textContent = "";
   }, ms);
@@ -653,6 +688,22 @@ for (const t of document.querySelectorAll(".tab")) {
   t.addEventListener("click", () => showView(t.dataset.view));
 }
 
+// Escape closes the install sheet, so it closes a standing offer too. A thing
+// on screen that will not go away on the key everyone reaches for is a thing
+// people learn to work around.
+//
+// It stands down during a take, because Escape now also discards one. An offer
+// raised before the take started is still on screen, so without this the one
+// key press would both throw the recording away and mark the release dismissed,
+// and dismissing is remembered: that version would never be offered again.
+// Discarding is what the user meant; the offer can wait.
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (state !== "idle") return;
+  if ($("toast").dataset.open !== "true" || $("toast-dismiss").hidden) return;
+  $("toast-dismiss").click();
+});
+
 // The header keeps its hairline until something has actually scrolled under it.
 const appHead = document.querySelector(".app-head");
 addEventListener("scroll", () => {
@@ -847,8 +898,14 @@ async function saveAndTestKey(inputEl, statusEl, button) {
     document.body.classList.remove("needs-setup");
     notice("Key saved. Hold the button and speak", "ok");
   } else {
+    // "Could not reach Deepgram" rather than anything about the key: the test
+    // never got an answer, so it has learned nothing about the key, and saying
+    // otherwise sends people to replace one that works. Only r.kind === "auth"
+    // means Deepgram itself refused it.
     statusEl(
-      r.kind === "auth" ? "Key rejected by Deepgram" : r.kind === "offline" ? "You are offline" : "Could not reach Deepgram",
+      r.kind === "auth" ? "Key rejected by Deepgram"
+        : r.kind === "offline" ? "You are offline"
+        : "No answer from Deepgram. Check your connection, then the key",
       "bad"
     );
   }
@@ -1004,8 +1061,222 @@ async function boot() {
   window.addEventListener("offline", () => notice("You are offline. History still works", "warn"));
 
   if ("serviceWorker" in navigator && !bridge.isShell) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js").then(watchForUpdate).catch(() => {});
   }
+}
+
+// ---------------------------------------------------------------- updates
+//
+// An installed web app has no App Store to tell you it is out of date, and the
+// service worker updates it silently, so before this the only way to know you
+// were a version behind was to notice something looked different. Now the new
+// version downloads in the background exactly as it did, waits instead of
+// taking over, and says so.
+//
+// Nothing here talks to anything but Tiro's own origin: the browser re-fetches
+// the same files it is already serving. No version endpoint, no check-in, no
+// request that says a copy of Tiro exists on this device.
+
+const UPDATE_CHECK_MS = 60 * 60 * 1000; // hourly at most, and only while in use
+let lastUpdateCheck = Date.now();
+let reloading = false;
+
+// ---- when an update is worth interrupting someone over -------------------
+//
+// The version number already says what changed, because the release rules make
+// it say so: the middle number moves when something is added or the interface
+// changes, the last one when a fix is the whole story. So:
+//
+//   1.2.0 -> 1.3.0   something new. Worth one interruption.
+//   1.2.0 -> 1.2.1   a fix. Not worth stopping someone mid-sentence for; it
+//                    lands the next time they open the app anyway.
+//   1.2.0 -> 1.2.3   two or more fixes deep. That is no longer "a typo", it is
+//                    a pile of things you are missing, so say it once.
+//
+// Whatever we do decide to show is shown **once per version**: dismissing 1.3.0
+// means never being asked about 1.3.0 again, only about whatever comes after.
+// An update prompt that reappears is how people learn to dismiss them unread.
+
+const DISMISSED_KEY = "tiro.update.dismissed";
+const PATCH_PILE_UP = 2;
+
+const parseVersion = (v) => {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(v || "").trim());
+  return m ? m.slice(1, 4).map(Number) : null;
+};
+
+/** "feature" | "fixes" | "quiet" | null — null when it is not an update at all. */
+export function updateWorth(current, next) {
+  const a = parseVersion(current);
+  const b = parseVersion(next);
+  if (!a || !b) return null;
+  if (b[0] > a[0]) return "feature";
+  if (b[0] < a[0]) return null;
+  if (b[1] > a[1]) return "feature";
+  if (b[1] < a[1]) return null;
+  if (b[2] <= a[2]) return null;
+  return b[2] - a[2] >= PATCH_PILE_UP ? "fixes" : "quiet";
+};
+
+const alreadyDismissed = (version) => {
+  try { return localStorage.getItem(DISMISSED_KEY) === version; } catch { return false; }
+};
+const rememberDismissed = (version) => {
+  try { localStorage.setItem(DISMISSED_KEY, version); } catch {}
+};
+
+function watchForUpdate(reg) {
+  if (!reg) return;
+
+  // Already downloaded, from a previous visit that did not take the offer.
+  if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+
+  // Already downloading when we got here: `updatefound` fired before this
+  // listener existed, so watch the worker itself or the update goes unmentioned
+  // until the next launch.
+  if (reg.installing && navigator.serviceWorker.controller) {
+    const early = reg.installing;
+    early.addEventListener("statechange", () => {
+      if (early.state === "installed") offerUpdate(early);
+    });
+  }
+
+  reg.addEventListener("updatefound", () => {
+    const incoming = reg.installing;
+    if (!incoming) return;
+    incoming.addEventListener("statechange", () => {
+      // `controller` is null on the very first visit, when "installed" means
+      // "Tiro is now available offline" rather than "there is a new version".
+      if (incoming.state === "installed" && navigator.serviceWorker.controller) {
+        offerUpdate(incoming);
+      }
+    });
+  });
+
+  // The browser checks for a new worker on navigation, which an installed app
+  // does rarely — it is opened and left. Ask again when it comes back to the
+  // foreground, no more than hourly.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    // A worker that is already waiting will not fire `updatefound` again, so a
+    // first attempt that failed — the version probe needs the network, and the
+    // most likely moment to be offline is the moment an update lands — would
+    // never be retried. Ask again for the worker that is sitting there.
+    if (reg.waiting && !updateOffered) offerUpdate(reg.waiting);
+    if (Date.now() - lastUpdateCheck < UPDATE_CHECK_MS) return;
+    lastUpdateCheck = Date.now();
+    reg.update().catch(() => {});
+  });
+
+  // Same reason: coming back online is the other moment a failed probe becomes
+  // answerable, and it is a cheaper signal than waiting an hour.
+  addEventListener("online", () => {
+    if (reg.waiting && !updateOffered) offerUpdate(reg.waiting);
+  });
+
+  // The new worker took over: everything on screen is now the old version's.
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!reloading) return; // only ever reload for an update the user asked for
+    location.reload();
+  });
+}
+
+/** The version the site is serving now, or null if it cannot be read or has not
+ * moved. `?fresh` is what gets past our own service worker: without it this
+ * request is answered out of a cache — possibly the one belonging to the very
+ * version we are running — and every update would look like no update at all. */
+async function incomingVersion() {
+  try {
+    const res = await fetch(`src/version.js?fresh=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const found = (await res.text()).match(/VERSION\s*=\s*"([\d.]+)"/);
+    return found && found[1] !== VERSION ? found[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+let updateOffered = false;
+let updateChecking = false;
+async function offerUpdate(worker) {
+  if (updateOffered || updateChecking) return;
+  updateChecking = true;
+
+  // Every deploy of the site produces a new worker, whether or not the version
+  // moved: a typo fixed in a comment counts. So the only thing worth saying
+  // anything about is a version that actually changed, and if that cannot be
+  // read, nothing is said — the update still installs on the next launch, and a
+  // banner nobody can act on is worse than silence.
+  const version = await incomingVersion();
+  updateChecking = false;
+  if (!version) return;
+
+  // A fix-only release still installs — it just does it the next time the app
+  // is opened, silently, the way it always did. The only thing being decided
+  // here is whether to say anything now.
+  const worth = updateWorth(VERSION, version);
+  if (worth !== "feature" && worth !== "fixes") return;
+  if (alreadyDismissed(version)) return;
+
+  // Latched only now, on the path that actually shows something. Setting it
+  // earlier means a quiet patch release swallows the feature release that
+  // follows it, in a session left open for days.
+  updateOffered = true;
+
+  const ask = () =>
+    notice(`Tiro ${version} is ready`, "ok", 0, {
+      label: "Update",
+      onClick: () => {
+        standingOffer = null;
+        reloading = true;
+        worker.postMessage("SKIP_WAITING");
+        // If the worker never answers, the reload still gets us the new shell.
+        setTimeout(() => location.reload(), 1500);
+      },
+      onDismiss: () => rememberDismissed(version),
+    });
+
+  // Never interrupt a take. The transcript is not on the clipboard yet, and a
+  // reload button under a thumb that is mid-press is the worst possible offer.
+  if (state === "idle") ask();
+  else offerWhenIdle(ask);
+}
+
+// The Windows app cannot update itself in place: it is a portable EXE someone
+// unzipped. So the host reads GitHub's latest release, and the same banner
+// appears here with the number it found, rather than that news living only in a
+// tray menu nobody opens until they already suspect something.
+bridge.onUpdate = ({ version, url }) => {
+  if (!version || updateOffered) return;
+  // Same rule as the web: a fix-only release is in the tray menu and the tray
+  // tooltip, and that is where it stays. The host applies the same test before
+  // sending this at all; this is the second half of one policy, not a new one.
+  const worth = updateWorth(VERSION, version);
+  if (worth === "quiet" || worth === null) return;
+  if (alreadyDismissed(version)) return;
+  updateOffered = true;   // set here, where something is actually shown
+  const ask = () =>
+    notice(`Tiro ${version} is available`, "ok", 0, {
+      label: "Download",
+      onClick: () => {
+        standingOffer = null;
+        bridge.openExternal(url || "https://github.com/Gabriel-Dalton/tiro/releases/latest");
+        $("toast").dataset.open = "false";
+        rememberDismissed(version); // taken: do not offer this one again
+      },
+      onDismiss: () => rememberDismissed(version),
+    });
+  if (state === "idle") ask();
+  else offerWhenIdle(ask);
+};
+
+/** Wait for the take to finish before interrupting, but not indefinitely: if
+ * the app never returns to idle, something else is wrong and a timer polling
+ * for the life of the page helps nobody. Ten minutes of takes is far past any
+ * real dictation. */
+function offerWhenIdle(ask, attemptsLeft = 500) {
+  if (state === "idle") ask();
+  else if (attemptsLeft > 0) setTimeout(() => offerWhenIdle(ask, attemptsLeft - 1), 1200);
 }
 
 boot();

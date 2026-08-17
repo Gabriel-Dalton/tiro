@@ -240,6 +240,29 @@ sealed class MainForm : Form
                 break;
             }
 
+            case "openExternal":
+            {
+                // The web core cannot open a browser from inside WebView2, and it
+                // must not navigate the shell away from the app. Only our own
+                // release page is ever opened, checked here rather than trusted:
+                // the host, not the page, decides where a click can lead.
+                var url = msg.TryGetProperty("url", out var urlEl) ? urlEl.GetString() ?? "" : "";
+                if (url.StartsWith("https://github.com/Gabriel-Dalton/tiro/", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(
+                            new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+                    }
+                    catch (Exception ex) { Log.Write($"openExternal failed: {ex.Message}"); }
+                }
+                else
+                {
+                    Log.Write($"openExternal refused: {url}");
+                }
+                break;
+            }
+
             case "log":
                 Log.Write($"[web] {msg.GetProperty("text").GetString()}");
                 break;
@@ -262,6 +285,12 @@ sealed class MainForm : Form
 
     /// <summary>Finish the take now: the pill's check.</summary>
     public void PostStop() => PostToWeb(new { type = "stop" });
+
+    /// <summary>Tell the web core a newer release exists, so it can offer it in
+    /// the app itself rather than only in the tray menu. The version comes from
+    /// GitHub, never from anything compiled in here.</summary>
+    public void PostUpdateAvailable(string version, string url) =>
+        PostToWeb(new { type = "update", version, url });
 
     private void PostToWeb(object payload)
     {

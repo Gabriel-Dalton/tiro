@@ -114,6 +114,17 @@ have `pressEnd` either cancel a still-starting take or defer until `pressStart` 
 
 ### PWA-03 · High · Every connection failure is reported as "Deepgram rejected your key"
 
+> **Fixed.** Both close handlers now decide on the close code rather than on
+> `navigator.onLine`, which is trusted in one direction only: false means offline, true
+> means nothing. Only 1008 and 4001 are called a rejection, because they are the only codes
+> where Deepgram has actually looked at the key. Everything else, 1006 above all, reports
+> that the app could not reach Deepgram, which is true in every remaining case including an
+> auth failure hiding behind an abnormal close. "Save & test" says "No answer from Deepgram.
+> Check your connection, then the key", since a test that got no answer has learned nothing
+> about the key and must not send someone to replace a working one. `scripts/smoke-web.mjs`
+> drives the setup card against a socket that closes 1006 and one that closes 1008, and
+> checks that only the second mentions rejection.
+
 **`web/src/deepgram.js:83-97`, `web/src/deepgram.js:216-219`**
 
 When the socket closes before it ever opened, the code decides between two errors on the
