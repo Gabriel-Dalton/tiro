@@ -113,6 +113,17 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   pulsing dot, live waveform, clock. The waveform is driven by a `level` message from the web
   core, already smoothed and normalised there, so this meter and the PWA's halo cannot disagree
   about what your voice looks like.
+- **While transcribing, the same strip keeps moving rather than the pill spelling it out.** A
+  swell crosses the fourteen bars once every 1.15 s, in the gilt the tray icon is already using
+  for that state, and the bars ease out of wherever the take left them rather than being reset,
+  so the two states read as one object continuing. The clock and the check go with the audio,
+  since nothing is being captured and there is nothing left to confirm; the X stays, because the
+  transcript can still be thrown away. The strip rests at a quarter height rather than at the
+  recording floor, which is the 3 unit minimum and therefore already what silence looks like:
+  two states apart only in colour is the one thing the interface rules rule out. This replaced
+  the word "Transcribing…", which was 168 units of pill asking to be read at the moment the user
+  has already looked back at whatever they were dictating into. The state is on the window's
+  `AccessibleName` now that no text carries it.
 - The pill carries the two controls the hotkey cannot express: **X to discard** and **check to
   finish now**. It must answer `WM_MOUSEACTIVATE` with `MA_NOACTIVATE`, or clicking it
   deactivates the window being dictated into and the transcript pastes into the wrong place.
