@@ -12,6 +12,12 @@ static class Program
     {
         var argv = Environment.GetCommandLineArgs();
 
+        // First, ahead of the self-test as well as the app, because both go on to
+        // call into WebView2 and neither can do it until this DLL is in the
+        // process. It writes one small file and loads it; it opens no window and
+        // takes nothing down if it fails.
+        Resources.EnsureNativeLoader();
+
         // CI runs this after the build. It touches no window, no hook and no
         // mutex, so it must come before all of them.
         if (argv.Contains("--self-test"))

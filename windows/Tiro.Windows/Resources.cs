@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -31,6 +32,7 @@ static class Resources
 {
     private const string WebPrefix = "web/";
     private const string AssetPrefix = "Assets/";
+    private const string LoaderResource = "native/WebView2Loader.dll";
 
     private static readonly Assembly Self = typeof(Resources).Assembly;
 
@@ -46,6 +48,9 @@ static class Resources
     public static readonly string WebRoot = Path.Combine(LocalDir, "web");
 
     private static readonly string StampPath = Path.Combine(LocalDir, "web.stamp");
+
+    private static readonly string LoaderPath =
+        Path.Combine(LocalDir, "native", "WebView2Loader.dll");
 
     /// <summary>A tray or window icon, or null if it is missing, which is not
     /// worth taking the app down over: callers fall back to a system icon.</summary>
@@ -65,6 +70,83 @@ static class Resources
         {
             Log.Write($"icon {fileName} failed to load: {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// WebView2's native loader, on disk and loaded into this process before
+    /// anything touches WebView2.
+    ///
+    /// The web core and the icons are streams the app reads. This one cannot be:
+    /// Microsoft.Web.WebView2 asks Windows for "WebView2Loader.dll" by bare name,
+    /// and the search that answers looks beside the EXE, which for a one file
+    /// download is a folder holding one file that is not this DLL. Putting it
+    /// under runtimes\win-x64\native beside the EXE does not answer it either;
+    /// only a copy sitting directly next to the EXE does, and that is the second
+    /// file the download is trying not to have.
+    ///
+    /// So it is embedded (see the csproj), written here, and loaded by its full
+    /// path. Loading it by path is the whole trick: Windows then resolves the
+    /// later call for "WebView2Loader.dll" to the module already in the process
+    /// rather than searching the disk again.
+    /// </summary>
+    public static void EnsureNativeLoader()
+    {
+        try
+        {
+            using var stream = Self.GetManifestResourceStream(LoaderResource);
+            if (stream == null)
+            {
+                // The build is broken rather than the machine. Say so plainly: the
+                // symptom otherwise is a window that never paints.
+                Log.Write("WebView2's native loader is not embedded in this build");
+                return;
+            }
+
+            var want = new byte[stream.Length];
+            stream.ReadExactly(want);
+
+            // Compared by content, not by version, for the same reason the web
+            // core is: a loader left by an older build must not go on being
+            // loaded by a newer one, and there is no version number to read
+            // without loading the file first.
+            if (!IsAlready(LoaderPath, want))
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(LoaderPath)!);
+                    File.WriteAllBytes(LoaderPath, want);
+                }
+                catch (Exception ex) when (File.Exists(LoaderPath))
+                {
+                    // Another Tiro has this file mapped, so it cannot be replaced
+                    // while that one lives. The copy on disk is a working loader
+                    // either way, and refusing to load it would take this process
+                    // down over a file it does not need to write.
+                    Log.Write($"kept the existing WebView2 loader: {ex.Message}");
+                }
+            }
+
+            NativeLibrary.Load(LoaderPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"could not load WebView2's native loader: {ex.Message}");
+        }
+    }
+
+    /// <summary>Is this exact byte sequence already the file at this path?</summary>
+    private static bool IsAlready(string path, byte[] want)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length != want.Length) return false;
+            return File.ReadAllBytes(path).AsSpan().SequenceEqual(want);
+        }
+        catch
+        {
+            return false;
         }
     }
 

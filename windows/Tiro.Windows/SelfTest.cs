@@ -98,15 +98,20 @@ static class SelfTest
             Resources.LoadIcon("tray-transcribing.ico") != null &&
             Resources.LoadIcon("tray-blocked.ico") != null);
 
-        // The one dependency that is not managed code and so cannot be embedded
-        // the way the web core is: WebView2's native loader. The package copies
-        // it next to the EXE as well as bundling it, which made the loose copy
-        // look load-bearing when the download stopped being an archive.
+        // The one dependency that is not managed code: WebView2's native loader.
         //
-        // GetAvailableBrowserVersionString is the P/Invoke into that loader, so
-        // it is the first thing that fails if the bundle does not carry it. CI
-        // runs this from a folder holding nothing but Tiro.exe, which is what
-        // makes the answer mean anything.
+        // Asked twice, because the interesting question cannot be answered by
+        // running the app. A build agent can resolve a WebView2Loader.dll from
+        // elsewhere on the machine, so "the call works" passed on CI for a build
+        // that shipped without one and threw DllNotFoundException on the first
+        // clean PC it reached. Whether the loader is in this EXE is the part no
+        // amount of runner luck can fake, so it is its own assertion.
+        Check("WebView2's native loader is embedded", Resources.HasEmbedded("native/WebView2Loader.dll"));
+
+        // And then that it actually loaded: GetAvailableBrowserVersionString is the
+        // P/Invoke into it, so it is the first thing that fails if
+        // Resources.EnsureNativeLoader did not get the DLL into the process. CI
+        // runs this from a folder holding nothing but Tiro.exe.
         //
         // A missing runtime is a different answer from a missing loader and only
         // one of them is a packaging fault: Windows 10 without Edge legitimately
