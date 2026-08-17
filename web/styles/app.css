@@ -268,6 +268,21 @@ body.needs-setup .stage { padding: var(--s4) 0 0; }
 .btn.danger { color: var(--bad-fg); }
 .btn.danger:hover { border-color: var(--bad-fg); background: var(--bad-bg); }
 
+/* A button that has answered. It stops being the loudest thing on the card,
+   because the next thing to do is not press it again, but it keeps its size and
+   its border so the row does not move under the finger that just used it.
+   Beats .btn-accent, which sets all three of these. */
+.btn.is-done, .btn.btn-accent.is-done {
+  color: var(--ok-fg);
+  background: var(--ok-bg);
+  border-color: var(--ok-bg);
+  animation: done-pop 0.2s var(--ease);
+}
+.btn.btn-accent.is-done:hover { background: var(--ok-bg); border-color: var(--ok-fg); }
+/* Replayed on every press, so pressing an already-copied button is still
+   answered by something, even though the word does not change. */
+@keyframes done-pop { from { transform: scale(0.94); } to { transform: none; } }
+
 /* the header chip: smaller than a button, still a 32px target */
 .btn-pill {
   font: inherit;
@@ -722,16 +737,30 @@ select {
 
 /* ---------- toast ---------- */
 
+/* Centred with auto margins rather than `left: 50%` and a transform, which is
+   what it was and which capped it at half the screen: a fixed box with `left`
+   set and `right: auto` shrinks to fit the space *after* that left edge, so the
+   available width was 50vw and the 420px max-width could never be reached. The
+   transform moved the box afterwards without changing what it had been sized
+   against, so "Recording. Tap the button when you're done" wrapped to three
+   lines inside a 195px pill on a phone. Both edges pinned and `width:
+   fit-content` size it against the whole viewport instead. */
 .toast {
   position: fixed;
-  left: 50%;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: fit-content;
   bottom: calc(var(--tabbar-h) + var(--s4) + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   gap: var(--s2);
   background: var(--toast-bg);
   color: var(--toast-fg);
-  border-radius: var(--radius-pill);
+  /* Half the height of a single-line toast, so that one is still exactly the
+     pill it always was, and a message long enough to wrap is a rounded panel
+     rather than a stadium with its first and last lines inside the curve. */
+  border-radius: 18px;
   padding: 7px 10px 7px 18px;
   font-size: 14px;
   max-width: min(92vw, 420px);
@@ -739,11 +768,16 @@ select {
   z-index: 30;
   transition: opacity 0.2s var(--ease), transform 0.2s var(--ease), visibility 0.2s;
 }
-.toast[data-open="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+/* The 18px inset on the left is balanced on the right by the dismiss button,
+   which reaches past the padding to sit against the edge. A plain message has
+   no such button, so it takes that padding back rather than running to 10px
+   from the edge, which is what made a wrapped message look crowded. */
+.toast:not(.is-offer) { padding-right: 18px; }
+.toast[data-open="true"] { opacity: 1; visibility: visible; transform: none; }
 .toast[data-open="false"] {
   opacity: 0;
   visibility: hidden;
-  transform: translate(-50%, 10px);
+  transform: translateY(10px);
   pointer-events: none;
 }
 /* An offer, not an announcement: a toast that carries one has to stay put and
@@ -930,6 +964,61 @@ select {
   color: var(--accent-strong);
 }
 .sheet .row { justify-content: flex-end; margin-top: var(--s4); }
+
+/* ---------- share sheet ---------- */
+
+/* The transcript in the face it was dictated in, so what is about to be sent is
+   something you can check rather than take on trust. Three lines: enough to
+   recognise, few enough that the targets stay above the fold on a phone. */
+.share-preview {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle-c);
+  border-radius: var(--radius-button);
+  padding: var(--s3);
+  margin-top: var(--s3);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.share-targets { display: grid; gap: 2px; margin-top: var(--s4); }
+.share-target {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--s2);
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s var(--ease);
+}
+.share-target:hover { background: var(--surface-hover); }
+.share-target:active { background: var(--surface-active); }
+.share-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 11px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.share-icon svg { width: 20px; height: 20px; }
+.share-lines { display: grid; gap: 1px; min-width: 0; }
+.share-name { font-size: 15px; font-weight: 550; }
+.share-lines .hint { display: block; }
 
 /* ---------- wider screens ---------- */
 
