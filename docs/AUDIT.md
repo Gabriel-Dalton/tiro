@@ -315,7 +315,7 @@ reports it. Recorded here so the next person does not re-derive why the colours 
 
 ### PWA-14 · High · The tail streams nothing, so the last word is clipped anyway
 
-> **Fixed on `claude/wispr-flow-desktop-widget-7x52cw`.** `stopAndInsert` now re-points
+> **Fixed on the desktop-pill branch.** `stopAndInsert` now re-points
 > `engine.onChunk` at the take it just captured, and `smoke-web.mjs` asserts the byte count
 > grows during the tail.
 
@@ -476,7 +476,7 @@ and narrowing it to `CoreWebView2PermissionKind.Microphone` costs one line.
 
 ### WIN-05 · Medium · No recovery if the WebView2 process dies
 
-> **Fixed on `claude/wispr-flow-desktop-widget-7x52cw`.** Both `ProcessFailed` and a failed
+> **Fixed on the desktop-pill branch.** Both `ProcessFailed` and a failed
 > `NavigationCompleted` now drop `_webReady` and report the `blocked` state. It was promoted
 > from "live-looking app that does nothing" by the global Escape hook added on that branch:
 > the hook is armed by the last state the page reported, so a crash mid-take left Escape

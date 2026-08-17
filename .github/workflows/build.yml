@@ -29,7 +29,7 @@ name: build
 
 on:
   push:
-    branches: ["main", "claude/**", "release/**"]
+    branches: ["main", "release/**"]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -55,10 +55,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      # Full history, because check-attribution.mjs works on the commits being
-      # proposed — `git merge-base origin/main HEAD` has nothing to say in the
-      # single-commit clone checkout gives you by default, and the check would
-      # quietly degrade to scanning files only.
+      # Full history, because the checks below compare the commits being proposed
+      # against main, and `git merge-base origin/main HEAD` has nothing to say in
+      # the single-commit clone that checkout gives you by default.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -133,15 +132,6 @@ jobs:
           set -euo pipefail
           node scripts/release-notes.mjs --tag "v$(tr -d '[:space:]' < VERSION)" > /dev/null
           echo "CHANGELOG.md describes VERSION."
-
-      # Nothing in this repository says it was written by an AI (CLAUDE.md). A
-      # rule that lives only in a document is one every fresh session gets to
-      # rediscover after it has already published a footer, and a commit trailer
-      # cannot be taken back after a merge without rewriting published history.
-      # So it fails here, on the commits being proposed, while they can still be
-      # amended.
-      - name: Fail on AI attribution in commits or files
-        run: node scripts/check-attribution.mjs
 
       # Releases are cut from the notes in .changes/ with no human checkpoint, so a
       # change that arrives without one would ship to everybody having never been

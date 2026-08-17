@@ -199,8 +199,8 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   `UpdateCheck.cs`), so the app and the shell cannot disagree about what deserves a banner.
 
   All of which puts the weight on whoever bumps `VERSION` choosing the right digit, since
-  that choice is what decides whether anyone is told. `CLAUDE.md`, "Which digit to bump",
-  is the decision procedure, including the two rules that resolve the hard cases: a fix
+  that choice is what decides whether anyone is told. [`.changes/README.md`](../.changes/README.md),
+  "Which bump", is the decision procedure, including the two rules that resolve the hard cases: a fix
   everyone must see ships as a minor bump rather than gaining a severity flag, and a release
   with nothing user-visible in it does not need a version at all.
 
