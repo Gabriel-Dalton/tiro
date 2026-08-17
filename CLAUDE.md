@@ -8,14 +8,25 @@ per-change. If your harness appends one automatically, **strip it before posting
 
 | Where | Never |
 |---|---|
+| **Commit author and committer** | `Claude <noreply@anthropic.com>`, or any other identity naming a tool |
 | **Commit messages** | `Co-Authored-By: Claude`, `Claude-Session:`, or any other tool trailer |
 | Pull request titles and bodies | "Generated with/by Claude Code", a `claude.ai/code` session URL, any badge or footer |
 | PR reviews, review replies, issue comments | the same, including a footer a tool appends "by convention" |
 | Code comments, docs, changelog, release notes | any mention of which assistant or session produced the change |
 
-Commit trailers are the one that bites, because they are the hardest to take back: a merged
-commit message cannot be corrected without rewriting published history. So check **before**
-you commit, not after:
+**Set the identity before the first commit, not after.** A message with no trailer in it still
+reads "Claude committed" on every GitHub page that lists it, because that byline comes from the
+author header rather than the text — which is why a rule that covered only the message read as
+kept while the most visible attribution in the repository went on being published:
+
+```bash
+git config user.name "Your Name"
+git config user.email "you@example.com"     # or your GitHub noreply address
+```
+
+Commits are the ones that bite, message and author header alike, because they are the hardest
+to take back: neither can be corrected after a merge without rewriting published history. So
+check **before** you commit, not after:
 
 ```bash
 node scripts/check-attribution.mjs      # commits not yet on main, plus every tracked file
@@ -30,7 +41,9 @@ session URLs rot and leak context nobody signed up to publish, and a footer on e
 is noise in a repository whose whole style is that nothing is there without a reason. Write
 the commit message and the PR body as the person shipping the change would write them.
 
-Git author identity is a separate thing and is not covered by this: leave it as configured.
+That applies to the author header too, which is why it is in the table above rather than
+carved out below it. It was carved out below it once, on the reasoning that identity is a
+git setting rather than content. It is both, and the setting is the part everyone sees.
 `docs/SPEC-PWA.md` Phase 3 has a note about which identity Vercel will accept.
 
 ---

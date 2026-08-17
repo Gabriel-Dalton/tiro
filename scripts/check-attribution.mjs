@@ -61,6 +61,17 @@ try {
   console.log("No commit range to check (no origin/main here); checking the tree only.");
 }
 
+// The author line is attribution too, and it is the one nothing used to catch.
+// A commit whose message is spotless still shows up on GitHub as "Claude
+// committed", which is the byline this whole rule exists to prevent — it is just
+// stored in a header rather than in the text. Both identity fields are checked,
+// because `git commit --author` sets one and leaves the other.
+const IDENTITIES = [
+  /(^|[^a-z])claude([^a-z]|$)/i,
+  /@anthropic\.com/i,
+  /\bassistant\b/i,
+];
+
 for (const sha of commits) {
   const message = git("log", "-1", "--format=%B", sha);
   for (const { name, re } of MARKERS) {
@@ -69,6 +80,13 @@ for (const sha of commits) {
       problems.push(`commit ${sha.slice(0, 8)} (${subject}) carries ${name}`);
     }
   }
+  const who = git("log", "-1", "--format=%an <%ae>%n%cn <%ce>", sha).trim().split("\n");
+  const roles = ["author", "committer"];
+  who.forEach((identity, i) => {
+    if (IDENTITIES.some((re) => re.test(identity))) {
+      problems.push(`commit ${sha.slice(0, 8)} names ${identity.trim()} as its ${roles[i]}`);
+    }
+  });
 }
 
 // --- the tree itself -------------------------------------------------------
@@ -98,8 +116,11 @@ if (problems.length) {
   console.error("This repository carries no AI attribution. Found:\n");
   for (const p of problems) console.error(`  - ${p}`);
   console.error(
-    "\nSee CLAUDE.md, 'Attribution: this repository carries none'." +
+    "\nSee CLAUDE.md, 'Read this first: nothing here says it was written by an AI'." +
       "\nCommit messages: rewrite them before merging (git rebase -i / git commit --amend)." +
+      "\nAuthor and committer: set user.name and user.email to the person shipping the" +
+      "\n  change before committing, or rewrite the branch:" +
+      "\n    git rebase origin/main --exec 'git commit --amend --no-edit --reset-author'" +
       "\nPull request bodies and comments are not visible here — check those by hand."
   );
   process.exit(1);
