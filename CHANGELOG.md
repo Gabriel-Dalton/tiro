@@ -20,6 +20,65 @@ something is added or the interface changes, the last when the fix is the whole 
 
 Nothing yet.
 
+## [1.5.0] — 2026-08-17
+
+### Added
+
+- On a German, French, Spanish, Portuguese, Polish, Czech, Turkish or Nordic keyboard, Tiro made
+  `@`, `€`, `{`, `[` and `~` impossible to type in **every** application on the machine for as
+  long as it was running. Right Alt is AltGr on those layouts, and Tiro took the key for its
+  hotkey and swallowed it, so nothing else ever saw it. Almost nobody would connect "I cannot
+  type an at sign in my email" back to a dictation app sitting in the tray. Tiro now checks
+  every keyboard layout you have installed, and where Right Alt is AltGr it leaves the key
+  alone and dictates on **Scroll Lock** instead, telling you once that it has and where to
+  change it. If your layout does not use AltGr, nothing changes and Right Alt still works. *(Windows.)*
+- **Tiro offers to install itself the first time you run it.** Say yes and it copies itself into
+  `%LOCALAPPDATA%\Programs\Tiro` and adds a Start menu entry, which is the thing Windows requires
+  before it will let you pin an app to the taskbar. It also registers in **Apps and Features**, so
+  it removes like anything else, and removing it keeps your history, settings and API key unless
+  you tick the box. No administrator rights, no wizard, and nothing written outside your own user
+  account. Say no and it stays portable, runnable from wherever you keep it; the tray menu can
+  install it later if you change your mind. *(Windows.)*
+- **Updating an installed Tiro is now a matter of running the new download.** It asks the running
+  copy to quit, replaces it in place, and starts it again. Before this, running a newly downloaded
+  Tiro while the old one was open simply reopened the old one's window, so the update looked like
+  it had done nothing. *(Windows.)*
+
+### Changed
+
+- **The Windows download is a single `Tiro-Windows-x64.exe`, not a ZIP.** The archive existed
+  because the EXE shipped with the web core in loose files beside it, and Windows Explorer will
+  run an EXE from inside a ZIP by extracting it to a temporary folder. So the app most people
+  ended up running lived somewhere Windows deletes: it could not be pinned to the taskbar in a
+  way that survived a reboot, and every launch meant finding the ZIP and opening it again. The
+  web core is inside the binary now, so there is one file to download and nothing to unpack. *(Windows.)*
+
+### Fixed
+
+- **Tiro lets go of your microphone again.** It used to hold it open from the first time you
+  pressed the hotkey until you quit the app, which on Windows is worse than it sounds: while
+  anything is holding the microphone, Windows keeps Bluetooth headphones in call mode, so music,
+  videos and everything else drop to phone-call quality. Dictate one sentence, go back to what you
+  were watching, and it sounded broken. The microphone indicator stayed lit the whole time too,
+  next to an app whose window is hidden by design, which is not a reassuring combination.
+  
+  The microphone is now released 45 seconds after you stop dictating, so two sentences in a row
+  still get the head start that keeps your first word, and anything longer than a pause gives the
+  device back. Turning **Keep the mic warm between takes** off in Settings releases it the moment a
+  take ends, as it always should have; that setting now says what it actually costs.
+  
+  A take that could not reach Deepgram — a captive portal, a rejected key — used to keep the
+  microphone open even with that setting off. It does not any more. *(Web, Windows.)*
+- **"Start with Windows" survives installing.** The setting stores the path to the EXE, so it went
+  on pointing at the copy in Downloads and quietly stopped working once that folder was cleared
+  out. Installing re-points it at the copy that is going to stay. *(Windows.)*
+- **SmartScreen stops interrupting an installed copy on every launch.** Windows marks anything
+  downloaded, and that mark is copied along with the file, so an installed Tiro inherited it and
+  kept being challenged. Installing now clears the mark on its own copy, which is exactly what
+  ticking **Unblock** in the file's Properties does, at the moment you asked for the app to be
+  installed. The very first launch, before you have installed anything, can still be challenged:
+  [docs/SIGNING.md](docs/SIGNING.md) explains why. *(Windows.)*
+
 ## [1.4.0] — 2026-08-17
 
 ### Added
@@ -243,7 +302,8 @@ covered.
   the same JSONL file so it moves between them.
 - **No account, no server, no telemetry.** Your Deepgram key talks straight to Deepgram.
 
-[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.5.0
 [1.4.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.2.0
