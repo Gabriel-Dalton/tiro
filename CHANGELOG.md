@@ -23,8 +23,7 @@ Nothing yet.
 ## [1.2.0] — 2026-08-17
 
 The Windows release. A recording widget you can see and drive without leaving the app you
-are typing in, a hotkey that says why when it cannot do anything, and a pin that survives an
-update. Plus knowing when to update at all.
+are typing in. Plus knowing when to update at all.
 
 ### Added
 
@@ -35,15 +34,6 @@ update. Plus knowing when to update at all.
   a take is in flight, and is left alone the rest of the time so it does not break every
   dialog and menu on the machine. Clicking the pill does not steal focus, so the transcript
   still pastes into the window you were dictating into. *(Windows.)*
-- **Pin Tiro to the taskbar, and keep it pinned.** Tiro writes a Start Menu shortcut on
-  first run, so **Start → type Tiro → Pin to taskbar** works even though nothing installed
-  the app; **Pin to the taskbar…** in the tray menu repeats the steps and writes the
-  shortcut again if you removed it. Removing it is respected rather than undone on the next
-  launch. The pin now survives updates: Tiro declares a fixed identity instead of letting
-  Windows derive one from wherever the EXE happens to sit, which is what used to leave a
-  dead pinned button after the next download, and what used to split the pin and the running
-  window into two separate taskbar icons. On the Mac, Tiro is already in the Dock while it
-  runs — right-click → Options → **Keep in Dock**. *(Windows, macOS.)*
 - **Tiro tells you when there is a new version**, rather than leaving you to notice. The web
   app names the version waiting and offers **Update**; the Windows app reads GitHub's latest
   release once a week and offers it in the app and in the tray menu. It does not fire for
@@ -54,14 +44,6 @@ update. Plus knowing when to update at all.
 
 ### Fixed
 
-- **A hotkey press that could not record said nothing at all.** On Windows, holding the
-  hotkey with no Deepgram key saved, or offline, or with no microphone available, produced
-  no widget, no message and no sound: the explanation was written into the Tiro window,
-  which is hidden exactly when the global hotkey is the thing you are using. There was no
-  way to tell it apart from the hotkey not working, and the honest reading was that the app
-  was broken. Every one of those reasons now appears on the widget, where the recording
-  would have been. **A missing or rejected key is clickable** and opens Tiro on the settings
-  it needs. *(Windows.)*
 - **The web app no longer swaps a new version in underneath you.** The service worker
   activated as soon as it finished downloading, which could replace the running app in the
   middle of a take, with a socket open and a clipboard write pending — and said nothing
