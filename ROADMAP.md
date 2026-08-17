@@ -34,7 +34,7 @@ the linked spec. Do not start a phase before the one it depends on is green.
 | 3 | Deploy | 1 | Live HTTPS URL, installable on the home screen |
 | 4 | Windows app | 1 | Tray app, global hotkey, auto-paste into any app |
 | 5 | Parity and extras | 2, 4 | Shared history format, packaging, optional native iOS keyboard |
-| 6 | Candidates from competitive feedback | 2, 4 | Dictionary, replacements, Canadian pass, languages — **none started** |
+| 6 | Candidates from competitive feedback | 2, 4 | **Canadian pass built** (6.3); dictionary, replacements and languages not started |
 
 ### Phase 0 — Foundations
 
@@ -277,6 +277,32 @@ write to American house styles for work.
 **Done when:** a browser set to `en-CA` produces Canadian spelling and a correctly formatted
 postal code on a first take with no visit to Settings, and the whole ruleset is visible and
 switchable once you get there.
+
+**Built** (`web/src/canadian.js`), and the acceptance test above is now four cases in
+`scripts/smoke-web.mjs`: `en-CA`, `en-CA` abroad, `en-US` in Toronto, and `en-US` in New York as the
+control. Ninety-eight rules, asserted in `scripts/test-canadian.mjs`, which runs on every push.
+
+Three notes on what was built, since it differs from this section in one place and clarifies it in
+two others:
+
+- **It is not built on 6.2, because 6.2 does not exist yet.** This section says to build the pass
+  as a ruleset on top of the find-and-replace mechanism, and that mechanism is still unstarted. So
+  the pass is its own module with its own list, which is the shape 6.2 would need to generalise
+  rather than a thing 6.2 would have to undo. Nothing here blocks 6.2; when it lands, this list is
+  the first thing that should move into it.
+- **Nothing asks Deepgram for `en-CA`.** The spike this section asks for has not been run, and the
+  pass does not depend on its outcome: it is a local transform over the finished transcript, so it
+  is free, offline-safe, identical on all three clients, and reviewable as a diff.
+- **The ambiguous words are left alone, on purpose,** and Settings says so by name. `check`/`cheque`,
+  `licence`/`license`, `practice`/`practise` and a parking `meter` all need the sentence read to
+  know which was meant, and a spelling pass that guesses turns ordinary English into nonsense.
+  Under-correcting is the right failure. The `-our` group is also not blanket: `humour` takes the u
+  and `humorous` does not, in Canadian and British English alike, and the rule that looks right
+  there was written once before being caught by a test.
+
+What is **not** done from this section: the format side beyond postal codes. Provinces, GST/HST/QST,
+SIN and French place names inside English sentences are all still open, and are a bigger job than
+spelling because each one is a formatting decision rather than a word swap.
 
 #### 6.4 — Language selection, including bilingual
 

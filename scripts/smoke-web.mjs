@@ -313,7 +313,12 @@ const FAKE_SOCKET = () => {
           setTimeout(() => {
             this.onmessage && this.onmessage({ data: JSON.stringify({
               type: "Results", is_final: true,
-              channel: { alternatives: [{ transcript: "hello from the fake mic" }] },
+              channel: { alternatives: [{
+                // Overridable so a scenario can put words in Deepgram's mouth,
+                // which is the only way to test what the app does to a transcript
+                // rather than what Deepgram returns.
+                transcript: window.__fakeTranscript || "hello from the fake mic",
+              }] },
             }) });
             this.onmessage && this.onmessage({ data: JSON.stringify({ type: "Metadata" }) });
           }, 20);
@@ -513,6 +518,104 @@ const FAKE_SOCKET = () => {
     (await page.locator("#history-list").innerText()).includes("hello from the fake mic"));
   check("no page errors during a full take", errors.length === 0, errors.join(" | "));
 
+  await ctx.close();
+}
+
+// ------------------------------------------ Canadian spelling, on by itself
+//
+// ROADMAP.md 6.3's own acceptance test: "a browser set to en-CA produces Canadian
+// spelling and a correctly formatted postal code on a first take with no visit to
+// Settings". The default is the entire feature. Wispr Flow already ships English –
+// Canadian; what it never does is switch it on, so Canadians dictate "colour" and
+// get "color" back. A version of this that needed a trip to Settings would repeat
+// the exact failure it exists to fix, which is why the negative case below matters
+// as much as the positive one.
+for (const trial of [
+  { name: "en-CA", locale: "en-CA", zone: "America/Toronto", canadian: true },
+  { name: "en-US in New York", locale: "en-US", zone: "America/New_York", canadian: false },
+  // Language beats timezone: someone who set en-CA has said so, wherever they are.
+  { name: "en-CA abroad", locale: "en-CA", zone: "Europe/Berlin", canadian: true },
+  // And the far more common case: a machine left on en-US, in Canada.
+  { name: "en-US in Toronto", locale: "en-US", zone: "America/Toronto", canadian: true },
+]) {
+  const ctx = await browser.newContext({
+    permissions: ["microphone"],
+    locale: trial.locale,
+    timezoneId: trial.zone,
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.addInitScript(FAKE_SOCKET);
+  await page.addInitScript(() => {
+    window.__fakeTranscript = "the color of the center at k1a0b1";
+  });
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+
+  const btn = page.locator("#talk");
+  const box = await btn.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);   // a hold, not a tap
+  await page.mouse.up();
+  await page.waitForTimeout(1800);  // tail, then the finals drain
+
+  const got = await page.locator("#result-text").innerText();
+  const want = trial.canadian
+    ? "the colour of the centre at K1A 0B1"
+    : "the color of the center at k1a0b1";
+  check(`${trial.name}: the transcript is ${trial.canadian ? "Canadian" : "left alone"}, with no visit to Settings`,
+    got.trim() === want, `got ${JSON.stringify(got.trim())}`);
+
+  // The box has to agree with what just happened, or the setting is the thing
+  // nobody can find all over again.
+  await page.locator('.tab[data-view="settings"]').click();
+  await page.waitForTimeout(200);
+  check(`${trial.name}: the toggle reflects it`,
+    (await page.locator("#set-canadian").isChecked()) === trial.canadian);
+
+  if (trial.canadian) {
+    // Shown, not asserted: a pass that rewrites your words has to be able to say
+    // exactly what it rewrites.
+    await page.locator(".rules summary").click();
+    await page.waitForTimeout(150);
+    const listed = await page.locator("#canadian-rules li").count();
+    check("the whole ruleset is visible", listed > 50, `${listed} rules listed`);
+    check("and it names what it will not touch",
+      /check\/cheque/.test(await page.locator("#canadian-left-alone").innerText()));
+    check("the disclosure is a 44px target too",
+      (await page.locator(".rules summary").boundingBox()).height >= 44);
+  }
+
+  check(`${trial.name}: no page errors`, errors.length === 0, errors.join(" | "));
+  await ctx.close();
+}
+
+// An explicit choice outranks the device, in both directions. A Canadian writing
+// to an American house style turns it off and it stays off.
+{
+  const ctx = await browser.newContext({
+    permissions: ["microphone"], locale: "en-CA", timezoneId: "America/Toronto",
+  });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    localStorage.setItem("tiro.apiKey", "test-key-not-real");
+    localStorage.setItem("tiro.settings", JSON.stringify({ canadianSpelling: false }));
+  });
+  await page.addInitScript(FAKE_SOCKET);
+  await page.addInitScript(() => { window.__fakeTranscript = "the color of the center"; });
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+  const box = await page.locator("#talk").boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await page.waitForTimeout(1800);
+  check("turning it off on a Canadian device sticks",
+    (await page.locator("#result-text").innerText()).trim() === "the color of the center");
   await ctx.close();
 }
 

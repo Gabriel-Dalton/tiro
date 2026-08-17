@@ -20,28 +20,62 @@ sealed class RecordingPill : Form
     private static readonly Color Paper50 = Color.FromArgb(252, 250, 244);
     private static readonly Color Clay400 = Color.FromArgb(200, 90, 76);
     private static readonly Color Ink300 = Color.FromArgb(180, 171, 150);
+    // The night value of the gilt, not the daylight one. This pill is the only
+    // surface in the product that is dark whatever the system theme says, so it
+    // takes its colours from the dark half of the palette throughout: gilt-500
+    // is mixed to sit on paper and goes muddy on ink. Gold rather than white
+    // because gold is already what "transcribing" looks like everywhere else,
+    // in the tray icon sitting a few hundred pixels away while this is on screen.
+    private static readonly Color Gilt300 = Color.FromArgb(216, 179, 106);
 
     // Design geometry, in logical units against a 44 unit tall pill. Everything
     // drawn is scaled from the form's real height, so one set of numbers holds
     // at 100%, 150% and 200% without a second table.
     private const int BaseHeight = 44;
     private const int Bars = 14;
-    // Content runs X(7..37) dot(43..53) bars(64..134) clock(144..178) check(189..219),
+    // Recording runs X(7..37) dot(43..53) bars(64..134) clock(144..178) check(189..219),
     // so these are the tight widths rather than round numbers. The clock's slot is
     // reserved at its widest ("59:59") even though it is drawn left-aligned: sized
     // to the current text, the check would shuffle sideways every time the clock
     // ticked into a wider digit, and it is a button people hit without looking.
     private const int RecordingWidth = 226;
-    private const int TranscribingWidth = 168;
     private const float DotX = 48;
     private const float BarX = 64;
     private const float ClockX = 144;
 
-    // A message is as wide as it needs to be, between the width of the
-    // transcribing pill and something that still reads as a pill rather than a
-    // bar across the screen. Longer than the maximum gets ellipsised; the full
-    // text is always in the log and in the app.
-    private const int ProblemMinWidth = TranscribingWidth;
+    // Transcribing is X(7..37) strip(52..120), and that is the whole pill. It
+    // used to be the X and the word "Transcribing…", which is 168 units of pill
+    // asking to be read at the one moment the user has already looked away, at
+    // whatever they were dictating into. The strip says the same thing by
+    // moving, and says it in the same shape the voice was just drawn in.
+    private const int TranscribingWidth = 136;
+    private const float SweepBarX = 52;
+
+    // The sweep: one bump of activity crossing the strip, rather than a spinner.
+    // A spinner would be a second vocabulary inside a 44 unit pill that already
+    // has a waveform in it, and it would say "a thing is spinning" where this
+    // says "your take is being read through, left to right".
+    private const double SweepPeriod = 1.15;  // seconds for one crossing
+    private const float SweepFloor = 0.25f;   // the strip at rest: a track, not a dotted line
+    private const float SweepPeak = 0.85f;    // short of a shouted word, deliberately
+    private const float SweepSigma = 0.28f;   // bump half width, in strip widths
+    private const float SweepEase = 0.32f;    // per frame, so the last word falls into it
+
+    // The floor and the width were picked against the three narrower variants
+    // rather than by taste: at the floor the recording strip uses (0.08, which
+    // clamps to the 3 unit minimum) the resting bars are dots, and dots are
+    // already what silence looks like while recording. Two states that differ
+    // only in colour is exactly what the interface rules forbid. At 0.25 the
+    // strip is a low continuous track that the swell rises out of, which reads
+    // as one object doing something rather than fourteen that are mostly off.
+
+    // A message is as wide as it needs to be, between something that still reads
+    // as a sentence and something that still reads as a pill rather than a bar
+    // across the screen. Longer than the maximum gets ellipsised; the full text
+    // is always in the log and in the app. This was the transcribing width until
+    // that pill lost its text and shrank to an indicator; a message is text, so
+    // it keeps the floor that was measured for text.
+    private const int ProblemMinWidth = 168;
     private const int ProblemMaxWidth = 460;
     private const float ProblemTextX = 44;   // clear of the X at 7..37
     private const float ProblemPadRight = 16;
@@ -95,11 +129,18 @@ sealed class RecordingPill : Form
 
         _timer.Tick += (_, _) =>
         {
-            if (_mode != "recording") return;
-            // Shift one bar in per tick, so the strip is a 700 ms window of your
-            // voice scrolling leftward rather than 14 copies of the same number.
-            Array.Copy(_bars, 1, _bars, 0, Bars - 1);
-            _bars[Bars - 1] = Math.Clamp(_level, 0.08f, 1f);
+            if (_mode == "recording")
+            {
+                // Shift one bar in per tick, so the strip is a 700 ms window of your
+                // voice scrolling leftward rather than 14 copies of the same number.
+                Array.Copy(_bars, 1, _bars, 0, Bars - 1);
+                _bars[Bars - 1] = Math.Clamp(_level, 0.08f, 1f);
+            }
+            else if (_mode == "transcribing")
+            {
+                StepSweep();
+            }
+            else return;
             Invalidate();
         };
 
@@ -177,6 +218,17 @@ sealed class RecordingPill : Form
         _dismiss.Stop();
         _mode = state;
         _hot = -1;
+        // The pill draws itself, so its only accessible text is the window's own
+        // name, and transcribing no longer has a word in it to fall back on.
+        // Nothing else on the desktop carries the state either: the tray icon
+        // says it in colour, and the app's own window is hidden by definition
+        // whenever the hotkey is what is being used.
+        AccessibleName = state switch
+        {
+            "recording" => "Tiro, recording",
+            "transcribing" => "Tiro, transcribing",
+            _ => "Tiro",
+        };
         if (state == "recording")
         {
             _elapsed.Restart();
@@ -189,8 +241,15 @@ sealed class RecordingPill : Form
         }
         else if (state == "transcribing")
         {
-            _timer.Stop();
+            // The bars are deliberately left where the take left them: the sweep
+            // eases into position from whatever you last said, so the strip
+            // settles into working rather than cutting to a different picture.
+            // Restarting the clock is what puts the first bump at the left edge;
+            // it is the sweep's phase now, and the take's length is not
+            // interesting to anybody once the audio has gone.
+            _elapsed.Restart();
             ApplySize(TranscribingWidth);
+            _timer.Start();
             Place();
             Show();
             Invalidate();
@@ -212,6 +271,7 @@ sealed class RecordingPill : Form
         _message = text;
         _openable = openable;
         _hot = -1;
+        AccessibleName = "Tiro: " + text;
         ApplySize(MeasureProblemWidth(text));
         Place();
         Show();
@@ -285,16 +345,12 @@ sealed class RecordingPill : Form
 
         if (_mode == "transcribing")
         {
-            // No clock and no waveform: nothing is being captured any more. The
-            // X stays, because the transcript can still be thrown away.
+            // No clock, no dot and no check: nothing is being captured, so there
+            // is no elapsed time worth reading and nothing left to confirm. The
+            // X stays, because the transcript can still be thrown away, and that
+            // is the one thing you might still want from this pill.
             DrawCancel(g, CancelRect());
-            using var font = new Font("Segoe UI", 10.5f * s, GraphicsUnit.Pixel);
-            using var brush = new SolidBrush(Paper50);
-            var text = "Transcribing…";
-            var size = g.MeasureString(text, font);
-            // Centred in the space right of the X rather than in the whole pill,
-            // or it reads as shoved right by exactly the width of the button.
-            g.DrawString(text, font, brush, (Width - size.Width) / 2f + 15 * s, (Height - size.Height) / 2f);
+            DrawBars(g, SweepBarX * s, Gilt300, sweep: true);
             return;
         }
 
@@ -315,22 +371,7 @@ sealed class RecordingPill : Form
             g.FillEllipse(dot, dotX - dotR, Height / 2f - dotR, dotR * 2, dotR * 2);
         }
 
-        var barX = BarX * s;
-        var barW = 2.5f * s;
-        var barPitch = 5f * s;
-        var barMax = 20 * s;
-        for (int i = 0; i < Bars; i++)
-        {
-            var l = _bars[i];
-            var h = Math.Max(3 * s, barMax * l);
-            // Louder bars are brighter, so a loud passage reads at a glance even
-            // if the height difference is small at this size.
-            var alpha = l > 0.55f ? 255 : l > 0.25f ? 190 : 115;
-            using var brush = new SolidBrush(Color.FromArgb(alpha, Paper50));
-            var rect = new RectangleF(barX + i * barPitch, (Height - h) / 2f, barW, h);
-            using var path = Rounded(rect, barW / 2f);
-            g.FillPath(brush, path);
-        }
+        DrawBars(g, BarX * s, Paper50, sweep: false);
 
         var t = (int)_elapsed.Elapsed.TotalSeconds;
         using (var font = new Font("Consolas", 11.5f * s, GraphicsUnit.Pixel))
@@ -342,6 +383,61 @@ sealed class RecordingPill : Form
         }
 
         DrawStop(g, StopRect());
+    }
+
+    /// <summary>One frame of the transcribing sweep. Eased toward the target
+    /// rather than assigned, which is what carries the last thing you said into
+    /// the animation instead of cutting to it.</summary>
+    private void StepSweep()
+    {
+        var phase = (float)(_elapsed.Elapsed.TotalSeconds % SweepPeriod / SweepPeriod);
+        // The head enters left of the first bar and leaves right of the last, so
+        // the bump arrives and departs at the edges rather than wrapping from the
+        // middle of the strip, which would be a jump every 1.15 s and would read
+        // as a stutter rather than as work being done.
+        //
+        // It is not a full fade, and the numbers are worth having here rather than
+        // being rediscovered: 0.18 of margin against a 0.28 sigma puts the leading
+        // bar at alpha 199 of 255 the instant it enters, so it appears at about
+        // three quarters brightness. Widening the margin past the sigma would fade
+        // it properly, at the cost of a longer dead stretch at each end. Only one
+        // 50 ms frame per crossing has both ends lit at once, which is why this
+        // does not read as two bumps.
+        var head = -0.18f + phase * 1.36f;
+        for (int i = 0; i < Bars; i++)
+        {
+            var d = (i / (float)(Bars - 1) - head) / SweepSigma;
+            var target = SweepFloor + (SweepPeak - SweepFloor) * (float)Math.Exp(-d * d);
+            _bars[i] += (target - _bars[i]) * SweepEase;
+        }
+    }
+
+    /// <summary>The bar strip, drawn from whatever is currently in `_bars`: the
+    /// last 700 ms of your voice while recording, the sweep while transcribing.
+    /// One routine for both, so the two states cannot drift into two waveforms
+    /// that look like they came from different apps.</summary>
+    private void DrawBars(Graphics g, float x0, Color tint, bool sweep)
+    {
+        var s = Scale;
+        var barW = 2.5f * s;
+        var barPitch = 5f * s;
+        var barMax = 20 * s;
+        for (int i = 0; i < Bars; i++)
+        {
+            var l = _bars[i];
+            var h = Math.Max(3 * s, barMax * l);
+            // Louder bars are brighter, so a loud passage reads at a glance even
+            // if the height difference is small at this size. The sweep gets the
+            // same treatment on a continuous ramp, which is what makes the bump
+            // read as a moving highlight rather than a bulge in a flat line.
+            var alpha = sweep
+                ? (int)(90 + 165 * Math.Clamp((l - SweepFloor) / (SweepPeak - SweepFloor), 0f, 1f))
+                : l > 0.55f ? 255 : l > 0.25f ? 190 : 115;
+            using var brush = new SolidBrush(Color.FromArgb(alpha, tint));
+            var rect = new RectangleF(x0 + i * barPitch, (Height - h) / 2f, barW, h);
+            using var path = Rounded(rect, barW / 2f);
+            g.FillPath(brush, path);
+        }
     }
 
     private void DrawCancel(Graphics g, RectangleF r)

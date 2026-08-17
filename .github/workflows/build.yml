@@ -156,6 +156,15 @@ jobs:
       - name: Test the release logic
         run: node scripts/test-changes.mjs
 
+      # The Canadian pass rewrites what somebody said, so every rule in it is a
+      # chance to turn their sentence into a different sentence. Text in, text out,
+      # no browser needed, so it runs here rather than in the Playwright suite:
+      # cheap enough to gate every push. The tests that matter most are the
+      # negative ones — check/cheque, licence, a parking meter, and the -ize
+      # endings Canadian shares with American.
+      - name: Test the Canadian English pass
+        run: node scripts/test-canadian.mjs
+
   # Turns the pending impact notes into a release, on main, in this run.
   #
   # It has to happen here rather than in a workflow of its own, because a push made
