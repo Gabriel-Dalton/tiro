@@ -613,6 +613,66 @@ const FAKE_SOCKET = () => {
   await ctx.close();
 }
 
+// ------------------------------------- a hotkey press the shell had to refuse
+//
+// The regression this exists for: every reason a take cannot start was reported
+// with notice(), which writes into a window the shell keeps hidden. Pressing the
+// hotkey with no key configured produced no pill, no message and no state
+// change, so from the keyboard it was identical to the hook being dead. The host
+// has to be told, or it has nothing to draw.
+{
+  const ctx = await browser.newContext({ permissions: ["microphone"] });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.addInitScript(() => {
+    // No tiro.apiKey, and a host that answers getKey with nothing: a fresh
+    // Windows install before anyone has been to Settings.
+    window.__sent = [];
+    window.requestAnimationFrame = () => 0;
+    window.chrome = {
+      webview: {
+        addEventListener: (type, fn) => { if (type === "message") window.__hostSend = (m) => fn({ data: m }); },
+        postMessage: (m) => {
+          window.__sent.push(m);
+          if (m.type === "getKey") queueMicrotask(() => window.__hostSend({ type: "key", value: "" }));
+        },
+      },
+    };
+  });
+  await page.addInitScript(FAKE_SOCKET);
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(400);
+
+  await page.evaluate(() => { window.__sent.length = 0; window.__hostSend({ type: "hotkey", phase: "down" }); });
+  await page.evaluate(() => window.__hostSend({ type: "hotkey", phase: "up" }));
+  await page.waitForTimeout(400);
+
+  const problems = await page.evaluate(() => window.__sent.filter((m) => m.type === "problem"));
+  check("a keyless press tells the host why nothing happened",
+    problems.length === 1, `${problems.length} problem messages`);
+  check("and says what to do about it",
+    problems.length === 1 && /deepgram key/i.test(problems[0].text),
+    problems.map((p) => p.text).join(" | "));
+  // The distinction the pill draws on: a missing key is fixable in the app, so
+  // the message is clickable. Nothing else here is.
+  check("a missing key is marked as worth opening the app for",
+    problems.length === 1 && problems[0].open === true);
+  // It must not look like a take happened. A state message would show the pill
+  // as though something were recording.
+  check("a refused press sends no state at all",
+    await page.evaluate(() => !window.__sent.some((m) => m.type === "state")));
+  check("and hands the host nothing to paste",
+    await page.evaluate(() => !window.__sent.some((m) => m.type === "transcript")));
+  // The window is hidden, but it is what opens when the pill is clicked, so it
+  // has to already be on the view that fixes the problem.
+  check("the app is waiting on Settings for when it is opened",
+    await page.evaluate(() => document.getElementById("view-settings").classList.contains("active")));
+  check("no page errors on the refused path", errors.length === 0, errors.join(" | "));
+
+  await ctx.close();
+}
+
 // ----------------------------------------- releasing before the mic is ready
 {
   const ctx = await browser.newContext({ permissions: ["microphone"] });

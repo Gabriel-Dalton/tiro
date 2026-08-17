@@ -143,6 +143,82 @@ jobs:
       - name: Fail on AI attribution in commits or files
         run: node scripts/check-attribution.mjs
 
+      # Releases are cut from the notes in .changes/ with no human checkpoint, so a
+      # change that arrives without one would ship to everybody having never been
+      # classified by anyone. This is the only place that is caught.
+      - name: Fail when a change says nothing about what a user would notice
+        run: node scripts/check-changes.mjs
+
+      # The arithmetic the release rests on, asserted on its own: the bump that wins
+      # when notes disagree, and the version that comes next. 1.9.0 -> 1.10.0 is the
+      # case worth a test, because getting it wrong is silent — versions keep being
+      # cut, and nobody is ever told about an update again.
+      - name: Test the release logic
+        run: node scripts/test-changes.mjs
+
+  # Turns the pending impact notes into a release, on main, in this run.
+  #
+  # It has to happen here rather than in a workflow of its own, because a push made
+  # with GITHUB_TOKEN does not trigger another workflow run. A job that pushed a tag
+  # and trusted the `on: push: tags` trigger above to build it would cut versions that
+  # never published anything, and would look like it was working: the tag appears, the
+  # commit lands, and only the release is missing. So the tag is created here and the
+  # jobs below build the commit it points at, all in one run.
+  #
+  # No `if:` on the job, deliberately. A skipped job skips everything that needs it, so
+  # gating here would mean no branch ever built Windows or macOS again. It runs
+  # everywhere and returns immediately when there is nothing to do.
+  cut:
+    needs: [generated]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.cut.outputs.version }}
+      sha: ${{ steps.cut.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.2"
+
+      - name: Cut a release if any notes are pending
+        id: cut
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Not main, so nothing is cut here. Pending notes:"
+            node scripts/check-changes.mjs
+            exit 0
+          fi
+          # next-version.mjs exits 1 when the notes add up to no release, which is the
+          # ordinary case for most merges — a docs change, a test, a refactor.
+          if ! next=$(node scripts/next-version.mjs); then
+            echo "No impact notes pending, so this merge releases nothing."
+            exit 0
+          fi
+          node scripts/cut-release.mjs
+
+          # The bot is the honest author: nobody wrote this commit, a script assembled
+          # it from notes people wrote in their own pull requests.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          # Separate -m flags rather than one string with newlines in it: a YAML block
+          # scalar would carry this file's indentation into the commit body.
+          git commit \
+            -m "Release ${next}" \
+            -m "Assembled by scripts/cut-release.mjs from the impact notes merged since the last release. Each note is in the commit that added it, with the reasoning for its bump."
+          git tag "v${next}"
+          git push origin HEAD:main
+          git push origin "v${next}"
+
+          echo "version=v${next}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Cut v${next}"
+
   # The web core is the product on the phone and the whole UI inside the Windows
   # app, so it gets a real browser rather than a linter. Fast, and it gates
   # nothing: a red smoke test should not stop you shipping the Mac build.
@@ -179,7 +255,11 @@ jobs:
       - name: Smoke-test the PWA in Chromium
         run: node scripts/smoke-web.mjs
 
+  # `needs: cut` so that when a release is cut in this run, the apps are built from the
+  # commit that carries the new version rather than from the one that was pushed. Without
+  # it the ZIPs would report the previous version while the tag claimed the new one.
   windows:
+    needs: [cut]
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -204,6 +284,10 @@ jobs:
       SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # empty on every build that is not cutting a release, which checks out the ref
+          # that was pushed, exactly as before
+          ref: ${{ needs.cut.outputs.sha }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -308,9 +392,12 @@ jobs:
           path: ${{ matrix.asset }}.zip
 
   macos:
+    needs: [cut]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.cut.outputs.sha }}
 
       - name: Build Tiro.app
         run: ./make-app.sh
@@ -336,8 +423,9 @@ jobs:
   release:
     # `generated` gates the release rather than the builds: a stale stamp or palette
     # should stop a release going out, but not a branch build being tested.
-    needs: [generated, windows, macos]
+    needs: [generated, cut, windows, macos]
     if: >
+      needs.cut.outputs.version != '' ||
       startsWith(github.ref, 'refs/tags/v') ||
       startsWith(github.ref, 'refs/heads/release/') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
@@ -345,6 +433,10 @@ jobs:
     steps:
       # checkout first: it cleans the workspace, which would take the artifacts with it
       - uses: actions/checkout@v4
+        with:
+          # the release commit when this run cut one, so VERSION and CHANGELOG.md are the
+          # ones being published rather than the ones that were pushed
+          ref: ${{ needs.cut.outputs.sha }}
 
       # for scripts/gen-winget.mjs below
       - uses: actions/setup-node@v4
@@ -362,12 +454,15 @@ jobs:
       - name: Resolve version
         id: v
         env:
+          CUT_VERSION: ${{ needs.cut.outputs.version }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
           REF_NAME: ${{ github.ref_name }}
           REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [ -n "${INPUT_VERSION}" ]; then
+          if [ -n "${CUT_VERSION}" ]; then
+            version="${CUT_VERSION}"        # cut from impact notes earlier in this run
+          elif [ -n "${INPUT_VERSION}" ]; then
             version="${INPUT_VERSION}"
           elif [ "${REF#refs/heads/release/}" != "${REF}" ]; then
             version="${REF_NAME#release/}"   # release/v1.0.0 -> v1.0.0

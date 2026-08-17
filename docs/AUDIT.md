@@ -13,7 +13,16 @@
 > **Since then**, the interface rebuild in #20 has resolved **PWA-08** in full, and added
 > **PWA-13**, which is new and cosmetic. The desktop-pill branch resolves **WIN-05** and adds
 > **PWA-14**, which is new, pre-dates this audit, and was missed by it. **PWA-09** is now
-> resolved: the badge it was about is gone, and the Copy button reports only success.
+> resolved: the badge it was about is gone, and the Copy button answers a press instead, so
+> there is no state left to queue off the transcript promise and none to flash.
+>
+> **The taskbar branch** adds the `problem` bridge message and the pill's message mode, which
+> closes a gap this audit walked past: every refusal in `pressStart` reported itself only
+> through `notice()`, and in the shell that window is hidden, so a refused hotkey press was
+> silent on every surface at once. Worth recording as a pattern rather than a finding — the
+> audit read each client for what it did wrong, and this was neither client being wrong on
+> its own, only the seam between them dropping something on the floor. A second pass should
+> read the bridge as its own surface. It is now covered in `scripts/smoke-web.mjs`.
 
 A read of every source file in the three clients: the macOS Swift app (`Sources/`), the
 Windows WebView2 shell (`windows/`), and the PWA (`web/`), plus the shared build scripts

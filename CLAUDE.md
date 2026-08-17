@@ -91,25 +91,45 @@ deliberate. Fix the pattern in the script; do not remove the check.
 
 ## Versioning
 
-`VERSION` at the repository root is the single source, and it is bumped **by hand**.
-Nothing infers it from tags, and nothing bumps it for you.
+**Do not edit `VERSION`, and do not write a `CHANGELOG.md` section by hand.** Both are
+generated when a release is cut. Editing them yourself puts the repository one release
+ahead of itself and the next cut will collide with what you wrote.
 
-To release 1.2.0: edit `VERSION`, run `node scripts/gen-version.mjs`, **add the matching
-section to [`CHANGELOG.md`](CHANGELOG.md)**, commit what changed, then **date that section**
-and push the tag `v1.2.0` (or a `release/v1.2.0` branch, or run the workflow manually).
+What you do instead, in the pull request that makes the change, is add one file:
 
-A section written before the release is headed `## [1.2.0] — unreleased`, which is correct
-while it is being prepared and wrong the moment it ships. The release job refuses a tag whose
-section still says so; ordinary pushes do not, because in preparation is exactly what that
-heading means.
+```markdown
+.changes/what-you-did.md
 
-The changelog is not optional paperwork: `scripts/release-notes.mjs` turns that section into
-the body of the GitHub release, so it is what users read on the download page. Every push
-fails if `VERSION` has no section, rather than only failing at release time, when whoever
-knew what changed has moved on. Write it for someone deciding whether to update — what is
-new, what was **broken**, and which of the three apps it affects.
+---
+bump: minor
+platforms: web, windows
+---
+What a user would notice, written for someone deciding whether to update.
+```
 
-Two CI checks guard it, in opposite directions, and both exist because of a real failure:
+That is the whole of it. Merging to `main` with notes pending cuts the release: the
+version, the changelog section, the tag, the notes on the download page and the three
+downloads all follow from the notes, in one workflow run, with **no further review**.
+
+Which is the point and also the risk, so it is worth being plain about: **the review of
+your pull request is the release review.** Nobody is going to look again between your
+note and every user on every platform being interrupted, or deliberately not. The full
+rule for choosing a bump is in [`.changes/README.md`](.changes/README.md) and the
+summary is below.
+
+`node scripts/check-changes.mjs` validates the notes and tells you what they add up to;
+`node scripts/cut-release.mjs --dry-run` prints the exact changelog section a merge would
+produce, writing nothing. Run the second one if you are unsure whether your note reads
+like something worth reading.
+
+CI fails a branch that changes `web/`, `windows/` or `Sources/` without a note. That is
+deliberate and there is no way around it other than writing one, including `bump: none`
+for a change nobody could notice — an explicit "nothing here" beats a default, because
+both possible defaults are wrong. Assume `patch` and features ship silently; assume
+`minor` and typo fixes interrupt everyone.
+
+Two CI checks still guard the number itself, in opposite directions, and both exist
+because of a real failure:
 
 - The `release` job refuses to publish a tag that disagrees with `VERSION`, so a download
   can never misreport itself.
@@ -118,46 +138,56 @@ Two CI checks guard it, in opposite directions, and both exist because of a real
   so the download page advertised a version one patch behind itself and nothing complained.
   The release check could not catch it, because it only fires while a release is being cut.
 
-So `VERSION` may equal the latest release, or run ahead of it while the next one is being
-prepared. It may never trail it.
+Both are now belt and braces rather than the primary defence: cutting the release and
+writing `VERSION` are the same step, so they cannot disagree in the first place. They stay
+because the manual routes still exist — a tag, a `release/` branch, or the workflow run by
+hand — and those are exactly the paths taken at three in the morning when something has
+gone wrong.
 
-### Which digit to bump, and why it is not a formality
+`VERSION` equals the latest release now, rather than running ahead of it. The window where
+it could sit ahead was where the site advertised a version nobody could download, and it
+was closed by cutting the release in the same run that writes the number.
+
+### Which bump to choose, and why it is not a formality
 
 **The number you choose decides who gets interrupted.** Both apps read it and compare, and
 they interrupt for a minor or major bump and stay quiet for a patch (`updateWorth` in
 `web/src/app.js`, `Classify` in `windows/Tiro.Windows/UpdateCheck.cs`). So getting this wrong
 has two failure modes, and they are not symmetrical:
 
-- Bump the **patch** digit for a release that added something, and nobody is told. They keep
+- Write `bump: patch` for a change that added something, and nobody is told. They keep
   using the old one and never learn the thing they wanted exists.
-- Bump the **minor** for a typo fix, and every user on every platform is interrupted to be
+- Write `bump: minor` for a typo fix, and every user on every platform is interrupted to be
   told about a typo. Do that twice and they stop reading update prompts, which costs you the
   next release that mattered.
 
 Decide by asking **what a user would notice**, not by how large the diff is:
 
-| Bump | When | From this repository's own history |
+| `bump` | When | From this repository's own history |
 |---|---|---|
-| **major** `2.0.0` | Something people rely on is gone or works differently. History or the key needs migrating. Nothing yet has earned this. | — |
-| **minor** `1.3.0` | Anything a user would notice on purpose: a feature, a new control, a visible interface change, a new platform, a fix to something that was **visibly broken for everyone** | the interface rebuild (1.1.0); update notifications (1.2.0) |
-| **patch** `1.2.1` | They would never notice unless they had hit the bug: a crash on one device, a wrong number in a tooltip, a fix in a code path most people never reach | the stuck-first-press and iOS zoom fixes, had they shipped alone |
-| **no bump** | Nothing in `web/`, `windows/` or `Sources/` changed. Documentation, the landing page, CI, the roadmap. | the API key guide, the competitive analysis |
+| `major` | Something people rely on is gone or works differently. History or the key needs migrating. Nothing yet has earned this. | — |
+| `minor` | Anything a user would notice on purpose: a feature, a new control, a visible interface change, a new platform, a fix to something that was **visibly broken for everyone** | the interface rebuild (1.1.0); update notifications (1.2.0) |
+| `patch` | They would never notice unless they had hit the bug: a crash on one device, a wrong number in a tooltip, a fix in a code path most people never reach | the stuck-first-press and iOS zoom fixes, had they shipped alone |
+| `none` | Nothing a user could notice: tests, comments, an internal rename. Documentation, the landing page, CI and the roadmap need no note at all. | the API key guide, the competitive analysis |
 
 Two rules that resolve most of the hard cases:
 
-- **A fix everyone must see is a minor bump**, not a patch, and the changelog says why in its
-  first line. There is no severity flag and no "critical" switch — deliberately, because one
-  more lever is one more thing to get wrong. If a fix genuinely needs to reach every user
-  today, the honest way to say so is to release it as something they are told about.
-- **A release with nothing user-visible in it does not need a version at all.** The website
-  redeploys on every push to `main` regardless, and the web app handles that silently: a
-  worker whose version has not moved produces no banner. Bumping `VERSION` for a docs change
-  is how you end up interrupting people over a docs change.
+- **A fix everyone must see is `minor`**, not `patch`, and the note says why in its first
+  line. There is no severity flag and no "critical" switch — deliberately, because one more
+  lever is one more thing to get wrong. If a fix genuinely needs to reach every user today,
+  the honest way to say so is to release it as something they are told about. Write
+  `kind: fixed` alongside it so the changelog files it under Fixed rather than Added; that
+  field is presentational and changes nothing about who is interrupted.
+- **A release with nothing user-visible in it does not happen.** Notes that are all `none`
+  cut no version, so the workflow does nothing. The website redeploys on every push to `main`
+  regardless, and the web app handles that silently: a worker whose version has not moved
+  produces no banner.
 
-When you genuinely cannot decide between minor and patch, **write the changelog entry first**.
-If the entry reads like something worth reading, it is a minor. If it reads like housekeeping,
-it is a patch. That is the same question the user is being asked when the banner appears, so
-answering it in the changelog first keeps the two consistent.
+When you genuinely cannot decide between `minor` and `patch`, **write the note's body first**.
+If it reads like something worth reading, it is a minor. If it reads like housekeeping, it is
+a patch. That is the same question the user is being asked when the banner appears, so
+answering it in the note first keeps the two consistent — and since the body *is* the release
+note, there is no second draft in which the two could drift apart.
 
 The whole policy, including what each platform does with the answer, is in
 [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md) §4.3 and in the README's "Staying up to date".
@@ -165,6 +195,7 @@ The whole policy, including what each platform does with the answer, is in
 ## Tests
 
 ```bash
+node scripts/test-changes.mjs  # the release arithmetic, no dependencies
 node scripts/smoke-web.mjs     # needs: npm i -D playwright && npx playwright install chromium
 ```
 
