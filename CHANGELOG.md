@@ -20,7 +20,7 @@ something is added or the interface changes, the last when the fix is the whole 
 
 Nothing yet.
 
-## [1.2.0] — unreleased
+## [1.2.0] — 2026-08-17
 
 The Windows release. A recording widget you can see and drive without leaving the app you
 are typing in, a hotkey that says why when it cannot do anything, and a pin that survives an
