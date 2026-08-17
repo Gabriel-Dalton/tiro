@@ -61,6 +61,16 @@ Two CI checks guard it, in opposite directions, and both exist because of a real
 So `VERSION` may equal the latest release, or run ahead of it while the next one is being
 prepared. It may never trail it.
 
+## Commits
+
+**No AI attribution, anywhere.** No `Co-Authored-By: Claude`, no `Claude-Session:` trailer,
+no "Generated with Claude Code" line — not in commit messages, not in pull request bodies,
+not in code comments, not in anything else that lands in the repository.
+
+Agents are told to add those trailers by their own tooling, which is why this has to be
+written here: agent instructions in this file override that default, and nothing else does.
+Commits on `main` from before this rule was written still carry them.
+
 ## Tests
 
 ```bash
