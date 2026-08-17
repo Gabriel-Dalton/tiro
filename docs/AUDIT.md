@@ -25,6 +25,15 @@
 > read the bridge as its own surface. The same branch's follow-up resolves **WIN-01**, the one
 > Critical on the Windows side, so the count in the table below is one high. It is now covered in `scripts/smoke-web.mjs`.
 
+> **Five findings added by running it.** The Windows app was reviewed and approved without ever
+> being executed; the first hands-on session on a real machine found that the single EXE did not
+> start at all (`WebView2Loader.dll` is a Content item, which `PublishSingleFile` leaves loose)
+> and that the Start Menu shortcut writer had never written a shortcut in two shipped releases
+> (`InitPropVariantFromString` is not an export of anything). Both are fixed rather than filed.
+> What is filed is what running it turned up next to those: **WIN-09**, **WIN-10**, **WIN-11**,
+> **PWA-15** and **PWA-16**. Reading found 27 things; pressing the buttons found five more in an
+> evening, which is the argument for doing it in that order rather than this one.
+
 A read of every source file in the three clients: the macOS Swift app (`Sources/`), the
 Windows WebView2 shell (`windows/`), and the PWA (`web/`), plus the shared build scripts
 and CI. 26 findings from that pass, none of them cosmetic-only. PWA-13 was added afterwards
@@ -36,10 +45,10 @@ here, it says so rather than asserting.
 
 | | Critical | High | Medium | Low | Total |
 |---|---|---|---|---|---|
-| **PWA** (`web/`) | 2 | 2 | 4 | 5 | 13 |
-| **Windows** (`windows/`) | 1 | 2 | 3 | 2 | 8 |
+| **PWA** (`web/`) | 2 | 3 | 5 | 5 | 15 |
+| **Windows** (`windows/`) | 1 | 3 | 4 | 3 | 11 |
 | **macOS** (`Sources/`) | — | 1 | 2 | 3 | 6 |
-| **Total** | **3** | **5** | **9** | **10** | **27** |
+| **Total** | **3** | **7** | **11** | **11** | **32** |
 
 The macOS app is in the best shape of the three, which matches expectations — it is
 upstream's, and it has had real use. Its one serious finding is a stale pricing constant
@@ -328,6 +337,34 @@ the transcript still arrives and still looks like a sentence.
 
 ---
 
+### PWA-15 · High · A take whose socket never opens leaves the microphone open, warm mic or not
+
+**`web/src/app.js:377-397`**
+
+The socket-failure path detaches the engine and aborts the socket, but never calls
+`engine.stop()`. Its two siblings do: `cancelTake` at `:499` and `finishTake` at `:506`. So
+this is a straight omission rather than a tradeoff, and unlike WIN-09 it holds the microphone
+open even for someone who turned the warm mic off.
+
+Measured: three takes with the socket refused, the track live throughout. The path someone
+reaches this on is a captive portal or a dead key, which is also where they are most likely to
+press repeatedly.
+
+---
+
+### PWA-16 · Medium · A press dropped by a guard says nothing, and `starting` can stick forever
+
+**`web/src/app.js:301-304`, `web/src/app.js:320-329`, `web/src/app.js:364`**
+
+`pressStart` returns early while a previous start is in flight, with no `refuseTake`, so there
+is no pill, no state change and no log line: on Windows the press is silent on every surface at
+once, which is the seam PWA-08's sibling was about. Worse, `starting` is cleared only when
+`engine.start()` resolves or rejects, so a `getUserMedia` that never settles — a real Windows
+condition when another application is holding the device, and this machine has one installed —
+wedges the app permanently. Measured: three presses, zero output of any kind.
+
+---
+
 ## Windows — `windows/`
 
 ### WIN-01 · Critical · Right Alt is AltGr, and we swallow it unconditionally
@@ -491,6 +528,69 @@ handler is already careful about the JSON parse and then stops being careful.
 `_outbox` grows without limit if the web core never signals ready (which is exactly what
 happens when the WebView2 runtime is missing). `_stateIcons` and `_mainForm` are never
 disposed in `Quit()`, though process exit covers it in practice.
+
+---
+
+### WIN-09 · Medium · The warm mic never lets go, and on Windows that reads as the app holding your microphone
+
+**`web/src/settings.js:13`, `web/src/app.js:499`, `web/src/app.js:506`**
+
+`micWarm` defaults to true, and `engine.stop()` — the only code that calls `track.stop()`
+(`web/src/audio.js:113-130`) — is reached only through the `!micWarm` branch of `finishTake`
+and `cancelTake`. There is no idle timeout. So the stream opened by the first press stays
+`live` for the life of the process: through the take, after the paste, and across every later
+press.
+
+Measured by driving the real web core through the bridge exactly as the hook does, counting
+`MediaStreamTrack.readyState`: warm mic on, one track live and still live after two full
+takes; warm mic off, the track is released. So the hold/tap machine is correct and this is the
+documented pre-roll tradeoff working as designed.
+
+It is a finding anyway, because of where it lands. On the PWA the tab's microphone indicator
+is next to the app you deliberately opened. In the shell the only signal is the microphone icon
+in the notification area, staying lit long after the transcript pasted, attached to an app whose
+window is hidden by design — and the one place the behaviour is explained is a hint inside a
+Settings card (`web/index.html:322-329`) in that same hidden window. Reported by the user as
+"it doesn't stop using the microphone when it should", which is exactly what it looks like.
+
+The fix is a judgement call rather than a correction: an idle timer that releases the mic if
+the state is still `idle` some seconds after a take keeps pre-roll for consecutive dictation
+and costs it after a pause. Defaulting `micWarm` to false when `bridge.isShell` is smaller and
+costs pre-roll on every first press. Neither is obviously right; the number is not in any spec.
+
+---
+
+### WIN-10 · High · The install prompt can end up invisible with the app wedged behind it
+
+**`windows/Tiro.Windows/Setup.cs:189-201`, `windows/Tiro.Windows/Program.cs`**
+
+`Setup.Ask` shows a `TaskDialog` before `Application.Run` has started, from a process that has
+no window yet and is not necessarily the foreground application. Observed repeatedly during
+hands-on QA: the dialog is dismissed, the window becomes invisible, and `TaskDialog.ShowDialog`
+never returns. The result is a live process with an invisible modal dialog, no log line, no
+tray icon, and about 50 MB of mapped image, that will sit there until it is killed. Confirmed
+by Win32 enumeration: `class=#32770 visible=False title='Tiro'`, and by the named kernel
+objects, none of which exist, so the process never reached the single-instance mutex.
+
+**Not yet attributed.** Every occurrence was under automation that was moving the foreground
+window around, and the same code installed cleanly when the dialog genuinely had the
+foreground. So this may be an artefact of driving it from a script. It needs one human check:
+run a downloaded copy, click on another window while the prompt is up, then answer it, and see
+whether the app starts or disappears. If it reproduces it is High, because the prompt appears
+unprompted on first run and clicking away from it is the most ordinary thing a person could do.
+
+---
+
+### WIN-11 · Low · There is no way to install without a person clicking
+
+**`windows/Tiro.Windows/Program.cs`, `windows/Tiro.Windows/Setup.cs:133`**
+
+`--uninstall` and `--uninstall --quiet` both exist, and removal is scriptable. Installing is
+not: the only route is `Setup.MaybeInstall` and its dialog. So the install path cannot be
+exercised by CI or by the self-test, cannot be scripted for a deployment, and the QA that found
+WIN-10 had to drive a dialog with synthetic mouse and keyboard events to get at it. An
+`--install --quiet` that does what "Install Tiro" does would make the most consequential path
+in `Setup.cs` testable, and it is the same code either way.
 
 ---
 
