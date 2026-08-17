@@ -2,7 +2,7 @@
 // a browser (PWA) and inside the Windows WebView2 shell; src/bridge.js is the
 // only seam between the two.
 
-import { TAP_THRESHOLD_MS, TAIL_SEC, STREAMING_PER_MIN, COMPETITORS } from "./tokens.js";
+import { TAP_THRESHOLD_MS, TAIL_SEC, STREAMING_PER_MIN, COMPETITORS, MIC_IDLE_RELEASE_MS } from "./tokens.js";
 import { AudioEngine, int16ToWav } from "./audio.js";
 import { DeepgramStream, testKey } from "./deepgram.js";
 import * as history from "./history.js";
@@ -46,6 +46,50 @@ const engine = new AudioEngine();
 engine.onDeviceChange = () => notice("Mic changed, reconnected", "warn");
 
 // ---------------------------------------------------------------- ui helpers
+
+// Letting go of the microphone once a take is over.
+//
+// The warm mic keeps the stream open so pre-roll can catch words spoken before
+// the key goes down, and the cost of that used to be described as the recording
+// indicator and some battery. On Windows the real cost is louder than either:
+// while anything holds a capture stream, Windows keeps a Bluetooth headset in
+// its hands-free profile rather than A2DP, so every other sound on the machine
+// drops to phone-call quality. Dictate one sentence, go back to a video, and the
+// video sounds broken until Tiro is quit. Reported from use, not from reading.
+//
+// So the mic is always released eventually, warm or not. Warm now means "hold it
+// long enough that dictating two sentences in a row still gets pre-roll", which
+// is when pre-roll is worth anything, rather than "hold it until the process
+// dies". A take starting cancels the timer, so nothing is released underneath
+// somebody who is still talking.
+let micRelease = null;
+
+function cancelMicRelease() {
+  if (micRelease !== null) {
+    clearTimeout(micRelease);
+    micRelease = null;
+  }
+}
+
+function releaseMicWhenIdle() {
+  cancelMicRelease();
+  if (!settings.getSettings().micWarm) {
+    engine.stop();
+    return;
+  }
+  // The delay is overridable so the smoke suite can assert this at all. Forty
+  // five seconds of waiting is not something a suite can afford, and the
+  // alternative was what happened here: a microphone nothing ever released,
+  // shipped, and found by someone whose headphones went to call quality while
+  // they watched a video. Nothing in the app writes this global.
+  const delay = Number(window.__tiroMicIdleReleaseMs) || MIC_IDLE_RELEASE_MS;
+  micRelease = setTimeout(() => {
+    micRelease = null;
+    // Only if nothing has started since. state is the authority here: a take in
+    // flight owns the stream.
+    if (state === "idle") engine.stop();
+  }, delay);
+}
 
 function setState(next) {
   state = next;
@@ -303,6 +347,10 @@ async function pressStart() {
   if (state === "holdRecording") return;   // already running; a second stream would orphan the first
   if (state === "toggleRecording") return; // handled on release: stop-and-insert
 
+  // Before anything else that can take time: a pending release must not fire
+  // into a take that is starting, or the engine loses the mic mid-sentence.
+  cancelMicRelease();
+
   const key = settings.getApiKey();
   if (!key) {
     // The view change is still worth doing even when nobody is looking: it is
@@ -387,6 +435,12 @@ async function pressStart() {
     // Before the message, or the state change hides the pill the message is
     // about to be drawn on.
     setState("idle");
+    // PWA-15: this path detached the engine and aborted the socket but never let
+    // go of the microphone, unlike the two paths a take normally ends on. So a
+    // take that could not reach Deepgram held the mic open even with the warm mic
+    // switched off, and the way people reach this is a captive portal or a dead
+    // key, which is also when they press again and again.
+    releaseMicWhenIdle();
     refuseTake(
       err.kind === "auth" ? "Deepgram rejected your key. Check Settings"
         : err.kind === "offline" ? "You are offline"
@@ -496,14 +550,13 @@ function cancelTake() {
   $("live-final").textContent = "";
   $("live-interim").textContent = "";
   setState("idle");
-  if (!settings.getSettings().micWarm) engine.stop();
+  releaseMicWhenIdle();
   notice("Discarded", "warn", 2000);
 }
 
 function finishTake(text, sec) {
   setState("idle");
-  // Warm mic is a user choice: pre-roll versus the recording indicator/battery.
-  if (!settings.getSettings().micWarm) engine.stop();
+  releaseMicWhenIdle();
   if (!text) {
     notice("Heard nothing", "warn");
     return;

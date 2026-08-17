@@ -337,7 +337,10 @@ the transcript still arrives and still looks like a sentence.
 
 ---
 
-### PWA-15 · High · A take whose socket never opens leaves the microphone open, warm mic or not
+### PWA-15 · High · ~~A take whose socket never opens leaves the microphone open~~ — fixed
+
+> **Fixed** alongside WIN-09: the socket-failure path releases the microphone the same way the
+> two paths a take normally ends on do.
 
 **`web/src/app.js:377-397`**
 
@@ -531,7 +534,20 @@ disposed in `Quit()`, though process exit covers it in practice.
 
 ---
 
-### WIN-09 · Medium · The warm mic never lets go, and on Windows that reads as the app holding your microphone
+### WIN-09 · Medium · ~~The warm mic never lets go~~ — fixed
+
+> **Fixed.** The microphone is released 45 seconds after a take now
+> (`micIdleReleaseSec` in `shared/design-tokens.json`), warm mic or not, and turning the setting
+> off releases it as soon as a take ends. A press cancels the pending release, so nothing is
+> taken from under a take that is starting. The reason it matters turned out to be bigger than
+> this entry said: while any process holds a capture stream, Windows keeps a Bluetooth headset in
+> its hands-free profile, so **everything else the machine plays drops to call quality** until
+> Tiro is quit. That is how it was reported — a video that sounded broken after dictating one
+> sentence — not as a lit indicator. The setting's own copy said the cost was "the recording
+> indicator staying lit and some battery", which was wrong, and is now corrected in the UI.
+>
+> Covered by `scripts/smoke-web.mjs`, which had never inspected a `MediaStreamTrack` before this;
+> that absence is why three microphone findings could sit here while every check passed.
 
 **`web/src/settings.js:13`, `web/src/app.js:499`, `web/src/app.js:506`**
 

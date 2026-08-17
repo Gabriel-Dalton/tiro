@@ -7,6 +7,7 @@ export const TAIL_SEC = 0.5;
 export const TARGET_SAMPLE_RATE = 16000;
 export const STREAMING_PER_MIN = 0.0077;
 export const KEEPALIVE_INTERVAL_MS = 5000;
+export const MIC_IDLE_RELEASE_MS = 45000;
 export const COMPETITORS = [
   {
     "name": "Wispr Flow Pro",

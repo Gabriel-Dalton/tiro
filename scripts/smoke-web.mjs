@@ -25,8 +25,15 @@ const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/cs
 let deployedVersion = "";
 
 const server = createServer((req, res) => {
-  let p = join(ROOT, decodeURIComponent(req.url.split("?")[0]));
-  if (p.endsWith("/")) p = join(p, "index.html");
+  // Decide "is this a directory request" from the URL, not from the joined path.
+  // join() uses the platform separator, so on Windows the path ends with a
+  // backslash, the test for "/" never fires, and the request lands on
+  // readFileSync of a directory: EISDIR, and the whole suite dies on the first
+  // page load. It cannot happen on Linux, which is why CI never saw it and why
+  // running the suite on the machine the Windows app is built on did not work.
+  const urlPath = decodeURIComponent(req.url.split("?")[0]);
+  let p = join(ROOT, urlPath);
+  if (urlPath.endsWith("/")) p = join(p, "index.html");
   if (!existsSync(p)) { res.writeHead(404); res.end("no"); return; }
   let body = readFileSync(p);
   if (deployedVersion && p.endsWith("sw.js")) {
@@ -335,6 +342,22 @@ const FAKE_SOCKET = () => {
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
   await page.addInitScript(FAKE_SOCKET);
+  // Count the microphone streams the app opens, and whether it ever lets one go.
+  // Nothing in this suite had ever looked at a MediaStreamTrack, which is how
+  // three separate microphone leaks sat in the audit while every other check
+  // passed. The release timer is shortened here so the wait is milliseconds
+  // rather than the real 45 seconds.
+  await page.addInitScript(() => {
+    window.__tiroMicIdleReleaseMs = 1500;
+    window.__micTracks = [];
+    const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async (...args) => {
+      const s = await real(...args);
+      window.__micTracks.push(...s.getAudioTracks());
+      return s;
+    };
+    window.__liveMics = () => window.__micTracks.filter((t) => t.readyState === "live").length;
+  });
   await page.goto("http://localhost:8099/");
   await page.waitForTimeout(400);
 
@@ -390,6 +413,12 @@ const FAKE_SOCKET = () => {
     bytesInTail > bytesAtRelease,
     `${bytesAtRelease} bytes at release, ${bytesInTail} during the tail`);
 
+  // Held while the take is in flight, which is the half that must not regress in
+  // the other direction: an over-eager release would cut the tail off.
+  check("the mic is still open while the take is finishing",
+    (await page.evaluate(() => window.__liveMics())) === 1,
+    `${await page.evaluate(() => window.__liveMics())} live`);
+
   await page.waitForTimeout(2000);
   check("halo settles back to invisible after the take",
     (await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById("halo")).opacity))) < 0.02);
@@ -404,6 +433,29 @@ const FAKE_SOCKET = () => {
   check("exactly one socket was opened for one take",
     (await page.evaluate(() => window.__wsCount)) === 1,
     `${await page.evaluate(() => window.__wsCount)} sockets`);
+
+  // WIN-09. The warm mic is on by default and used to mean "hold the microphone
+  // until the process dies". On Windows that keeps a Bluetooth headset in its
+  // hands-free profile, so every other sound on the machine drops to call quality
+  // for as long as Tiro is open, which is how it was found: someone dictated a
+  // sentence and their video sounded broken afterwards. It is released now, and
+  // the assertion is that it is released rather than that it is never held.
+  check("the mic is released once the app has been idle",
+    (await page.evaluate(() => window.__liveMics())) === 0,
+    `${await page.evaluate(() => window.__liveMics())} live`);
+
+  // A press has to reopen it and, more importantly, must not have the pending
+  // release fire into a take that is starting and pull the mic out from under it.
+  await page.mouse.down();
+  await page.waitForTimeout(900);
+  check("a new take reopens the mic, and the pending release does not kill it",
+    (await page.evaluate(() => window.__liveMics())) === 1,
+    `${await page.evaluate(() => window.__liveMics())} live`);
+  await page.mouse.up();
+  await page.waitForTimeout(3200);
+  check("and it lets go again after that one",
+    (await page.evaluate(() => window.__liveMics())) === 0,
+    `${await page.evaluate(() => window.__liveMics())} live`);
 
   // The confirmation is the button, not a chip in the corner of the card. The
   // chip was the only answer there was and it was missed by everyone, because
