@@ -32,10 +32,10 @@ namespace Tiro.Windows;
 static class UpdateCheck
 {
     private const string LatestReleaseApi =
-        "https://api.github.com/repos/Gabriel-Dalton/tiro/releases/latest";
+        "https://api.github.com/repos/mypip-io/tiro/releases/latest";
 
     public const string ReleasesPage =
-        "https://github.com/Gabriel-Dalton/tiro/releases/latest";
+        "https://github.com/mypip-io/tiro/releases/latest";
 
     /// <summary>Weekly. Often enough to hear about a fix, rare enough not to be a heartbeat.</summary>
     public static readonly TimeSpan Interval = TimeSpan.FromDays(7);

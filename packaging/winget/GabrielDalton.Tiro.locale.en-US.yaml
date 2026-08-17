@@ -6,13 +6,13 @@ PackageIdentifier: GabrielDalton.Tiro
 PackageVersion: __VERSION__
 PackageLocale: en-US
 Publisher: Gabriel Dalton
-PublisherUrl: https://github.com/Gabriel-Dalton
-PublisherSupportUrl: https://github.com/Gabriel-Dalton/tiro/issues
+PublisherUrl: https://github.com/mypip-io
+PublisherSupportUrl: https://github.com/mypip-io/tiro/issues
 Author: Gabriel Dalton, from Tiro by Toby Stapleton
 PackageName: Tiro
-PackageUrl: https://github.com/Gabriel-Dalton/tiro
+PackageUrl: https://github.com/mypip-io/tiro
 License: MIT
-LicenseUrl: https://github.com/Gabriel-Dalton/tiro/blob/__TAG__/LICENSE
+LicenseUrl: https://github.com/mypip-io/tiro/blob/__TAG__/LICENSE
 Copyright: Copyright (c) Toby Stapleton and Tiro contributors
 ShortDescription: Hold a key, speak, and punctuated text lands where your cursor is.
 Description: |-
@@ -38,9 +38,9 @@ Tags:
   - transcription
   - voice
   - voice-typing
-ReleaseNotesUrl: https://github.com/Gabriel-Dalton/tiro/releases/tag/__TAG__
+ReleaseNotesUrl: https://github.com/mypip-io/tiro/releases/tag/__TAG__
 Documentations:
   - DocumentLabel: Readme
-    DocumentUrl: https://github.com/Gabriel-Dalton/tiro#readme
+    DocumentUrl: https://github.com/mypip-io/tiro#readme
 ManifestType: defaultLocale
 ManifestVersion: 1.12.0

@@ -425,7 +425,7 @@ static class Setup
             key.SetValue("DisplayIcon", InstalledExe);
             key.SetValue("UninstallString", $"\"{InstalledExe}\" --uninstall");
             key.SetValue("QuietUninstallString", $"\"{InstalledExe}\" --uninstall --quiet");
-            key.SetValue("URLInfoAbout", "https://github.com/Gabriel-Dalton/tiro");
+            key.SetValue("URLInfoAbout", "https://github.com/mypip-io/tiro");
             key.SetValue("NoModify", 1, RegistryValueKind.DWord);
             key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             try

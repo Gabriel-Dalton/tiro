@@ -78,7 +78,7 @@ stamp("web/sw.js", /const CACHE = "tiro-[^"]*";/, `const CACHE = "tiro-${version
 stamp(
   "landing/index.html",
   /<a class="version" href="[^"]*">[^<]*<\/a>/,
-  `<a class="version" href="https://github.com/Gabriel-Dalton/tiro/releases/latest">v${version}</a>`
+  `<a class="version" href="https://github.com/mypip-io/tiro/releases/latest">v${version}</a>`
 );
 
 console.log(`stamped ${version} into the web app, service worker, Windows build and landing page`);

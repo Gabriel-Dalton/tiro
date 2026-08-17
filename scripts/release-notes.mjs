@@ -98,7 +98,7 @@ const evergreen = `
 
 Linux, ChromeOS, Android and anything older: open \`/app/\` on the site. The web app needs no
 download and installs to a home screen. Not sure which one? The
-[download page](https://github.com/Gabriel-Dalton/tiro#getting-the-apps) picks it for you.
+[download page](https://github.com/mypip-io/tiro#getting-the-apps) picks it for you.
 
 ## Upgrading
 
@@ -125,9 +125,9 @@ web app updates itself and offers you **Update** when a new version is ready.
   on macOS 14 and earlier, right-click the app and choose **Open**.
 - Tiro asks for a **Deepgram API key**, free at [console.deepgram.com](https://console.deepgram.com)
   and stored on your device only. New accounts include $200 of credit, around 430 hours.
-  [Step by step, with pictures](https://github.com/Gabriel-Dalton/tiro/blob/main/docs/API-KEY.md).
+  [Step by step, with pictures](https://github.com/mypip-io/tiro/blob/main/docs/API-KEY.md).
 
-Full history: [CHANGELOG.md](https://github.com/Gabriel-Dalton/tiro/blob/main/CHANGELOG.md).
+Full history: [CHANGELOG.md](https://github.com/mypip-io/tiro/blob/main/CHANGELOG.md).
 `;
 
 const notes = `${shifted}\n${evergreen}`;

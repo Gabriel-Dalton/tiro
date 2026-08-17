@@ -1447,7 +1447,7 @@ bridge.onUpdate = ({ version, url }) => {
       label: "Download",
       onClick: () => {
         standingOffer = null;
-        bridge.openExternal(url || "https://github.com/Gabriel-Dalton/tiro/releases/latest");
+        bridge.openExternal(url || "https://github.com/mypip-io/tiro/releases/latest");
         $("toast").dataset.open = "false";
         rememberDismissed(version); // taken: do not offer this one again
       },

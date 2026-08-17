@@ -87,8 +87,8 @@ changelog = changelog.slice(0, firstVersion) + section + "\n" + changelog.slice(
 // class of thing nobody notices until a reader clicks it.
 changelog = changelog.replace(
   /^\[Unreleased\]:.*$/m,
-  `[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v${version}...HEAD\n` +
-    `[${version}]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v${version}`
+  `[Unreleased]: https://github.com/mypip-io/tiro/compare/v${version}...HEAD\n` +
+    `[${version}]: https://github.com/mypip-io/tiro/releases/tag/v${version}`
 );
 
 writeFileSync(changelogPath, changelog);

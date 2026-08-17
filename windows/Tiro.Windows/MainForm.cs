@@ -264,7 +264,7 @@ sealed class MainForm : Form
                 // release page is ever opened, checked here rather than trusted:
                 // the host, not the page, decides where a click can lead.
                 var url = msg.TryGetProperty("url", out var urlEl) ? urlEl.GetString() ?? "" : "";
-                if (url.StartsWith("https://github.com/Gabriel-Dalton/tiro/", StringComparison.Ordinal))
+                if (url.StartsWith("https://github.com/mypip-io/tiro/", StringComparison.Ordinal))
                 {
                     try
                     {

@@ -73,7 +73,7 @@ workflow warning rather than failing the build.
 1. **Apply** at <https://signpath.org/apply>. The project needs a public repository, an OSI
    license (Tiro is MIT) and some verifiable history — the application asks for the repository
    URL and a maintainer to vouch for.
-2. **Install the SignPath GitHub app** on `Gabriel-Dalton/tiro` when SignPath asks; that is how
+2. **Install the SignPath GitHub app** on `mypip-io/tiro` when SignPath asks; that is how
    it fetches build artifacts and verifies their origin.
 3. **Create the artifact configuration** in the SignPath project. GitHub always hands over a
    ZIP of the uploaded directory, so the configuration is a `zip-file` even though the download
