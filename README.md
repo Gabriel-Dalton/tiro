@@ -48,7 +48,9 @@ gets full parity with the Mac.
 - **Windows**: grab `Tiro-Windows-x64.exe` from the
   [latest release](https://github.com/Gabriel-Dalton/tiro/releases/latest) (or a `build`
   workflow artifact) and run it. That is the whole download: one file, with the web core
-  inside it. It sits in the tray; hold **Right Alt** in any app to dictate.
+  inside it. It sits in the tray; hold **Right Alt** in any app to dictate. On the European
+  layouts where Right Alt is **AltGr**, Tiro leaves that key alone (it is how you type `@`
+  and the brackets) and uses **Scroll Lock** instead, saying so the first time it starts.
 
   The first time you run it, it offers to install itself into
   `%LOCALAPPDATA%\Programs\Tiro` and add a Start menu entry, which is what lets Windows pin

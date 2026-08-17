@@ -17,6 +17,7 @@ sealed class KeyboardHook : IDisposable
     private const int WM_SYSKEYUP = 0x0105;
     private const uint LLKHF_INJECTED = 0x10;
     private const uint VK_ESCAPE = 0x1B;
+    private const uint VK_RMENU = 0xA5;
 
     // web-core hotkey codes (KeyboardEvent.code names) -> virtual-key codes
     public static readonly Dictionary<string, uint> CodeToVk = new()
@@ -32,6 +33,10 @@ sealed class KeyboardHook : IDisposable
 
     /// <summary>Escape, while and only while a take is running.</summary>
     public event Action? CancelPressed;
+
+    /// <summary>The set of installed keyboard layouts changed, and with it the
+    /// answer to whether Right Alt is AltGr. The tray re-picks the hotkey.</summary>
+    public event Action? LayoutsChanged;
 
     /// <summary>Gates the Escape watch. Swallowing Escape globally would break
     /// every dialog, menu and vim session on the machine, so it is armed only
@@ -51,9 +56,15 @@ sealed class KeyboardHook : IDisposable
         _proc = Callback;
         _vk = CodeToVk.TryGetValue(hotkeyCode, out var vk) ? vk : CodeToVk["AltRight"];
         Install();
-        // retry a failed install (e.g. transient resource exhaustion at login)
+        // retry a failed install (e.g. transient resource exhaustion at login),
+        // and notice a keyboard layout added since launch. Both are cheap: the
+        // install check is a null test, and AltGr caches its answer per layout.
         _watchdog = new System.Windows.Forms.Timer { Interval = 5000 };
-        _watchdog.Tick += (_, _) => { if (_hook == IntPtr.Zero) Install(); };
+        _watchdog.Tick += (_, _) =>
+        {
+            if (_hook == IntPtr.Zero) Install();
+            if (AltGr.Recheck()) LayoutsChanged?.Invoke();
+        };
         _watchdog.Start();
     }
 
@@ -86,6 +97,19 @@ sealed class KeyboardHook : IDisposable
             // ignore our own SendInput Ctrl+V, or pasting would re-trigger the hook
             if (info.vkCode == _vk && !injected)
             {
+                // WIN-01, defence in depth. SettingsStore substitutes the hotkey
+                // before this class ever sees it, so on an AltGr layout _vk is
+                // not VK_RMENU and this cannot fire. It is here anyway because
+                // the cost of the two being out of step is that @ € { } [ ] and
+                // ~ stop working in every application on the machine, and the
+                // user has no way to connect that to a dictation app. A stale
+                // settings file or a future caller must not be able to reach
+                // that state through this hook.
+                if (_vk == VK_RMENU && AltGr.IsPresent())
+                {
+                    return CallNextHookEx(_hook, nCode, wParam, lParam);
+                }
+
                 int msg = wParam.ToInt32();
                 bool down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
                 bool up = msg == WM_KEYUP || msg == WM_SYSKEYUP;

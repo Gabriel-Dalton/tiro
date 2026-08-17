@@ -22,7 +22,8 @@
 > silent on every surface at once. Worth recording as a pattern rather than a finding — the
 > audit read each client for what it did wrong, and this was neither client being wrong on
 > its own, only the seam between them dropping something on the floor. A second pass should
-> read the bridge as its own surface. It is now covered in `scripts/smoke-web.mjs`.
+> read the bridge as its own surface. The same branch's follow-up resolves **WIN-01**, the one
+> Critical on the Windows side, so the count in the table below is one high. It is now covered in `scripts/smoke-web.mjs`.
 
 A read of every source file in the three clients: the macOS Swift app (`Sources/`), the
 Windows WebView2 shell (`windows/`), and the PWA (`web/`), plus the shared build scripts
@@ -326,6 +327,21 @@ the transcript still arrives and still looks like a sentence.
 
 ### WIN-01 · Critical · Right Alt is AltGr, and we swallow it unconditionally
 
+> **Resolved.** `windows/Tiro.Windows/AltGr.cs` scans every installed layout with
+> `VkKeyScanEx` for a character behind Ctrl+Alt, and where one exists Right Alt is not a key
+> Tiro will take: the stored hotkey is moved to Scroll Lock, the change is announced in a tray
+> balloon and in Settings, and the option is greyed out and labelled. The hook carries the same
+> refusal independently, so a settings file copied from another machine cannot reach the bug.
+>
+> Two notes for anyone revisiting this. The obvious fix, **stop swallowing and pass Right Alt
+> through, is wrong**: typing `@` is a tap of Right Alt, a tap is what starts a hands-free take,
+> and every symbol typed would begin dictating. And the detection has to scan **past Latin-1**,
+> because on Polish everything behind AltGr is a letter above `U+00FF`; a scan stopping at 255
+> calls Polish AltGr-free and leaves those users with the original bug.
+>
+> The substitution is pinned by `--self-test`. The detection is not testable without a desktop
+> session and real layouts, which is the remaining risk in this fix.
+
 **`windows/Tiro.Windows/KeyboardHook.cs:61-88`, `windows/Tiro.Windows/SettingsStore.cs:12`**
 
 The default hotkey is `AltRight` → `VK_RMENU`, and the hook returns `(IntPtr)1` for every
@@ -599,8 +615,10 @@ nobody has noticed.
 2. ~~**PWA-04**~~ — done.
 3. **Test PWA-01 on a real iPhone.** Everything about the PWA storage design depends on the
    answer, and the answer takes ten minutes to get.
-4. **WIN-01** — decide the AltGr policy before the Windows build gets any real distribution.
-   Shipping it and changing it later is worse than deciding now.
+4. ~~**WIN-01** — decide the AltGr policy before the Windows build gets any real distribution.
+   Shipping it and changing it later is worse than deciding now.~~ **Decided and shipped:** on
+   a layout where Right Alt is AltGr, Tiro does not take it and moves to Scroll Lock. See the
+   finding for why passing the key through is not the fix it appears to be.
 5. **PWA-03** — the "Deepgram rejected your key" misdiagnosis, which a new phone user on a
    captive portal hits in their first sixty seconds.
 6. **MAC-01, WIN-02** — both are cases where the product tells the user something that is

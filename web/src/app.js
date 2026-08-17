@@ -646,6 +646,20 @@ bridge.onHotkey = (phase) => {
   if (phase === "down") pressStart();
   else pressEnd();
 };
+// Right Alt is AltGr on this machine's keyboard layout, so it is not a key Tiro
+// may take (AUDIT WIN-01). Two things are wrong with taking it, and only the
+// first is obvious: swallowing it makes @ € { } [ ] and ~ untypable everywhere,
+// and *not* swallowing it is no better, because typing one of those characters
+// is a tap of Right Alt and a tap is what starts a hands-free take. The host has
+// already moved the hotkey off it; this stops Settings offering it back.
+bridge.onAltGr = (present) => {
+  const option = $("set-hotkey").querySelector('option[value="AltRight"]');
+  if (!option) return;
+  option.disabled = present;
+  option.textContent = present ? "Right Alt (AltGr on your layout)" : "Right Alt";
+  $("hotkey-altgr").hidden = !present;
+};
+
 // The pill's X and check, clicked in whatever app the user is dictating into.
 bridge.onCancel = () => cancelTake();
 bridge.onStop = () => {

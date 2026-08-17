@@ -563,6 +563,73 @@ const FAKE_SOCKET = () => {
   await ctx.close();
 }
 
+// ------------------------------------------ Right Alt on an AltGr keyboard
+//
+// AUDIT WIN-01. On the European layouts Right Alt is AltGr, and Tiro must not
+// take it: swallowing it makes @ € { } [ ] untypable everywhere, and passing it
+// through is no better, because typing one of those is a tap of Right Alt and a
+// tap starts a hands-free take. The host moves the hotkey off it and says so
+// here; this is the half a user can see.
+{
+  const ctx = await browser.newContext({ permissions: ["microphone"] });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.addInitScript(() => {
+    localStorage.setItem("tiro.apiKey", "test-key-not-real");
+    window.__sent = [];
+    window.chrome = {
+      webview: {
+        addEventListener: (type, fn) => { if (type === "message") window.__hostSend = (m) => fn({ data: m }); },
+        postMessage: (m) => window.__sent.push(m),
+      },
+    };
+  });
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(300);
+
+  // Before the host says anything, the list is the ordinary one: a machine with
+  // no AltGr layout must not be nagged about a problem it does not have.
+  check("Right Alt is offered by default",
+    await page.evaluate(() => {
+      const o = document.querySelector('#set-hotkey option[value="AltRight"]');
+      return o && !o.disabled && !/altgr/i.test(o.textContent);
+    }));
+  check("and no AltGr note is showing", await page.locator("#hotkey-altgr").isHidden());
+
+  await page.evaluate(() => window.__hostSend({ type: "altgr", present: true }));
+  await page.waitForTimeout(150);
+
+  check("an AltGr layout takes Right Alt out of the list",
+    await page.evaluate(() => document.querySelector('#set-hotkey option[value="AltRight"]').disabled));
+  check("and says why, naming AltGr",
+    /altgr/i.test(await page.locator("#hotkey-altgr").innerText()),
+    await page.locator("#hotkey-altgr").innerText());
+  check("the option itself says why too, for anyone reading the list",
+    /altgr/i.test(await page.evaluate(
+      () => document.querySelector('#set-hotkey option[value="AltRight"]').textContent)));
+  // Every other key stays selectable, including the one the host falls back to.
+  check("the remaining keys are all still selectable",
+    await page.evaluate(() => [...document.querySelectorAll("#set-hotkey option")]
+      .filter((o) => o.value !== "AltRight").every((o) => !o.disabled)));
+  check("Scroll Lock, the substitute, is one of them",
+    await page.evaluate(() => {
+      const o = document.querySelector('#set-hotkey option[value="ScrollLock"]');
+      return !!o && !o.disabled;
+    }));
+
+  // And it reverses, so a layout removed while Tiro runs gives the key back.
+  await page.evaluate(() => window.__hostSend({ type: "altgr", present: false }));
+  await page.waitForTimeout(150);
+  check("removing the layout gives Right Alt back",
+    await page.evaluate(() => !document.querySelector('#set-hotkey option[value="AltRight"]').disabled)
+    && await page.locator("#hotkey-altgr").isHidden());
+
+  check("no page errors on the AltGr path", errors.length === 0, errors.join(" | "));
+
+  await ctx.close();
+}
+
 // ------------------------------------- a hotkey press the shell had to refuse
 //
 // The regression this exists for: every reason a take cannot start was reported

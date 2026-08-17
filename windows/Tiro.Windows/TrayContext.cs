@@ -28,7 +28,11 @@ sealed class TrayContext : ApplicationContext
             OnStateChanged("blocked");
             _tray.Text = $"Tiro {Build.Version}. WebView2 runtime missing.";
         };
-        _mainForm.HotkeyRebound += (code) => _hook!.SetHotkey(code);
+        // The page has already written its choice to settings by the time this
+        // fires, so re-derive rather than trusting the code it sent: Settings
+        // does not offer Right Alt on an AltGr layout, but a settings file
+        // copied from another machine can still ask for it.
+        _mainForm.HotkeyRebound += (_) => _hook!.SetHotkey(ApplySafeHotkey(announce: true));
         _mainForm.LevelChanged += _pill.SetLevel;
 
         // The pill's own buttons, clicked in whatever app the user is dictating
@@ -119,10 +123,20 @@ sealed class TrayContext : ApplicationContext
         menu.Items.Add("Quit", null, (_, _) => Quit());
         _tray.ContextMenuStrip = menu;
 
-        // global hotkey -> the web core's shared hold/tap state machine
-        _hook = new KeyboardHook(_settings.HotkeyCode);
+        // global hotkey -> the web core's shared hold/tap state machine.
+        // AltGr.SafeHotkey stands between the stored choice and the hook: on a
+        // layout where Right Alt is AltGr it is not a key Tiro may take (WIN-01).
+        _hook = new KeyboardHook(ApplySafeHotkey(announce: false));
         _hook.HotkeyChanged += (down) => _mainForm.BeginInvoke(() => _mainForm.PostHotkey(down));
         _hook.CancelPressed += () => _mainForm.BeginInvoke(() => _mainForm.PostCancel());
+        // A layout added while Tiro was already running. The person who just
+        // installed a German keyboard is the one about to lose the @ key.
+        _hook.LayoutsChanged += () =>
+        {
+            var code = ApplySafeHotkey(announce: true);
+            _hook!.SetHotkey(code);
+            _mainForm.PostAltGr(AltGr.IsPresent());
+        };
 
         // a second launch signals this event instead of starting a second copy
         _showWait = ThreadPool.RegisterWaitForSingleObject(
@@ -148,6 +162,10 @@ sealed class TrayContext : ApplicationContext
         // the warm mic and the hotkey pipeline, is alive before it is ever shown.
         _mainForm.Show();
         if (startHidden) _mainForm.Hide();
+
+        // Queued until the web core says ready, which is why it can be sent
+        // this early. Settings needs it before it can draw the hotkey list.
+        _mainForm.PostAltGr(AltGr.IsPresent());
 
         // Once, on the first launch that ever gets here. Windows can only pin
         // something it can find, and a portable EXE sitting in Downloads is not
@@ -271,6 +289,36 @@ sealed class TrayContext : ApplicationContext
             _updateItem.Visible = true;
         }
         _tray.Text = $"Tiro {Build.Version}. Version {version} is available.";
+    }
+
+    /// <summary>Settle on a hotkey Tiro is allowed to take, persist it if that
+    /// differs from what was stored, and say so when the change is a surprise.
+    ///
+    /// Silent substitution would be the wrong shape here. The user picked Right
+    /// Alt, or accepted it as the default, and is about to find a different key
+    /// dictating; being told once is the difference between that and the app
+    /// looking broken. `announce` is false at startup only because the web core
+    /// is not listening yet, and the same news reaches the settings screen
+    /// through PostAltGr instead.</summary>
+    private string ApplySafeHotkey(bool announce)
+    {
+        var stored = _settings.HotkeyCode;
+        var safe = AltGr.SafeHotkey(stored, AltGr.IsPresent());
+        if (string.Equals(safe, stored, StringComparison.Ordinal)) return safe;
+
+        _settings.HotkeyCode = safe;
+        SettingsStore.Save(_settings);
+        Log.Write($"hotkey moved from {stored} to {safe}: Right Alt is AltGr on an installed layout");
+
+        if (announce)
+        {
+            _tray.BalloonTipTitle = "Tiro moved its hotkey to Scroll Lock";
+            _tray.BalloonTipText =
+                "Right Alt is AltGr on your keyboard layout, which is how you type @ and " +
+                "the bracket keys. Tiro will not take it. Pick another key in Settings.";
+            _tray.ShowBalloonTip(9000);
+        }
+        return safe;
     }
 
     /// <summary>Windows has no API that lets an unpackaged app pin itself, and

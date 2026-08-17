@@ -175,6 +175,31 @@ static class SelfTest
         Check("an unknown location is never offered the install",
             !Setup.ShouldOffer(null, declined: false) && !Setup.ShouldOffer("  ", declined: false));
 
+        // WIN-01. Which key Tiro takes on an AltGr layout. Getting this wrong
+        // does not fail visibly in Tiro at all: it makes @ € { } [ ] and ~
+        // untypable in every other application on the machine, which nobody
+        // will connect back to a dictation app in the tray. The detection needs
+        // a desktop session and real layouts, so it is not testable here, but
+        // the substitution it feeds is pure and is the part that must not drift.
+        Check("Right Alt is refused on an AltGr layout",
+            AltGr.SafeHotkey("AltRight", true) == "ScrollLock");
+        Check("Right Alt is kept where it is not AltGr",
+            AltGr.SafeHotkey("AltRight", false) == "AltRight");
+        // Only Right Alt is affected. Substituting a key the user deliberately
+        // chose, for a problem that key does not have, is its own bug.
+        Check("Scroll Lock is left alone on an AltGr layout",
+            AltGr.SafeHotkey("ScrollLock", true) == "ScrollLock");
+        Check("Caps Lock is left alone on an AltGr layout",
+            AltGr.SafeHotkey("CapsLock", true) == "CapsLock");
+        Check("Right Shift is left alone on an AltGr layout",
+            AltGr.SafeHotkey("ShiftRight", true) == "ShiftRight");
+        Check("Right Ctrl is left alone on an AltGr layout",
+            AltGr.SafeHotkey("ControlRight", true) == "ControlRight");
+        // The substitution has to land on something the hook can actually arm,
+        // or the fix for WIN-01 is a hotkey that never fires.
+        Check("the substitute is a key the hook knows",
+            KeyboardHook.CodeToVk.ContainsKey(AltGr.SafeHotkey("AltRight", true)));
+
         Log.Write(failures == 0 ? "self-test passed" : $"self-test: {failures} failure(s)");
         return failures == 0 ? 0 : 1;
     }
