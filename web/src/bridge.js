@@ -8,6 +8,7 @@
 //                 {type:"cancel"}                global Esc, or the pill's X
 //                 {type:"stop"}                  the pill's check: finish now
 //                 {type:"update", version:"1.3.0", url}  a newer release exists
+//                 {type:"altgr", present}        Right Alt is AltGr on this PC
 //   web -> host:  {type:"ready"}
 //                 {type:"transcript", text}      host pastes it into the focused app
 //                 {type:"state", state}          idle|recording|transcribing|blocked
@@ -34,6 +35,7 @@ class Bridge {
     this.onCancel = null;       // () => {}   discard the take
     this.onStop = null;         // () => {}   finish the take now
     this.onUpdate = null;       // ({version, url}) => {}
+    this.onAltGr = null;        // (present) => {}  Right Alt is AltGr here
     this._keyWaiters = [];
     this._lastLevel = -1;
     if (this.isShell) {
@@ -66,6 +68,11 @@ class Bridge {
         break;
       case "stop":
         if (this.onStop) this.onStop();
+        break;
+      case "altgr":
+        // Only the host can see the installed keyboard layouts, so this is the
+        // page being told something it has no way to work out for itself.
+        if (this.onAltGr) this.onAltGr(!!msg.present);
         break;
       case "update":
         // {version, url} straight from the host's read of GitHub's latest

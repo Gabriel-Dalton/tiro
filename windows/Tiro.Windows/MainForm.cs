@@ -301,6 +301,12 @@ sealed class MainForm : Form
 
     public void PostHotkey(bool down) => PostToWeb(new { type = "hotkey", phase = down ? "down" : "up" });
 
+    /// <summary>Tell the settings screen whether Right Alt is AltGr here, so it
+    /// can stop offering a key that would cost the user @ and the brackets
+    /// (AUDIT WIN-01). The host decides this, not the page: only the host can
+    /// read the installed keyboard layouts.</summary>
+    public void PostAltGr(bool present) => PostToWeb(new { type = "altgr", present });
+
     /// <summary>Throw the take away: global Escape, or the pill's X.</summary>
     public void PostCancel() => PostToWeb(new { type = "cancel" });
 

@@ -48,7 +48,9 @@ gets full parity with the Mac.
 - **Windows**: grab `Tiro-Windows-x64.zip` from the
   [latest release](https://github.com/Gabriel-Dalton/tiro/releases/latest) (or a `build`
   workflow artifact). Right-click the ZIP → Properties → tick **Unblock** before extracting,
-  then run `Tiro.exe`. It sits in the tray; hold **Right Alt** in any app to dictate.
+  then run `Tiro.exe`. It sits in the tray; hold **Right Alt** in any app to dictate. On the
+  European layouts where Right Alt is **AltGr**, Tiro leaves that key alone (it is how you type
+  `@` and the brackets) and uses **Scroll Lock** instead, saying so the first time it starts.
   Unblocking is what keeps SmartScreen quiet. If it does interrupt, choose **More info → Run
   anyway**. [`docs/SIGNING.md`](docs/SIGNING.md) explains why, and how releases get signed.
   On Windows 10 you may also need Microsoft's free
