@@ -33,6 +33,20 @@ Knowing when to update, and being able to read what changed.
   [Update notifications](#update-notifications) below. *(Web, Windows.)*
 - **This changelog**, backfilled to 1.0.0, and release notes generated from it — so the notes
   on the download page and the record in the repository cannot say different things.
+- **A share sheet of Tiro's own**, in place of the one call to the device's share menu.
+  **Share** now opens a short list: email it, text it, or keep it as a `.txt` file, one tap
+  each, and **Other apps** hands off to the system share sheet where there is one. The old
+  button depended on a browser feature most of them do not have, so on the desktop it was
+  hidden entirely and there was no way to send a transcript anywhere at all. *(Web, Windows;
+  the Windows app offers the file, because its own window is not allowed to open a mail
+  client.)*
+
+### Changed
+
+- **The Copy button says when it has copied.** It becomes **Copied**, with a check, where
+  your finger already is. The confirmation used to be a small chip in the opposite corner of
+  the card, which is not where anyone was looking, so the most common action in the app
+  appeared to do nothing. *(Web, Windows.)*
 
 ### Fixed
 

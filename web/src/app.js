@@ -10,6 +10,8 @@ import { monthStats, fmtMoney, fmtMinutes } from "./usage.js";
 import * as settings from "./settings.js";
 import { bridge } from "./bridge.js";
 import { Installer } from "./install.js";
+import { ShareSheet } from "./share.js";
+import { sheetIsOpen } from "./sheet.js";
 import { VERSION } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
@@ -333,6 +335,9 @@ async function pressStart() {
   $("live-final").textContent = "";
   $("live-interim").textContent = "";
   $("result-card").hidden = true;
+  // The card it was opened over is gone, so the sheet is now offering to send a
+  // transcript that is no longer on screen. No-op unless it is actually up.
+  shareSheet.close();
 
   // Adopt the pre-roll and stream. Chunks buffer locally until the socket is
   // open, so connect latency cannot clip the first word.
@@ -486,7 +491,7 @@ function finishTake(text, sec) {
   $("live").hidden = true;
   $("result-text").textContent = text;
   $("result-card").hidden = false;
-  $("result-share").hidden = !navigator.share;
+  setCopied(false); // a new transcript is a different thing to copy
   const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   history.addEntry({ ts, text, sec }).catch(() => {});
   bridge.appendHistory(JSON.stringify({ ts, text, sec }));
@@ -499,33 +504,51 @@ function finishTake(text, sec) {
   installer.offerAfterSuccess();
 }
 
+/** The one place that decides what the Copy button says.
+ *
+ * It replaced a chip in the corner of the card reading "copied" / "tap copy",
+ * which was the only confirmation there was and was missed by everyone: it sat
+ * away from the button, in the size of a label rather than an answer. The
+ * button says it about itself instead, where the tap already is.
+ *
+ * "Copied" is a statement about the clipboard, so it stands until there is a
+ * different transcript to copy, rather than timing out. Pressing an already
+ * copied button therefore changes no text at all, which would leave the second
+ * press unanswered: restarting the animation is what answers it. */
+function setCopied(done) {
+  const button = $("result-copy");
+  $("result-copy-label").textContent = done ? "Copied" : "Copy";
+  button.querySelector("use").setAttribute("href", done ? "#i-check" : "#i-copy");
+  button.classList.remove("is-done");
+  if (!done) return;
+  void button.offsetWidth; // reflow: without it the class comes back mid-frame and nothing replays
+  button.classList.add("is-done");
+}
+
 // Clipboard tiers (SPEC-PWA 1.4). Tier 3, the visible Copy button on the
 // result card, is always available regardless.
+//
+// Only success is reported. The failure state used to be a warn-coloured "tap
+// copy", and it flashed up on the happy path as well (AUDIT PWA-09), because it
+// was queued off the transcript promise, which necessarily settles before the
+// clipboard write it feeds. What a failure leaves behind now is the untouched
+// Copy button, which is the instruction that chip was trying to give.
 function writeClipboardTiered(transcriptPromise) {
-  const setBadge = (ok) => {
-    $("result-badge").textContent = ok ? "copied" : "tap copy";
-    $("result-badge").className = "badge" + (ok ? "" : " warn");
-  };
-  let wrote = false;
   try {
     // Tier 1: promise-valued ClipboardItem, created synchronously in the gesture.
     const item = new ClipboardItem({
       "text/plain": transcriptPromise.then((t) => new Blob([t], { type: "text/plain" })),
     });
-    navigator.clipboard.write([item]).then(
-      () => { wrote = true; setBadge(true); },
-      () => tier2()
-    );
+    navigator.clipboard.write([item]).then(() => setCopied(true), () => tier2());
   } catch {
     tier2();
   }
   function tier2() {
     transcriptPromise.then(
-      (t) => navigator.clipboard.writeText(t).then(() => { wrote = true; setBadge(true); }, () => setBadge(false)),
+      (t) => navigator.clipboard.writeText(t).then(() => setCopied(true), () => {}),
       () => {} // empty transcript: nothing to copy
     );
   }
-  transcriptPromise.then(() => { if (!wrote) setBadge(false); }, () => {});
 }
 
 // ---------------------------------------------------------------- talk button
@@ -603,10 +626,10 @@ window.addEventListener("keyup", (e) => {
 // Escape discards the take, anywhere in the app, including from inside a text
 // field: reaching for it mid-dictation means one thing.
 //
-// The install sheet also binds Escape (install.js), and both would fire if it
-// were open during a take, so this stands down while it is up. That ordering is
-// the conventional one and the safer one: dismissing the sheet is undoable, and
-// throwing a take away is not.
+// The sheets bind Escape too (install.js, share.js), and both handlers would
+// fire on the one press if one were open during a take, so this stands down
+// while any sheet is up. That ordering is the conventional one and the safer
+// one: closing a sheet is undoable, and throwing a take away is not.
 //
 // In the Windows shell this only fires when the Tiro window itself has focus,
 // which it usually does not. The host hooks Escape globally and sends
@@ -614,7 +637,7 @@ window.addEventListener("keyup", (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (state === "idle" && !starting) return;
-  if (!$("install-sheet").hidden) return;
+  if (sheetIsOpen()) return;
   e.preventDefault();
   cancelTake();
 });
@@ -651,8 +674,7 @@ $("result-copy").addEventListener("click", async () => {
   const text = $("result-text").textContent;
   try {
     await navigator.clipboard.writeText(text);
-    $("result-badge").textContent = "copied";
-    $("result-badge").className = "badge";
+    setCopied(true);
   } catch {
     // last resort: select the text so the OS copy affordance can take over
     const range = document.createRange();
@@ -664,7 +686,7 @@ $("result-copy").addEventListener("click", async () => {
   }
 });
 $("result-share").addEventListener("click", () => {
-  navigator.share({ text: $("result-text").textContent }).catch(() => {});
+  shareSheet.open($("result-text").textContent);
 });
 
 // ---------------------------------------------------------------- views
@@ -700,6 +722,9 @@ for (const t of document.querySelectorAll(".tab")) {
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (state !== "idle") return;
+  // A sheet on top owns the key: dismissing the offer behind it as well would
+  // spend a decision the user never made, and dismissals are remembered.
+  if (sheetIsOpen()) return;
   if ($("toast").dataset.open !== "true" || $("toast-dismiss").hidden) return;
   $("toast-dismiss").click();
 });
@@ -1015,6 +1040,19 @@ const installer = new Installer(
   notice
 );
 
+// ---------------------------------------------------------------- share
+
+const shareSheet = new ShareSheet(
+  {
+    sheet: $("share-sheet"),
+    panel: $("share-panel"),
+    preview: $("share-preview"),
+    targets: $("share-targets"),
+    closeButton: $("share-close"),
+  },
+  notice
+);
+
 // ---------------------------------------------------------------- boot
 
 async function boot() {
@@ -1056,6 +1094,7 @@ async function boot() {
   history.requestPersistence();
 
   installer.start({ isShell: bridge.isShell });
+  shareSheet.start();
 
   window.addEventListener("online", () => notice("Back online", "ok", 1600));
   window.addEventListener("offline", () => notice("You are offline. History still works", "warn"));

@@ -405,6 +405,48 @@ const FAKE_SOCKET = () => {
     (await page.evaluate(() => window.__wsCount)) === 1,
     `${await page.evaluate(() => window.__wsCount)} sockets`);
 
+  // The confirmation is the button, not a chip in the corner of the card. The
+  // chip was the only answer there was and it was missed by everyone, because
+  // it is not where the tap is.
+  check("no confirmation chip left in the card head",
+    (await page.locator("#result-card .badge").count()) === 0);
+  check("the automatic copy reports itself on the button",
+    (await page.locator("#result-copy").innerText()).trim() === "Copied",
+    await page.locator("#result-copy").innerText());
+  check("and the button carries the copied state, not just the word",
+    await page.locator("#result-copy.is-done").count() === 1);
+
+  await page.locator("#result-copy").click();
+  await page.waitForTimeout(120);
+  check("pressing Copy still answers Copied",
+    (await page.locator("#result-copy").innerText()).trim() === "Copied");
+  check("the clipboard has the transcript in it",
+    (await page.evaluate(() => navigator.clipboard.readText())).includes("hello from the fake mic"));
+
+  // navigator.share does not exist in desktop Chromium, and used to hide this
+  // button outright: a desktop user had no way to send a transcript anywhere.
+  check("Share is offered whether or not the browser has an OS share sheet",
+    await page.locator("#result-share").isVisible());
+  await page.locator("#result-share").click();
+  await page.waitForTimeout(200);
+  check("Share opens Tiro's own sheet", await page.locator("#share-sheet").isVisible());
+  check("the sheet shows what is about to be sent",
+    (await page.locator("#share-preview").innerText()).includes("hello from the fake mic"));
+  const targets = await page.locator("#share-targets .share-target").count();
+  check("the sheet offers somewhere to send it", targets >= 2, `${targets} targets`);
+  const hasNative = await page.evaluate(() => !!navigator.share);
+  check("the hand-off to the OS sheet appears only where there is one",
+    (await page.locator("#share-targets").innerText()).includes("Other apps") === hasNative);
+
+  for (let i = 0; i < 8; i++) await page.keyboard.press("Tab");
+  check("Tab stays inside the share sheet",
+    await page.evaluate(() => document.getElementById("share-panel").contains(document.activeElement)));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  check("Escape closes the share sheet", await page.locator("#share-sheet").isHidden());
+  check("and hands focus back to the button that opened it",
+    await page.evaluate(() => document.activeElement === document.getElementById("result-share")));
+
   await page.locator('.tab[data-view="history"]').click();
   await page.waitForTimeout(300);
   check("the take is written to history",
