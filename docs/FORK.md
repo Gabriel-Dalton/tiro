@@ -43,13 +43,13 @@ These are the same files in both places. Left, `web/` at an iPhone viewport; rig
 build at the width the WebView2 window opens at on Windows. The layout widens; nothing forks.
 
 <div align="center">
-<img src="web/phone-take.png" width="250" alt="Tiro on a phone: a finished take, the transcript on a card with Copy and Share beneath it">
-<img src="web/desktop-take.png" width="460" alt="The same finished take at desktop width, the layout widening rather than changing">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-take.png" width="250" alt="Tiro on a phone: a finished take, the transcript on a card with Copy and Share beneath it">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/desktop-take.png" width="460" alt="The same finished take at desktop width, the layout widening rather than changing">
 </div>
 
 The macOS app, which this fork carries unchanged:
 
-![The app's history view](history.png)
+![The app's history view](https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/history.png)
 
 ---
 
@@ -62,15 +62,15 @@ entry, an Apps and Features entry, and no administrator rights at any point. Dec
 portable; the tray menu can still install it later. Removing it keeps your history, settings and
 API key unless you tick the box that says otherwise.
 
-![The install prompt on first run](windows/install-prompt.png)
+![The install prompt on first run](https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/windows/install-prompt.png)
 
 The app itself is the same web core the phone runs, inside a WebView2 window:
 
-![The Windows app window](windows/app-window.png)
+![The Windows app window](https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/windows/app-window.png)
 
 Uninstalling asks once, and asks the question that actually matters rather than burying it:
 
-![The uninstall prompt, with the data checkbox](windows/uninstall-prompt.png)
+![The uninstall prompt, with the data checkbox](https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/windows/uninstall-prompt.png)
 
 Two things in here were harder than they look, and both are worth knowing if you ever ship a
 Windows build of anything:
@@ -118,8 +118,8 @@ arrival, and other iOS browsers get a Copy link button instead, because Chrome a
 are Safari's engine without that row in the share sheet.
 
 <div align="center">
-<img src="install-iphone-safari.png" width="300" alt="The install walkthrough in Safari on iPhone, drawing Safari's toolbar with the Share button circled">
-<img src="install-iphone-other-browser.png" width="300" alt="The install sheet in Chrome on iPhone, offering a Copy link button and directing the reader to Safari">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/install-iphone-safari.png" width="300" alt="The install walkthrough in Safari on iPhone, drawing Safari's toolbar with the Share button circled">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/install-iphone-other-browser.png" width="300" alt="The install sheet in Chrome on iPhone, offering a Copy link button and directing the reader to Safari">
 </div>
 
 ### The rest of it, at phone width
@@ -130,19 +130,19 @@ the Mac and Windows write; Usage is arithmetic over that history, set against th
 replaces.
 
 <div align="center">
-<img src="web/phone-setup.png" width="185" alt="First run: a card explaining the Deepgram key, what it costs, and a field to paste one into">
-<img src="web/phone-recording.png" width="185" alt="Mid-take: the button red and reading Listening, with a running clock and a Discard button">
-<img src="web/phone-history.png" width="185" alt="History grouped by day, each take with its time, its length, and copy and delete buttons">
-<img src="web/phone-usage.png" width="185" alt="Usage: minutes this month, estimated cost, a per-day chart, and a comparison against paid subscriptions">
-<img src="web/phone-settings.png" width="185" alt="Settings: the API key stored on the device, Canadian spelling, and the warm microphone option">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-setup.png" width="185" alt="First run: a card explaining the Deepgram key, what it costs, and a field to paste one into">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-recording.png" width="185" alt="Mid-take: the button red and reading Listening, with a running clock and a Discard button">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-history.png" width="185" alt="History grouped by day, each take with its time, its length, and copy and delete buttons">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-usage.png" width="185" alt="Usage: minutes this month, estimated cost, a per-day chart, and a comparison against paid subscriptions">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-settings.png" width="185" alt="Settings: the API key stored on the device, Canadian spelling, and the warm microphone option">
 </div>
 
 Dark mode is the same interface through the semantic tokens rather than a second stylesheet, which
 is the part worth checking with your own eyes:
 
 <div align="center">
-<img src="web/phone-history-dark.png" width="235" alt="The history view in dark mode, the same layout on a near-black surface">
-<img src="web/phone-idle.png" width="235" alt="The dictate view at rest in light mode, one button reading Hold to talk">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-history-dark.png" width="235" alt="The history view in dark mode, the same layout on a near-black surface">
+<img src="https://raw.githubusercontent.com/Gabriel-Dalton/tiro/2a2fd5891158a1454394cb6512d05891560efd44/docs/web/phone-idle.png" width="235" alt="The dictate view at rest in light mode, one button reading Hold to talk">
 </div>
 
 ---
@@ -195,6 +195,18 @@ Stated plainly, because you would find all of it in an afternoon:
 ## Where the pictures come from
 
 Nothing here is a mock-up, and the distinction worth keeping is which of two ways a shot was taken.
+
+**Every image above is linked by a full URL pinned to a commit, not by a relative path, and that is
+deliberate.** This document is meant to be read from another repository — an upstream pull request,
+where relative paths would resolve against *that* repository and every picture would be a broken
+icon. Pinning to a commit rather than to a branch also means the images survive being deleted from
+the working tree later: the blobs stay reachable through history, so the links keep resolving after
+the PNGs are gone, which is how a repository can show its work without carrying binaries forever.
+
+Two things follow. **Do not convert these back to relative paths** as a tidy-up; that breaks the
+document everywhere except this repository, and breaks it here too once the files are removed. And
+**do not rewrite the history these commits sit in.** A force-push that orphans them takes every
+picture in this file with it, silently, and nothing will fail until somebody opens the page.
 
 **The web core photographs itself.** `docs/web/*.png` are written by `node scripts/shoot-web.mjs`,
 which runs the shipped `web/` in a real Chromium against the same stubbed Deepgram socket and
