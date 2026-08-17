@@ -92,8 +92,8 @@ const evergreen = `
 
 | Download | For |
 |---|---|
-| \`Tiro-Windows-x64.zip\` | Windows 10 and 11 on any Intel or AMD PC. Unzip and run \`Tiro.exe\`. It lives in the tray; hold **Right Alt** in any app to dictate. |
-| \`Tiro-Windows-arm64.zip\` | Windows 11 on ARM: Snapdragon and Surface. The x64 build also runs there under emulation; this one is native. |
+| \`Tiro-Windows-x64.exe\` | Windows 10 and 11 on any Intel or AMD PC. One file, nothing to unpack: run it and it offers to install itself. It lives in the tray; hold **Right Alt** in any app to dictate. |
+| \`Tiro-Windows-arm64.exe\` | Windows 11 on ARM: Snapdragon and Surface. The x64 build also runs there under emulation; this one is native. |
 | \`Tiro-macOS.zip\` | macOS 13+, **universal**, so the same file runs on Apple Silicon and Intel. Move \`Tiro.app\` to Applications and hold **Fn**. |
 
 Linux, ChromeOS, Android and anything older: open \`/app/\` on the site. The web app needs no
@@ -102,18 +102,25 @@ download and installs to a home screen. Not sure which one? The
 
 ## Upgrading
 
-Windows and macOS are portable apps: replace the old one with this one. **Your API key,
-history and settings are stored by the operating system, not inside the app, so they survive
-the swap.** On Windows, \`winget upgrade GabrielDalton.Tiro\` does it for you once the package
-is listed. The web app updates itself and offers you **Update** when a new version is ready.
+On **Windows**, download this EXE and run it. If you installed Tiro, it asks the running copy
+to quit, replaces it in place and starts the new one; if you kept it portable, replace the old
+file with this one. On **macOS**, replace the old app with this one. **Your API key, history
+and settings are stored by the operating system, not inside the app, so they survive the
+swap.** \`winget upgrade GabrielDalton.Tiro\` does it for you once the package is listed. The
+web app updates itself and offers you **Update** when a new version is ready.
 
 ## First run
 
 - **Windows 10** also needs Microsoft's free
   [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which Windows 11
   already includes. Tiro checks on first run and offers it rather than failing silently.
-- If **SmartScreen** stops the app, unblock the ZIP *before* extracting it: right-click →
-  Properties → tick **Unblock** → OK. Or from the dialog, **More info → Run anyway**.
+- On **Windows**, running the download starts Tiro and then asks whether to install it.
+  Installing puts it in \`%LOCALAPPDATA%\\Programs\\Tiro\` and the Start menu, where Windows
+  lets you pin it to the taskbar; it needs no administrator rights, and it uninstalls from
+  Apps and Features. Decline and it stays portable.
+- If **SmartScreen** stops the app, choose **More info → Run anyway**, or right-click the
+  file → Properties → tick **Unblock** → OK before running it. Installing clears that mark,
+  so it happens once rather than every launch.
 - On **macOS**, the first launch needs System Settings → Privacy & Security → **Open Anyway**;
   on macOS 14 and earlier, right-click the app and choose **Open**.
 - Tiro asks for a **Deepgram API key**, free at [console.deepgram.com](https://console.deepgram.com)

@@ -13,9 +13,10 @@ sealed class TrayContext : ApplicationContext
     private readonly AppSettings _settings;
     private readonly Dictionary<string, Icon> _stateIcons = new();
     private readonly RegisteredWaitHandle _showWait;
+    private readonly RegisteredWaitHandle _quitWait;
     private ToolStripMenuItem? _updateItem;
 
-    public TrayContext(EventWaitHandle showEvent, bool startHidden)
+    public TrayContext(EventWaitHandle showEvent, EventWaitHandle quitEvent, bool startHidden)
     {
         _settings = SettingsStore.Load();
         _mainForm = new MainForm(_settings);
@@ -39,14 +40,8 @@ sealed class TrayContext : ApplicationContext
 
         foreach (var state in new[] { "idle", "recording", "transcribing", "blocked" })
         {
-            try
-            {
-                _stateIcons[state] = new Icon(Path.Combine(AppContext.BaseDirectory, "Assets", $"tray-{state}.ico"));
-            }
-            catch (Exception ex)
-            {
-                Log.Write($"tray icon {state} missing: {ex.Message}");
-            }
+            var icon = Resources.LoadIcon($"tray-{state}.ico");
+            if (icon != null) _stateIcons[state] = icon;
         }
 
         _tray.Icon = _stateIcons.GetValueOrDefault("idle") ?? SystemIcons.Application;
@@ -65,6 +60,16 @@ sealed class TrayContext : ApplicationContext
             SettingsStore.SetAutostart(autostart.Checked);
         };
         menu.Items.Add(autostart);
+
+        // Only while it is not installed, so the menu says nothing once there is
+        // nothing to say. This is the way back for anyone who answered "not now"
+        // on the first run, or chose to keep it portable and changed their mind;
+        // without it that choice could only be undone by editing settings.json.
+        if (Setup.ShouldOffer(Environment.ProcessPath, declined: false))
+        {
+            menu.Items.Add("Install Tiro on this PC", null, (_, _) => InstallAndRestart());
+        }
+
         menu.Items.Add("View log", null, (_, _) =>
         {
             try { System.Diagnostics.Process.Start("notepad.exe", Log.PathOnDisk); } catch { }
@@ -112,6 +117,20 @@ sealed class TrayContext : ApplicationContext
             showEvent,
             (_, _) => _mainForm.BeginInvoke(() => _mainForm.ShowAndFocus()),
             null, -1, executeOnlyOnce: false);
+
+        // A newly downloaded copy about to install itself over this one signals
+        // this (Setup.StopRunningInstance), because Windows will not let it
+        // overwrite an EXE that is being executed. Quitting on request is what
+        // turns "download the update and run it" into an upgrade rather than an
+        // error. Once only: there is no second quit to serve.
+        _quitWait = ThreadPool.RegisterWaitForSingleObject(
+            quitEvent,
+            (_, _) => _mainForm.BeginInvoke(() =>
+            {
+                Log.Write("quitting so a newer copy can replace this one");
+                Quit();
+            }),
+            null, -1, executeOnlyOnce: true);
 
         // The window handle must exist from launch so the WebView2, and with it
         // the warm mic and the hotkey pipeline, is alive before it is ever shown.
@@ -256,9 +275,25 @@ sealed class TrayContext : ApplicationContext
         _hook.WatchCancel = state == "recording" || state == "transcribing";
     }
 
+    /// <summary>
+    /// Set when the app has just installed itself and wants Program.Main to
+    /// start the installed copy. It cannot start it from in here: this process
+    /// still holds the single-instance mutex, and the new copy would treat that
+    /// as "Tiro is already running" and exit again immediately.
+    /// </summary>
+    public bool RelaunchInstalled { get; private set; }
+
+    private void InstallAndRestart()
+    {
+        if (!Setup.InstallInPlace()) return;
+        RelaunchInstalled = true;
+        Quit();
+    }
+
     private void Quit()
     {
         _showWait.Unregister(null);
+        _quitWait.Unregister(null);
         _hook.Dispose();
         _tray.Visible = false;
         _tray.Dispose();

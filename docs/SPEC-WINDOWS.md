@@ -178,11 +178,16 @@ contained change, which is why it is safe to try WebView2 first.
 
 ## Out of scope for this phase
 
-- Installer, winget manifest. Phase 5, and both are now settled: the manifest is checked in and
-  built by CI ([PACKAGING.md](PACKAGING.md)), and there is no installer because winget takes the
-  portable ZIP directly and Tiro has nothing for an installer to do. Authenticode signing landed
-  ahead of that phase because SmartScreen blocks first launches without it — see
-  [SIGNING.md](SIGNING.md).
+- Installer, winget manifest. Phase 5, and both are now settled. The manifest is checked in and
+  built by CI ([PACKAGING.md](PACKAGING.md)). There is still no MSI and no wizard, because Tiro
+  has nothing for one to do, but "no installer" turned out to have been answering the wrong
+  question: the download was a ZIP, Explorer runs an EXE out of a ZIP from `%TEMP%`, and so the
+  app could not be pinned to the taskbar or found again after a reboot. Since 1.3.0 the download
+  is a single EXE (the web core is embedded, `Resources.cs`) and it offers on first run to copy
+  itself into `%LOCALAPPDATA%\Programs\Tiro` with a Start menu shortcut and an Apps and Features
+  entry (`Setup.cs`). That is a file copy, a `.lnk` and one registry key, all per-user, none of
+  it needing administrator rights. Authenticode signing landed ahead of that phase because
+  SmartScreen blocks first launches without it — see [SIGNING.md](SIGNING.md).
 - Any UI written in XAML beyond the tray, the pill and the WebView host. All product UI is the
   web core.
 - Windows 10 support. Check WebView2 runtime presence if this comes up later; it is guaranteed

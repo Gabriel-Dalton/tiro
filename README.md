@@ -39,22 +39,32 @@ gets full parity with the Mac.
 |---|---|---|
 | macOS | Upstream's, unchanged | `Sources/`, built by CI into `Tiro-macOS.zip` (universal: Apple Silicon + Intel) |
 | Web / iPhone PWA | **Built** (phases 0–2; deploy `web/` to any static host) | [`web/`](web/) |
-| Windows | **Built**, a WebView2 shell around the same web core | [`windows/`](windows/), built by CI into `Tiro-Windows-x64.zip` and `Tiro-Windows-arm64.zip` |
+| Windows | **Built**, a WebView2 shell around the same web core | [`windows/`](windows/), built by CI into `Tiro-Windows-x64.exe` and `Tiro-Windows-arm64.exe` |
 | Landing page | **Built**, with download links for all three | [`landing/`](landing/) |
 | Native iOS keyboard | Deferred, phase 5 | none yet |
 
 ### Getting the apps
 
-- **Windows**: grab `Tiro-Windows-x64.zip` from the
+- **Windows**: grab `Tiro-Windows-x64.exe` from the
   [latest release](https://github.com/Gabriel-Dalton/tiro/releases/latest) (or a `build`
-  workflow artifact). Right-click the ZIP → Properties → tick **Unblock** before extracting,
-  then run `Tiro.exe`. It sits in the tray; hold **Right Alt** in any app to dictate.
-  Unblocking is what keeps SmartScreen quiet. If it does interrupt, choose **More info → Run
-  anyway**. [`docs/SIGNING.md`](docs/SIGNING.md) explains why, and how releases get signed.
+  workflow artifact) and run it. That is the whole download: one file, with the web core
+  inside it. It sits in the tray; hold **Right Alt** in any app to dictate.
+
+  The first time you run it, it offers to install itself into
+  `%LOCALAPPDATA%\Programs\Tiro` and add a Start menu entry, which is what lets Windows pin
+  it to the taskbar. Nothing needs administrator rights and nothing is written outside your
+  own user account. Decline and it stays portable, runnable from wherever you put it; the
+  tray menu can still install it later. Either way it removes cleanly from **Apps and
+  Features**, and removing it keeps your history and API key unless you tick the box.
+
+  SmartScreen may interrupt the first launch: choose **More info → Run anyway**, or
+  right-click the file → Properties → tick **Unblock** beforehand. Installing clears that
+  mark, so it happens once rather than every launch.
+  [`docs/SIGNING.md`](docs/SIGNING.md) explains why, and how releases get signed.
   On Windows 10 you may also need Microsoft's free
   [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/); Windows 11
   includes it. Tiro checks at startup and offers the download rather than failing silently.
-  ARM machines (Snapdragon, Surface) can use `Tiro-Windows-arm64.zip` for a native build,
+  ARM machines (Snapdragon, Surface) can use `Tiro-Windows-arm64.exe` for a native build,
   though the x64 one also runs there under emulation.
 
   Every release also carries `Tiro-winget-manifests.zip`, the winget submission for that
@@ -216,10 +226,10 @@ To deploy only the PWA instead, set the project's Root Directory to `web/`. That
 carries its own [`web/vercel.json`](web/vercel.json) with the equivalent headers.
 
 Every release is produced by [`.github/workflows/build.yml`](.github/workflows/build.yml).
-It builds the Windows EXE and the macOS app, then a single release job attaches both zips
-to a GitHub Release, which is where the landing page's `releases/latest/download/…` links
-point. Publishing from one job rather than from each build is deliberate: two jobs
-attaching to the same release race each other.
+It builds the Windows EXE and the macOS app, then a single release job attaches both to a
+GitHub Release, which is where the landing page's `releases/latest/download/…` links point.
+Publishing from one job rather than from each build is deliberate: two jobs attaching to the
+same release race each other.
 
 Three ways to cut one, all equivalent:
 

@@ -1,5 +1,5 @@
 # Builds the two downloadable apps the landing page links to:
-#   Tiro-Windows-x64.zip   self-contained single EXE (WebView2 shell + web core)
+#   Tiro-Windows-x64.exe   self-contained single EXE (WebView2 shell + web core)
 #   Tiro-macOS.zip         upstream's Swift menu-bar app, ad-hoc signed
 #
 # Every push builds both and uploads them as workflow artifacts.
@@ -23,7 +23,7 @@
 #
 # Release builds of the Windows EXE are Authenticode-signed by SignPath Foundation
 # when the repository carries the settings docs/SIGNING.md describes; without them
-# the same ZIP is produced unsigned.
+# the same EXE is produced unsigned.
 
 name: build
 
@@ -374,22 +374,45 @@ jobs:
           if ($sig.Status -ne 'Valid') { throw "Tiro.exe came back $($sig.Status), not Valid." }
           "Signed by $($sig.SignerCertificate.Subject)"
 
-      - name: Zip
+      # The download is one EXE, not an archive. It used to be a ZIP because
+      # PublishSingleFile does not bundle Content files, so the "single file"
+      # publish was really the EXE plus Assets/ plus the whole web core, and
+      # twenty-seven loose files have to be held together by something.
+      #
+      # That ZIP was the worst part of using Tiro on Windows. Explorer runs an EXE
+      # from inside one by extracting it to %TEMP%, so the app people thought they
+      # had installed lived somewhere Windows deletes: it could not be pinned to
+      # the taskbar in any way that survived a reboot, and every launch meant
+      # finding the ZIP again. web/ and Assets/ are embedded resources now
+      # (windows/Tiro.Windows/Resources.cs), so there is one file to ship.
+      #
+      # Which makes the check below the important part of this step rather than
+      # the copy. Anything dotnet leaves beside the EXE is a file the user will
+      # now never receive, and the app would fail at runtime on their machine
+      # rather than here. Fail loudly instead.
+      - name: Take the EXE, and check it really is the whole app
         shell: pwsh
         # `signed` exists only when the steps above ran, so an unsigned build still ships.
-        # SignPath returns the artifact's own layout, but a nested folder would quietly
-        # produce a ZIP nobody can run, so check before packing rather than after.
         run: |
           $source = if (Test-Path signed) { 'signed' } else { 'publish' }
-          if (-not (Test-Path (Join-Path $source 'Tiro.exe'))) {
-            throw "$source/Tiro.exe is missing, so the ZIP layout would be wrong."
+          $exe = Join-Path $source 'Tiro.exe'
+          if (-not (Test-Path $exe)) { throw "$source/Tiro.exe is missing." }
+
+          # The .pdb is debug symbols, which are deliberately not shipped.
+          $strays = Get-ChildItem $source -Recurse -File |
+            Where-Object { $_.Name -ne 'Tiro.exe' -and $_.Extension -ne '.pdb' }
+          if ($strays) {
+            $strays | ForEach-Object { Write-Host "  $($_.FullName)" }
+            throw "The publish output has files beside Tiro.exe. Shipping the EXE on its own would ship a broken app: embed them as resources (windows/Tiro.Windows/Resources.cs) rather than adding them back as Content."
           }
-          Compress-Archive -Path "$source/*" -DestinationPath ${{ matrix.asset }}.zip
+
+          Copy-Item $exe "${{ matrix.asset }}.exe"
+          "{0}: {1:N1} MB" -f "${{ matrix.asset }}.exe", ((Get-Item "${{ matrix.asset }}.exe").Length / 1MB)
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}.zip
+          path: ${{ matrix.asset }}.exe
 
   macos:
     needs: [cut]
@@ -497,8 +520,8 @@ jobs:
           set -euo pipefail
           node scripts/gen-winget.mjs \
             --tag "${{ steps.v.outputs.version }}" \
-            --x64 dist/Tiro-Windows-x64.zip \
-            --arm64 dist/Tiro-Windows-arm64.zip \
+            --x64 dist/Tiro-Windows-x64.exe \
+            --arm64 dist/Tiro-Windows-arm64.exe \
             --out winget-out
           # Zipped so the manifests/g/GabrielDalton/Tiro/<version>/ path survives:
           # that path is the package identity as far as winget-pkgs is concerned,
@@ -518,6 +541,10 @@ jobs:
         with:
           tag_name: ${{ steps.v.outputs.version }}
           name: Tiro ${{ steps.v.outputs.version }}
-          files: dist/*.zip
+          # The Windows builds are bare EXEs now; the Mac app and the winget
+          # manifests are still archives, so both patterns have to be listed.
+          files: |
+            dist/*.exe
+            dist/*.zip
           make_latest: true
           body_path: notes.md

@@ -31,6 +31,12 @@ class AppSettings
     // means once, not once a week for as long as they decline it.
     public string? AnnouncedVersion { get; set; }
 
+    // Whether the first-run offer to install has been turned down for good.
+    // Somebody who wants Tiro portable, on a USB stick or in a folder they sync,
+    // should be asked once and then left alone; a prompt that returns every
+    // launch is one people learn to dismiss without reading.
+    public bool SetupDeclined { get; set; } = false;
+
     // A check that could not reach GitHub does not reset the weekly clock, so
     // this is what stops a blocked or rate-limited machine trying again on every
     // single launch.
@@ -80,13 +86,22 @@ static class SettingsStore
     }
 
     /// <summary>Autostart via the per-user Run key; off by default (SPEC-WINDOWS 4.3).</summary>
-    public static void SetAutostart(bool enabled)
+    public static void SetAutostart(bool enabled) => SetAutostart(enabled, Application.ExecutablePath);
+
+    /// <summary>
+    /// The overload exists for install and uninstall, which need to write a path
+    /// that is not the one this process is running from: the copy doing the
+    /// installing lives in Downloads, and the Run key has to name the copy that
+    /// will still be there tomorrow. Storing the running path there was how
+    /// autostart quietly stopped working the first time somebody moved the EXE.
+    /// </summary>
+    public static void SetAutostart(bool enabled, string exePath)
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
             if (key == null) return;
-            if (enabled) key.SetValue(RunValue, $"\"{Application.ExecutablePath}\" --tray");
+            if (enabled) key.SetValue(RunValue, $"\"{exePath}\" --tray");
             else key.DeleteValue(RunValue, throwOnMissingValue: false);
         }
         catch (Exception ex)

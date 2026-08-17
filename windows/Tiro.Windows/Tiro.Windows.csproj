@@ -29,12 +29,23 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
+  <!-- Embedded, not copied alongside. PublishSingleFile only bundles the managed
+       and native binaries; Content files stay loose, so while these were Content
+       the "single file" publish was really twenty-seven of them and the download
+       had to be a ZIP to hold them together. That ZIP is what made the app feel
+       like a temporary file (Resources.cs explains what Explorer does with it).
+       As resources they are inside the EXE, and the download is one file.
+
+       The web core still ships verbatim; the PWA and this app are the same
+       product, and nothing here transforms it. Resources.EnsureWebRoot unpacks it
+       at runtime because WebView2 needs a real folder to map a virtual host to. -->
   <ItemGroup>
-    <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
-    <!-- the web core ships verbatim next to the EXE; the PWA and this app are the same product -->
-    <Content Include="..\..\web\**\*" Exclude="..\..\web\vercel.json"
-             Link="web\%(RecursiveDir)%(Filename)%(Extension)"
-             CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Assets\*.ico">
+      <LogicalName>Assets/%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\web\**\*" Exclude="..\..\web\vercel.json">
+      <LogicalName>web/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

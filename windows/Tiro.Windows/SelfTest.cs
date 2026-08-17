@@ -79,6 +79,66 @@ static class SelfTest
         Check("1.10.0 over 1.9.0 is a feature, not a downgrade",
             UpdateCheck.Classify("1.10.0", "1.9.0") == UpdateCheck.Worth.Feature);
 
+        // ------------------------------------------------------- distribution
+        // The download is a single EXE, so everything the app needs at runtime
+        // has to be inside it. A build that dropped the web core would start,
+        // show an empty white window and look like a crash with no error, which
+        // is the kind of thing you find out about from a user rather than a
+        // build. These assertions are cheap and they run on the shipped binary.
+
+        Check("the web core is embedded", Resources.EmbeddedWebFileCount() >= 20);
+        Check("index.html is embedded", Resources.HasEmbedded("web/index.html"));
+        Check("a nested source file is embedded", Resources.HasEmbedded("web/src/app.js"));
+        Check("the window icon is embedded", Resources.LoadIcon("tiro.ico") != null);
+        Check("the four tray icons are embedded",
+            Resources.LoadIcon("tray-idle.ico") != null &&
+            Resources.LoadIcon("tray-recording.ico") != null &&
+            Resources.LoadIcon("tray-transcribing.ico") != null &&
+            Resources.LoadIcon("tray-blocked.ico") != null);
+
+        // Embedded is not the same as served. Extraction is the step in between,
+        // and it is where a build-machine path separator can quietly flatten
+        // web/src/app.js into a file called "src\app.js" sitting in the root.
+        var webRoot = Resources.EnsureWebRoot();
+        Check("the web core extracts to disk", File.Exists(Path.Combine(webRoot, "index.html")));
+        Check("nested files keep their folder", File.Exists(Path.Combine(webRoot, "src", "app.js")));
+        Check("a second extraction is a no-op, not a wipe",
+            Resources.EnsureWebRoot() == webRoot && File.Exists(Path.Combine(webRoot, "index.html")));
+
+        // Where a copy of Tiro decides it lives. Both ways of getting this wrong
+        // are silent: too eager and a winget-managed copy moves itself out from
+        // under the package manager that is supposed to upgrade it, too shy and
+        // nobody is ever offered the install and everyone stays in Downloads.
+        Check("the same path in different case is the same file",
+            Setup.SamePath(@"C:\Users\a\Tiro.exe", @"c:\users\a\tiro.exe"));
+        Check("a trailing separator does not make a different path",
+            Setup.SamePath(@"C:\Users\a", @"C:\Users\a\"));
+        Check("different files are not the same path",
+            !Setup.SamePath(@"C:\Users\a\Tiro.exe", @"C:\Users\b\Tiro.exe"));
+        Check("a missing path matches nothing",
+            !Setup.SamePath(null, @"C:\Tiro.exe") && !Setup.SamePath(@"C:\Tiro.exe", ""));
+
+        const string WingetCopy =
+            @"C:\Users\a\AppData\Local\Microsoft\WinGet\Packages\GabrielDalton.Tiro\Tiro.exe";
+        Check("a winget package is somebody else's to manage", Setup.IsManagedLocation(WingetCopy));
+        Check("Program Files is somebody else's to manage",
+            Setup.IsManagedLocation(@"C:\Program Files\Tiro\Tiro.exe"));
+        Check("Downloads is nobody's to manage",
+            !Setup.IsManagedLocation(@"C:\Users\a\Downloads\Tiro.exe"));
+        Check("a folder merely named like Program Files is not Program Files",
+            !Setup.IsManagedLocation(@"C:\Users\a\My Program Files Backup\Tiro.exe"));
+
+        Check("a fresh download is offered the install",
+            Setup.ShouldOffer(@"C:\Users\a\Downloads\Tiro.exe", declined: false));
+        Check("declining is remembered",
+            !Setup.ShouldOffer(@"C:\Users\a\Downloads\Tiro.exe", declined: true));
+        Check("the installed copy does not offer to install itself",
+            !Setup.ShouldOffer(Setup.InstalledExe, declined: false));
+        Check("a winget copy is never offered the install",
+            !Setup.ShouldOffer(WingetCopy, declined: false));
+        Check("an unknown location is never offered the install",
+            !Setup.ShouldOffer(null, declined: false) && !Setup.ShouldOffer("  ", declined: false));
+
         Log.Write(failures == 0 ? "self-test passed" : $"self-test: {failures} failure(s)");
         return failures == 0 ? 0 : 1;
     }
