@@ -232,10 +232,29 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install Playwright
+      # Drive the browser the runner already has, rather than downloading one.
+      # cdn.playwright.dev began answering 403 "this service is not available in
+      # your location" for these runners on 2026-08-17, which is not something a
+      # build of this repository can fix or usefully wait out: it turned every
+      # push red at the Install step, before a line of the suite had run.
+      #
+      # smoke-web.mjs already takes TIRO_CHROMIUM for exactly this. It was added
+      # to point a local run at a system Chromium, and CI uses the same door.
+      # The download is still the fallback, so a runner image that drops Chrome
+      # goes back to the old behaviour rather than failing.
+      - name: Install Playwright, and find a browser for it to drive
         run: |
+          set -euo pipefail
           npm init -y >/dev/null
           npm install --no-save playwright@1
+          for candidate in "${CHROME_PATH:-}" /usr/bin/google-chrome /usr/bin/chromium-browser /usr/bin/chromium; do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+              echo "Driving $candidate ($("$candidate" --version))"
+              echo "TIRO_CHROMIUM=$candidate" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "::warning::No preinstalled browser found, downloading one."
           npx playwright install --with-deps chromium
 
       - name: Check the generated tokens and icons match their source
