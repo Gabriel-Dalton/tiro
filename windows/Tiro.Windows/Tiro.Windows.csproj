@@ -18,6 +18,13 @@
     <ApplicationIcon>Assets\tiro.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- The NuGet packages ship XML doc comments beside their assemblies, for
+         IntelliSense. Nothing loads them at runtime, and now that the download is
+         a single EXE they were three loose files in a publish folder that is
+         supposed to contain one. The default here is ".pdb;.xml"; "none" is the
+         documented way to say neither. -->
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
 
   <!-- Version.props is generated from the VERSION file at the repository root, so

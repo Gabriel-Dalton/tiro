@@ -302,27 +302,6 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish
 
-      # The shell has almost no logic worth a test project, but version
-      # comparison is the exception: get it wrong and every user simply stops
-      # being told about updates, silently, forever. `--self-test` asserts it
-      # against the EXE that is about to ship. x64 only — the arm64 build is the
-      # same IL, and this runner cannot execute it.
-      - name: Self-test the shipped EXE
-        if: matrix.rid == 'win-x64'
-        shell: pwsh
-        # Start-Process -Wait, not `&`. Tiro.exe is a GUI-subsystem binary — it
-        # has to be, or every launch would flash a console window — and the shell
-        # does not wait on those: `&` returns immediately, leaves $LASTEXITCODE
-        # untouched, and the next line reads a log the app has not written yet.
-        run: |
-          $exe = (Resolve-Path publish/Tiro.exe).Path   # Start-Process resolves against the
-          # process CWD, which PowerShell does not keep in step with Set-Location
-          $run = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
-          $log = Join-Path $env:APPDATA 'Tiro/tiro.log'
-          if (Test-Path $log) { Get-Content $log -Tail 40 } else { "No log at $log" }
-          if ($run.ExitCode -ne 0) { throw "Tiro.exe --self-test exited $($run.ExitCode); see the log above." }
-          "Self-test passed."
-
       # SignPath Foundation signs releases, not every push: its free tier is for
       # published open-source builds, and each signing request is a human-auditable
       # record rather than something to spend on a branch build.
@@ -386,11 +365,18 @@ jobs:
       # finding the ZIP again. web/ and Assets/ are embedded resources now
       # (windows/Tiro.Windows/Resources.cs), so there is one file to ship.
       #
-      # Which makes the check below the important part of this step rather than
-      # the copy. Anything dotnet leaves beside the EXE is a file the user will
-      # now never receive, and the app would fail at runtime on their machine
-      # rather than here. Fail loudly instead.
-      - name: Take the EXE, and check it really is the whole app
+      # `dotnet publish` still leaves files beside the EXE that nobody now
+      # receives: XML doc comments for IntelliSense, and WebView2's native loader,
+      # which the package copies to the output as a convenience for
+      # framework-dependent apps even though IncludeNativeLibrariesForSelfExtraction
+      # has already put a copy inside the bundle. Listing them is worth it, but a
+      # list cannot tell you which ones matter, and the first attempt at this step
+      # guessed: it failed the build on any stray at all, which is both too strict
+      # (a doc file is not a dependency) and too weak (it can only see what the
+      # build produced, never whether the EXE actually works without it).
+      #
+      # So the EXE is copied somewhere empty and made to prove it, below.
+      - name: Take the EXE on its own
         shell: pwsh
         # `signed` exists only when the steps above ran, so an unsigned build still ships.
         run: |
@@ -398,16 +384,44 @@ jobs:
           $exe = Join-Path $source 'Tiro.exe'
           if (-not (Test-Path $exe)) { throw "$source/Tiro.exe is missing." }
 
-          # The .pdb is debug symbols, which are deliberately not shipped.
-          $strays = Get-ChildItem $source -Recurse -File |
-            Where-Object { $_.Name -ne 'Tiro.exe' -and $_.Extension -ne '.pdb' }
-          if ($strays) {
-            $strays | ForEach-Object { Write-Host "  $($_.FullName)" }
-            throw "The publish output has files beside Tiro.exe. Shipping the EXE on its own would ship a broken app: embed them as resources (windows/Tiro.Windows/Resources.cs) rather than adding them back as Content."
-          }
+          $root = (Resolve-Path $source).Path
+          Get-ChildItem $source -Recurse -File |
+            Where-Object { $_.Name -ne 'Tiro.exe' } |
+            ForEach-Object { Write-Host "  left behind: $($_.FullName.Substring($root.Length + 1))" }
 
+          # Nothing else goes in here. That is the entire point of the folder.
+          New-Item -ItemType Directory -Force -Path standalone | Out-Null
+          Copy-Item $exe standalone/Tiro.exe
           Copy-Item $exe "${{ matrix.asset }}.exe"
           "{0}: {1:N1} MB" -f "${{ matrix.asset }}.exe", ((Get-Item "${{ matrix.asset }}.exe").Length / 1MB)
+
+      # Run from a folder holding nothing but Tiro.exe, which is what the user
+      # downloads. That turns "is the single file self-sufficient" from something
+      # argued about in a comment into something the build answers: the self-test
+      # loads the embedded web core, extracts it, and asks WebView2 for its
+      # version, which is a P/Invoke into the native loader and so fails here
+      # rather than on somebody's PC if that loader did not make it into the
+      # bundle. It also still covers version comparison, where a string compare
+      # says 1.9.0 beats 1.10.0 and every user silently stops hearing about
+      # updates.
+      #
+      # x64 only — the arm64 build is the same IL and this runner cannot execute it.
+      - name: Prove the single EXE works with nothing beside it
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        # Start-Process -Wait, not `&`. Tiro.exe is a GUI-subsystem binary — it
+        # has to be, or every launch would flash a console window — and the shell
+        # does not wait on those: `&` returns immediately, leaves $LASTEXITCODE
+        # untouched, and the next line reads a log the app has not written yet.
+        run: |
+          $exe = (Resolve-Path standalone/Tiro.exe).Path   # Start-Process resolves against the
+          # process CWD, which PowerShell does not keep in step with Set-Location
+          $run = Start-Process -FilePath $exe -ArgumentList '--self-test' `
+                               -WorkingDirectory (Split-Path $exe) -Wait -PassThru
+          $log = Join-Path $env:APPDATA 'Tiro/tiro.log'
+          if (Test-Path $log) { Get-Content $log -Tail 60 } else { "No log at $log" }
+          if ($run.ExitCode -ne 0) { throw "Tiro.exe --self-test exited $($run.ExitCode); see the log above." }
+          "Self-test passed against the EXE that ships, alone in its own folder."
 
       - uses: actions/upload-artifact@v4
         with:

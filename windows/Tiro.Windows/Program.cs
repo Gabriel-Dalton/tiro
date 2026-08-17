@@ -32,13 +32,23 @@ static class Program
             return;
         }
 
+        // --tray is what the autostart Run entry passes: start minimised to the tray
+        bool startHidden = argv.Contains("--tray");
+
         // Also ahead of the mutex, and for the same reason. Installing is
         // replacing the EXE a running copy is executing, so this has to be able
         // to ask that copy to quit. Behind the mutex it would instead be treated
         // as a second launch, poke the old version's window open, and exit,
         // which is precisely what a freshly downloaded update did before: you
         // ran the new release and the old one waved back at you.
-        if (Setup.MaybeInstall()) return;
+        //
+        // Never when autostart launched us, though. Someone running Tiro portable
+        // with "Start with Windows" ticked would otherwise be met by a modal
+        // question every time they logged in, before the desktop had settled, and
+        // an app that starts hidden in the tray has no business opening a dialog
+        // at all. It can wait until they open Tiro themselves; the tray menu
+        // carries the same offer in the meantime.
+        if (!startHidden && Setup.MaybeInstall()) return;
 
         bool relaunchInstalled;
 
@@ -62,8 +72,6 @@ static class Program
             using var quitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Setup.QuitEventName);
 
             Log.Write($"Tiro {Build.Version} starting");
-            // --tray is what the autostart Run entry passes: start minimised to the tray
-            bool startHidden = argv.Contains("--tray");
             var tray = new TrayContext(showEvent, quitEvent, startHidden);
             Application.Run(tray);
             relaunchInstalled = tray.RelaunchInstalled;

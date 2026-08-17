@@ -1,3 +1,5 @@
+using Microsoft.Web.WebView2.Core;
+
 namespace Tiro.Windows;
 
 /// <summary>
@@ -95,6 +97,35 @@ static class SelfTest
             Resources.LoadIcon("tray-recording.ico") != null &&
             Resources.LoadIcon("tray-transcribing.ico") != null &&
             Resources.LoadIcon("tray-blocked.ico") != null);
+
+        // The one dependency that is not managed code and so cannot be embedded
+        // the way the web core is: WebView2's native loader. The package copies
+        // it next to the EXE as well as bundling it, which made the loose copy
+        // look load-bearing when the download stopped being an archive.
+        //
+        // GetAvailableBrowserVersionString is the P/Invoke into that loader, so
+        // it is the first thing that fails if the bundle does not carry it. CI
+        // runs this from a folder holding nothing but Tiro.exe, which is what
+        // makes the answer mean anything.
+        //
+        // A missing runtime is a different answer from a missing loader and only
+        // one of them is a packaging fault: Windows 10 without Edge legitimately
+        // has no runtime, which the app already handles by offering the download.
+        try
+        {
+            var runtime = CoreWebView2Environment.GetAvailableBrowserVersionString();
+            Check($"WebView2's native loader resolves (runtime {runtime})", true);
+        }
+        catch (WebView2RuntimeNotFoundException)
+        {
+            Check("WebView2's native loader resolves (no runtime installed, which is not ours)", true);
+        }
+        catch (Exception ex)
+        {
+            // DllNotFoundException here means the loader is not in the bundle and
+            // the download is broken for everyone. Anything else is worth seeing.
+            Check($"WebView2's native loader resolves ({ex.GetType().Name}: {ex.Message})", false);
+        }
 
         // Embedded is not the same as served. Extraction is the step in between,
         // and it is where a build-machine path separator can quietly flatten

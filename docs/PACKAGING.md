@@ -30,8 +30,18 @@ Two changes fixed it, and both are worth keeping straight because they solve dif
 
 - `web/` and `Assets/` are `EmbeddedResource` now, unpacked at runtime by
   [`Resources.cs`](../windows/Tiro.Windows/Resources.cs), so the download really is one file.
-  The `windows` job in [`build.yml`](../.github/workflows/build.yml) fails if anything else
-  turns up beside the EXE, because a stray file would now be one the user never receives.
+  The `windows` job in [`build.yml`](../.github/workflows/build.yml) proves that rather than
+  asserting it: it copies the EXE into an empty folder and runs `--self-test` there, so
+  "self-contained" is answered by the binary that ships instead of by this paragraph.
+
+  It is worth saying why that is the check, because the obvious one is wrong. The first
+  attempt failed the build if `dotnet publish` left *anything* beside the EXE, and it went
+  red immediately on files that do not matter (XML doc comments for IntelliSense) alongside
+  one that looks like it does (`WebView2Loader.dll`, which the WebView2 package copies to
+  the output for framework-dependent apps even though `IncludeNativeLibrariesForSelfExtraction`
+  has already bundled it). A file list cannot tell those apart. Running the EXE alone can,
+  and the self-test asks WebView2 for its version specifically because that call is a
+  P/Invoke into the native loader.
 - [`Setup.cs`](../windows/Tiro.Windows/Setup.cs) offers, on first run, to install into
   `%LOCALAPPDATA%\Programs\Tiro` with a Start menu shortcut and an Apps and Features entry.
   Still no MSI and still no wizard: it is a file copy, a `.lnk` and one registry key, none of
