@@ -18,6 +18,8 @@ const SHELL = [
   "src/history.js",
   "src/install.js",
   "src/settings.js",
+  "src/share.js",
+  "src/sheet.js",
   "src/tokens.js",
   "src/usage.js",
   "src/version.js",

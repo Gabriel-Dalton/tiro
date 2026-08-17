@@ -15,6 +15,8 @@
 // moment they have just seen the app work, and a confirmation afterwards,
 // since iOS fires no event to tell either of us that it worked.
 
+import { trapTab } from "./sheet.js";
+
 const UA = navigator.userAgent;
 
 const IS_IPAD = /ipad/i.test(UA) || (/mac/i.test(UA) && navigator.maxTouchPoints > 1);
@@ -330,26 +332,9 @@ export class Installer {
     (primary || this.els.panel).focus();
   }
 
-  /** Tab must not walk out of an `aria-modal` dialog into the page behind it:
-   * the page is inert to a screen reader, so a keyboard user would be moving
-   * through controls that are, as far as the announcement goes, not there. */
   _trapTab(e) {
-    if (e.key !== "Tab" || this.els.sheet.hidden) return;
-    const focusable = this.els.panel.querySelectorAll(
-      'button:not([hidden]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const list = [...focusable].filter((el) => el.offsetParent !== null);
-    if (!list.length) return;
-    const first = list[0];
-    const last = list[list.length - 1];
-    const on = document.activeElement;
-    if (e.shiftKey && (on === first || on === this.els.panel)) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && on === last) {
-      e.preventDefault();
-      first.focus();
-    }
+    if (this.els.sheet.hidden) return;
+    trapTab(this.els.panel, e);
   }
 
   close() {
