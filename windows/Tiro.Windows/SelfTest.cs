@@ -175,6 +175,29 @@ static class SelfTest
         Check("an unknown location is never offered the install",
             !Setup.ShouldOffer(null, declined: false) && !Setup.ShouldOffer("  ", declined: false));
 
+        // The Start Menu shortcut writer, which is the whole of pinning: no
+        // shortcut, nothing to pin, and Start search finds nothing either.
+        //
+        // It shipped in 1.3.0 unable to write a single one. The identity was set
+        // through InitPropVariantFromString, which is an inline helper in
+        // propvarutil.h rather than an export of propsys.dll, so every call threw
+        // EntryPointNotFoundException, one catch logged it, and the app carried on
+        // as though it had worked. Two releases went out that way.
+        //
+        // Writing a .lnk needs COM and a disk and nothing else, so this is
+        // checkable here. It goes to a temp path: the real Start Menu is not the
+        // self-test's to write to.
+        var probeLnk = Path.Combine(Path.GetTempPath(), "tiro-self-test.lnk");
+        try
+        {
+            Check("a Start Menu shortcut can be written, and carries its identity",
+                StartMenu.RoundTripsShortcut(probeLnk, Environment.ProcessPath!));
+        }
+        finally
+        {
+            try { File.Delete(probeLnk); } catch { }
+        }
+
         // WIN-01. Which key Tiro takes on an AltGr layout. Getting this wrong
         // does not fail visibly in Tiro at all: it makes @ € { } [ ] and ~
         // untypable in every other application on the machine, which nobody

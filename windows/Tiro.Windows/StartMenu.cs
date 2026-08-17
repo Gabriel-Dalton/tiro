@@ -94,6 +94,66 @@ static class StartMenu
         }
     }
 
+    /// <summary>
+    /// Write a shortcut somewhere that is not the Start Menu, and report whether
+    /// it came back with the target and the identity it was given.
+    ///
+    /// This exists for the self-test, and it exists because the writer shipped
+    /// broken. Everything it does needs COM and the file system and nothing needs
+    /// a desktop session, a window or a real Start Menu, so it is one of the few
+    /// things about this app that a build agent can genuinely check. See
+    /// StringPropVariant for what was wrong.
+    /// </summary>
+    public static bool RoundTripsShortcut(string lnk, string exe)
+    {
+        try
+        {
+            Write(lnk, exe);
+            return string.Equals(TargetOf(lnk), exe, StringComparison.OrdinalIgnoreCase)
+                && AppIdOf(lnk) == AppUserModelId;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"the shortcut writer is broken: {ex.GetType().Name}: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The Application User Model ID recorded on a shortcut, or null. Read back
+    /// rather than assumed: a shortcut written without it pins as a separate
+    /// application from the running window, and nothing about that failure points
+    /// at the missing property.
+    /// </summary>
+    private static string? AppIdOf(string lnk)
+    {
+        var link = (IShellLinkW)new ShellLink();
+        try
+        {
+            ((IPersistFile)link).Load(lnk, 0);
+            var store = (IPropertyStore)link;
+            store.GetValue(ref PkeyAppUserModelId, out var value);
+            try
+            {
+                return value.Vt == 31 && value.Value != IntPtr.Zero
+                    ? Marshal.PtrToStringUni(value.Value)
+                    : null;
+            }
+            finally
+            {
+                PropVariantClear(ref value);
+            }
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(link);
+        }
+    }
+
     /// <summary>The EXE a shortcut points at, or null if there is no readable
     /// shortcut there.</summary>
     private static string? TargetOf(string lnk)
@@ -133,7 +193,7 @@ static class StartMenu
             link.SetIconLocation(exe, 0);
 
             var store = (IPropertyStore)link;
-            InitPropVariantFromString(AppUserModelId, out var value);
+            var value = StringPropVariant(AppUserModelId);
             try
             {
                 store.SetValue(ref PkeyAppUserModelId, ref value);
@@ -241,9 +301,27 @@ static class StartMenu
     private static extern void SetCurrentProcessExplicitAppUserModelID(
         [MarshalAs(UnmanagedType.LPWStr)] string appId);
 
-    [DllImport("propsys.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
-    private static extern void InitPropVariantFromString(
-        [MarshalAs(UnmanagedType.LPWStr)] string value, out PropVariant variant);
+    /// <summary>
+    /// A PROPVARIANT holding a string, built by hand.
+    ///
+    /// This was `InitPropVariantFromString` from propsys.dll, which shipped in
+    /// 1.3.0 and never once worked: that function is an inline helper in
+    /// propvarutil.h, not an export of any DLL, so every call threw
+    /// EntryPointNotFoundException. The exception was caught and logged one line
+    /// deep, the app carried on, and the result was that no Start Menu shortcut
+    /// was ever written by the release whose headline was that you could pin Tiro
+    /// to the taskbar. Nothing failed loudly enough to notice.
+    ///
+    /// What the helper does is two lines: VT_LPWSTR, and a copy of the string in
+    /// memory the shell's allocator owns, which is what lets PropVariantClear
+    /// free it. Doing it here removes the dependency rather than guessing at
+    /// another entry point.
+    /// </summary>
+    private static PropVariant StringPropVariant(string value) => new()
+    {
+        Vt = 31, // VT_LPWSTR
+        Value = Marshal.StringToCoTaskMemUni(value),
+    };
 
     [DllImport("ole32.dll")]
     private static extern int PropVariantClear(ref PropVariant variant);
