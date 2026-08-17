@@ -392,9 +392,17 @@ sealed class RecordingPill : Form
     {
         var phase = (float)(_elapsed.Elapsed.TotalSeconds % SweepPeriod / SweepPeriod);
         // The head enters left of the first bar and leaves right of the last, so
-        // the bump fades in and out at the ends. Wrapping a bump that is still
-        // mid strip is a jump, and a jump every 1.15 s reads as a stutter rather
-        // than as work being done.
+        // the bump arrives and departs at the edges rather than wrapping from the
+        // middle of the strip, which would be a jump every 1.15 s and would read
+        // as a stutter rather than as work being done.
+        //
+        // It is not a full fade, and the numbers are worth having here rather than
+        // being rediscovered: 0.18 of margin against a 0.28 sigma puts the leading
+        // bar at alpha 199 of 255 the instant it enters, so it appears at about
+        // three quarters brightness. Widening the margin past the sigma would fade
+        // it properly, at the cost of a longer dead stretch at each end. Only one
+        // 50 ms frame per crossing has both ends lit at once, which is why this
+        // does not read as two bumps.
         var head = -0.18f + phase * 1.36f;
         for (int i = 0; i < Bars; i++)
         {
