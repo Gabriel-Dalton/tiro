@@ -37,11 +37,23 @@ sealed class RecordingPill : Form
     private const float BarX = 64;
     private const float ClockX = 144;
 
+    // A message is as wide as it needs to be, between the width of the
+    // transcribing pill and something that still reads as a pill rather than a
+    // bar across the screen. Longer than the maximum gets ellipsised; the full
+    // text is always in the log and in the app.
+    private const int ProblemMinWidth = TranscribingWidth;
+    private const int ProblemMaxWidth = 460;
+    private const float ProblemTextX = 44;   // clear of the X at 7..37
+    private const float ProblemPadRight = 16;
+
     /// <summary>The X was clicked: throw the take away.</summary>
     public event Action? CancelClicked;
 
     /// <summary>The check was clicked: finish the take now.</summary>
     public event Action? StopClicked;
+
+    /// <summary>A message pill was clicked: the user wants the app itself.</summary>
+    public event Action? OpenRequested;
 
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 50 };
     private readonly float[] _bars = new float[Bars];
@@ -51,9 +63,14 @@ sealed class RecordingPill : Form
     // phase pushes the argument past 255 and Color.FromArgb throws where nothing
     // catches it. A monotonic clock cannot produce the input at all.
     private readonly System.Diagnostics.Stopwatch _elapsed = new();
+    // A message pill takes itself down; nothing else will, because the state
+    // machine it is reporting on never left idle and so sends no further state.
+    private readonly System.Windows.Forms.Timer _dismiss = new() { Interval = 6000 };
     private string _mode = "";
+    private string _message = "";
+    private bool _openable;
     private float _level;
-    private int _hot = -1;      // 0 = cancel, 1 = stop, -1 = neither
+    private int _hot = -1;      // 0 = cancel, 1 = stop, 2 = the message body, -1 = none
     private int _width = RecordingWidth; // logical, so a DPI change can re-apply it
 
     public RecordingPill()
@@ -92,6 +109,12 @@ sealed class RecordingPill : Form
         // region cut once in the constructor would clip a third of the pill off,
         // and would clip again the moment it moved between them.
         Resize += (_, _) => ApplyRoundedCorners();
+        _dismiss.Tick += (_, _) =>
+        {
+            _dismiss.Stop();
+            if (_mode == "problem") { _mode = ""; Hide(); }
+        };
+
         // A DPI change means Windows just moved this window to another monitor,
         // so it needs re-centring on that one as well as re-sizing for it.
         DpiChanged += (_, _) => { ApplySize(_width); if (Visible) Place(); };
@@ -148,6 +171,10 @@ sealed class RecordingPill : Form
 
     public void ShowState(string state)
     {
+        // A real take outranks a message about one that never happened, and
+        // takes the dismiss timer down with it: left running, it would fire
+        // mid-take and hide a pill that is no longer a message.
+        _dismiss.Stop();
         _mode = state;
         _hot = -1;
         if (state == "recording")
@@ -173,6 +200,37 @@ sealed class RecordingPill : Form
             _timer.Stop();
             Hide();
         }
+    }
+
+    /// <summary>Say why a press produced no take, where the take would have
+    /// appeared. This is the only thing on screen when it happens: the app's own
+    /// toast is in a window the user is deliberately not looking at.</summary>
+    public void ShowProblem(string text, bool openable)
+    {
+        _timer.Stop();
+        _mode = "problem";
+        _message = text;
+        _openable = openable;
+        _hot = -1;
+        ApplySize(MeasureProblemWidth(text));
+        Place();
+        Show();
+        Invalidate();
+        // Restart, so a second refusal gets its own six seconds rather than the
+        // remainder of the first one's.
+        _dismiss.Stop();
+        _dismiss.Start();
+    }
+
+    /// <summary>Logical width for a message, measured with the font the paint
+    /// will use at 96 dpi. ApplySize scales the answer, so this must not be
+    /// measured at the current DPI or the scaling would be applied twice.</summary>
+    private static int MeasureProblemWidth(string text)
+    {
+        using var g = Graphics.FromHwnd(IntPtr.Zero);
+        using var font = new Font("Segoe UI", 10.5f, GraphicsUnit.Pixel);
+        var w = g.MeasureString(text, font).Width;
+        return (int)Math.Clamp(ProblemTextX + w + ProblemPadRight, ProblemMinWidth, ProblemMaxWidth);
     }
 
     // ---------------------------------------------------------------- layout
@@ -203,6 +261,27 @@ sealed class RecordingPill : Form
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         g.Clear(Ink950);
         var s = Scale;
+
+        if (_mode == "problem")
+        {
+            DrawCancel(g, CancelRect());
+            using var font = new Font("Segoe UI", 10.5f * s, GraphicsUnit.Pixel);
+            using var brush = new SolidBrush(_hot == 2 ? Color.White : Paper50);
+            // Left-aligned and ellipsised rather than centred and clipped: these
+            // read as sentences, and the front of one is worth more than its
+            // middle. Vertically centred by the format, since a single line
+            // measured by hand drifts with the font's internal leading.
+            using var format = new StringFormat(StringFormatFlags.NoWrap)
+            {
+                Trimming = StringTrimming.EllipsisCharacter,
+                LineAlignment = StringAlignment.Center,
+            };
+            var box = new RectangleF(
+                ProblemTextX * s, 0,
+                Width - (ProblemTextX + ProblemPadRight) * s, Height);
+            g.DrawString(_message, font, brush, box, format);
+            return;
+        }
 
         if (_mode == "transcribing")
         {
@@ -335,8 +414,23 @@ sealed class RecordingPill : Form
         if (e.Button == MouseButtons.Left)
         {
             var hit = HitTest(e.Location);
-            if (hit == 0) CancelClicked?.Invoke();
+            if (hit == 0)
+            {
+                // On a message the X means "I have read it", not "throw the take
+                // away". There is no take to throw away, and asking the web core
+                // to cancel an idle state machine would be a message about
+                // nothing.
+                if (_mode == "problem") { _dismiss.Stop(); _mode = ""; Hide(); }
+                else CancelClicked?.Invoke();
+            }
             else if (hit == 1) StopClicked?.Invoke(); // HitTest only returns 1 while recording
+            else if (hit == 2)
+            {
+                _dismiss.Stop();
+                _mode = "";
+                Hide();
+                OpenRequested?.Invoke();
+            }
         }
         base.OnMouseDown(e);
     }
@@ -345,6 +439,10 @@ sealed class RecordingPill : Form
     {
         if (CancelRect().Contains(p)) return 0;
         if (_mode == "recording" && StopRect().Contains(p)) return 1;
+        // The whole remaining body, not a button drawn inside it: the message is
+        // already the smallest thing on screen, and a target inside a target at
+        // this size is one nobody hits.
+        if (_mode == "problem" && _openable) return 2;
         return -1;
     }
 
@@ -380,7 +478,7 @@ sealed class RecordingPill : Form
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _timer.Dispose();
+        if (disposing) { _timer.Dispose(); _dismiss.Dispose(); }
         base.Dispose(disposing);
     }
 

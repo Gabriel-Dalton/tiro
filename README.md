@@ -117,6 +117,29 @@ a wrong guess, or no JavaScript at all, still leaves every download visible. Mac
 deliberately not detected: browsers cannot tell Apple Silicon from Intel reliably, which is
 exactly why the Mac build is universal.
 
+### Keeping it on the taskbar or the Dock
+
+Neither platform lets an application pin itself. Windows removed the shell verb that used
+to allow it in Windows 10, and it now exists only for MSIX-packaged apps; macOS has never
+offered one, and the Dock's layout is the user's to change. So the last step is yours on
+both. What the apps do is the half you cannot: make the thing you are pinning stable.
+
+**Windows.** Press Start, type `Tiro`, right-click the result and choose **Pin to
+taskbar** — or, with the window open, right-click its taskbar button and pin it from there.
+The Start Menu entry is written on first run, so search finds it even though nothing
+installed the app; **Pin to the taskbar…** in the tray menu writes it again if you removed
+it, and repeats these two routes. Deleting it sticks: Tiro records that it has written the
+shortcut once and does not put it back on the next launch.
+
+The pin survives updates. A portable EXE has no fixed path — the next release lands in
+`Downloads` as `Tiro (1).exe`, or the folder gets tidied — and Windows identifies a window
+by an Application User Model ID derived from that path unless the app declares one. Tiro
+declares `GabrielDalton.Tiro` in every build, which is also what keeps the pinned button and
+the live window from becoming two separate icons.
+
+**macOS.** Tiro runs as a regular app rather than a menu-bar agent, so it is already in the
+Dock while running: right-click its icon → **Options** → **Keep in Dock**.
+
 ### Staying up to date
 
 All three apps carry the same version number, from the [`VERSION`](VERSION) file, and every

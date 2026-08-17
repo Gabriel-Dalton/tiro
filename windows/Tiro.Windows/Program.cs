@@ -15,6 +15,11 @@ static class Program
             Environment.Exit(SelfTest.Run());
         }
 
+        // Before the mutex, and well before any window: Windows reads the
+        // Application User Model ID when a window is first created and never
+        // re-reads it, so this is the only place it can be set. See StartMenu.
+        StartMenu.SetProcessId();
+
         // Single instance via a named mutex: two copies fighting over the mic
         // crashed upstream on macOS. Second launch pokes the first and exits.
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out bool isFirst);

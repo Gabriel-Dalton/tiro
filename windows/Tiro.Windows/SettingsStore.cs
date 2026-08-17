@@ -12,6 +12,13 @@ class AppSettings
     public string HotkeyCode { get; set; } = "AltRight";
     public bool Autostart { get; set; } = false;
 
+    // Whether the Start Menu shortcut has ever been written. Checked rather
+    // than the file itself, because the answer to "the shortcut is missing" is
+    // not always "write it": someone who deleted it meant it, and an app that
+    // puts it back on every launch is one you cannot get out of your Start
+    // Menu. Written once; the tray item rewrites it on request after that.
+    public bool StartMenuShortcut { get; set; } = false;
+
     // Nothing installs this app, so nothing updates it either. On by default,
     // because a portable app that never mentions its own releases leaves people
     // running a version with a fixed bug still in it. What the check does and
