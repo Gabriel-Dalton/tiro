@@ -11,6 +11,30 @@ class AppSettings
     // crash-dump keystroke armed on this machine.
     public string HotkeyCode { get; set; } = "AltRight";
     public bool Autostart { get; set; } = false;
+
+    // Nothing installs this app, so nothing updates it either. On by default,
+    // because a portable app that never mentions its own releases leaves people
+    // running a version with a fixed bug still in it. What the check does and
+    // does not send is documented in full in UpdateCheck.cs, and the tray menu
+    // turns it off for anyone who would rather it did not.
+    public bool CheckForUpdates { get; set; } = true;
+
+    // UTC, so a laptop crossing a timezone does not check twice or skip a week.
+    public DateTime? LastUpdateCheckUtc { get; set; }
+
+    // What the last successful check found, so the tray menu can still say
+    // "New version 1.3.0" on the six days it does not check. Without this the
+    // news appeared for one launch and then vanished until the next week.
+    public string? LastKnownVersion { get; set; }
+
+    // The version we have already interrupted someone about. Once per version
+    // means once, not once a week for as long as they decline it.
+    public string? AnnouncedVersion { get; set; }
+
+    // A check that could not reach GitHub does not reset the weekly clock, so
+    // this is what stops a blocked or rate-limited machine trying again on every
+    // single launch.
+    public DateTime? LastUpdateAttemptUtc { get; set; }
 }
 
 static class SettingsStore
@@ -33,12 +57,21 @@ static class SettingsStore
         return new AppSettings();
     }
 
+    // The weekly update check completes on a threadpool thread and writes here,
+    // while the tray menu writes from the UI thread. Two WriteAllText calls
+    // overlapping means one of them throws on the file share and the setting it
+    // was saving is lost, silently, because the catch below logs and moves on.
+    private static readonly object SaveGate = new();
+
     public static void Save(AppSettings settings)
     {
         try
         {
-            Directory.CreateDirectory(Log.AppDataDir);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            lock (SaveGate)
+            {
+                Directory.CreateDirectory(Log.AppDataDir);
+                File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            }
         }
         catch (Exception ex)
         {

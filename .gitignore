@@ -7,3 +7,6 @@ public/
 # scripts/smoke-web.mjs, which leaves this behind. --no-save keeps it out of a
 # package.json we do not have; this keeps it out of a commit.
 node_modules/
+
+# the local copy of smoke-web.mjs used to point Playwright at a system Chromium
+scripts/smoke.local.mjs

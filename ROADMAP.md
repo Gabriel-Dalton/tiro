@@ -145,6 +145,36 @@ item rather than as one "done when".
   without signing identities. Build the PWA, live with the extra paste step, and only pay this
   cost if it actually proves annoying.
 
+- **Telling people there is a new version — done on the web and Windows, deferred on the Mac.**
+  Three apps that nothing installs are three apps that nothing updates: before this, the only
+  way to learn that a release had fixed the bug you were living with was to go and look. The
+  answer is different on each platform, because what they can do differs:
+
+  - **Web and installed PWA — done.** The service worker already re-fetched the app in the
+    background; the fault was that it *activated* the moment it finished, swapping the shell
+    under a page that might be mid-take, and never said a word. Now the new version installs
+    and waits, a toast names it and offers **Update**, and nothing changes until that is taken. The offer
+    holds until you are idle, and does not time out. No new network surface whatsoever: the
+    browser re-fetches Tiro's own files from the origin already serving it.
+  - **Windows — done.** A weekly, anonymous read of the latest release tag from GitHub's API,
+    surfaced in the tray menu and switchable off there. Specified in full in
+    [docs/SPEC-WINDOWS.md](docs/SPEC-WINDOWS.md) §4.3, including exactly what it does and does
+    not send, and why the version comparison is numeric.
+  - **macOS — deliberately not done.** That app is upstream's, and the working agreement below
+    says not to modify it; a self-updater is not a minimal change. Adding one would also mean
+    either Sparkle (a dependency, and an update *feed* to host) or a hand-rolled check inside
+    code this fork wants to keep mergeable. The Mac app names its version in its About box, the
+    releases page names the latest, and this is a fork whose Mac users are developers. If that
+    stops being true, the cheapest honest option is a menu item that opens the releases page —
+    no feed, no self-update, no daemon.
+
+  **This is not telemetry, and the distinction is worth stating** since "no telemetry" is a
+  non-goal below. Telemetry is the app telling someone about you. An update check is the app
+  asking a public URL a question and being told the answer; nothing identifies the person
+  asking, there is no server of ours to receive anything, and it can be switched off. If the
+  choice were ever between an update check that identified users and no update check, this
+  project takes no update check.
+
 Two smaller things landed alongside, both closing gaps in earlier phases rather than adding
 scope:
 
@@ -318,7 +348,9 @@ Stating these so they do not creep in:
 - **No Electron.** Upstream advertises its absence and it is a real feature. WebView2 uses the
   Edge runtime already present in Windows 11 and does not bundle a browser, so it does not
   break this.
-- **No accounts, no telemetry, no analytics.** Same as upstream.
+- **No accounts, no telemetry, no analytics.** Same as upstream. The Windows update check is
+  the one outbound request that is not dictation, and it stays inside this line because it
+  carries no identifier, reports to nobody, and can be turned off — see Phase 5.
 - **No server holding your API key.** The key stays on the device that uses it. This is what
   forces the streaming WebSocket transport, and that decision is load-bearing.
 - **No local/on-device speech model.** Deepgram is the whole value proposition of the fork.

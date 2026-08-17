@@ -5,12 +5,14 @@
 //   host -> web:  {type:"hotkey", phase:"down"|"up"}
 //                 {type:"key", value:"<api key or empty>"}         (reply to getKey)
 //                 {type:"pasteResult", ok:bool, reason?:"elevated"}
+//                 {type:"update", version:"1.3.0", url}  a newer release exists
 //   web -> host:  {type:"ready"}
 //                 {type:"transcript", text}      host pastes it into the focused app
 //                 {type:"state", state}          idle|recording|transcribing|blocked
 //                 {type:"getKey"} / {type:"storeKey", value}       DPAPI storage
 //                 {type:"setHotkey", code}
 //                 {type:"appendHistory", line}   host mirrors to %APPDATA%\Tiro\history.jsonl
+//                 {type:"openExternal", url}     host opens it in the real browser
 //                 {type:"log", text}
 
 const webview = typeof window !== "undefined" && window.chrome && window.chrome.webview;
@@ -25,6 +27,7 @@ class Bridge {
     this.hostVersion = host && host.version ? String(host.version) : "";
     this.onHotkey = null;       // (phase) => {}
     this.onPasteResult = null;  // ({ok, reason}) => {}
+    this.onUpdate = null;       // ({version, url}) => {}
     this._keyWaiters = [];
     if (this.isShell) {
       webview.addEventListener("message", (e) => this._onMessage(e.data));
@@ -51,7 +54,18 @@ class Bridge {
       case "pasteResult":
         if (this.onPasteResult) this.onPasteResult(msg);
         break;
+      case "update":
+        // {version, url} straight from the host's read of GitHub's latest
+        // release. Nothing here knows or assumes a version number.
+        if (this.onUpdate) this.onUpdate(msg);
+        break;
     }
+  }
+
+  /** Ask the host to open a link in the real browser. WebView2 cannot, and
+   * navigating the shell itself would replace the app with a web page. */
+  openExternal(url) {
+    this._post({ type: "openExternal", url });
   }
 
   /** DPAPI-held API key from the host. Resolves "" when none is stored. */
