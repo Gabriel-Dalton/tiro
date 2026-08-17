@@ -256,6 +256,9 @@ function notice(text, tone = "warn", ms = 3200, action = null) {
         if (action.onDismiss) action.onDismiss();
       }
     : null;
+  // An offer carries buttons on its right; a plain message does not, and the
+  // padding differs because of it (see .toast in app.css).
+  $("toast").classList.toggle("is-offer", !!action);
   $("toast").dataset.open = "true";
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = null;

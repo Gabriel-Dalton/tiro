@@ -862,6 +862,44 @@ for (const scheme of ["light", "dark"]) {
   await ctx.close();
 }
 
+// ------------------------------------------ the toast is sized against the screen
+//
+// It was positioned with `left: 50%` and centred with a transform. A fixed box
+// with a left edge and `right: auto` shrinks to fit what is left of the line, so
+// every message was laid out inside half the viewport and the 420px max-width
+// could never apply: "Recording. Tap the button when you're done" wrapped to
+// three lines inside a 195px pill on an iPhone, which is what it looked like.
+{
+  const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(300);
+
+  // A real path to a real toast, rather than poking one in from the test.
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.waitForTimeout(260);
+
+  const t = await page.evaluate(() => {
+    const el = document.getElementById("toast");
+    const span = document.getElementById("toast-text");
+    const b = el.getBoundingClientRect();
+    const line = parseFloat(getComputedStyle(span).lineHeight) || 20;
+    return {
+      w: Math.round(b.width), vw: innerWidth,
+      lines: Math.round(span.getBoundingClientRect().height / line),
+      offCentre: Math.abs((b.left + b.right) / 2 - innerWidth / 2),
+      overflows: b.left < 0 || b.right > innerWidth,
+    };
+  });
+  check("a toast may be wider than half the screen", t.w > t.vw / 2, `${t.w}px of ${t.vw}`);
+  check("an ordinary message fits on one line on a phone", t.lines === 1, `${t.lines} lines`);
+  check("the toast is still centred", t.offCentre < 1, `${t.offCentre.toFixed(1)}px off`);
+  check("and still inside the screen", !t.overflows);
+
+  await ctx.close();
+}
+
 // ------------------------------------ dictating without touching the screen
 {
   // The button was pointer-only, so a keyboard could focus it and do nothing at
