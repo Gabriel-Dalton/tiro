@@ -124,6 +124,14 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
   the word "Transcribing…", which was 168 units of pill asking to be read at the moment the user
   has already looked back at whatever they were dictating into. The state is on the window's
   `AccessibleName` now that no text carries it.
+
+  ![A second of listening, then the strip settling into the transcribing sweep](windows/pill-transcribing.gif)
+
+  Both states, before and after that change, drawn at 3× from the same geometry the paint code
+  uses. Listening is untouched; the pair is here because the sentence above is about a difference,
+  and a difference is quicker to see than to read:
+
+  ![The listening and transcribing pills as they were and as they are](windows/pill-states.png)
 - The pill carries the two controls the hotkey cannot express: **X to discard** and **check to
   finish now**. It must answer `WM_MOUSEACTIVATE` with `MA_NOACTIVATE`, or clicking it
   deactivates the window being dictated into and the transcript pastes into the wrong place.
