@@ -28,7 +28,8 @@ sealed class MainForm : Form
         Width = 460;
         Height = 780;
         StartPosition = FormStartPosition.CenterScreen;
-        try { Icon = new Icon(AssetPath("tiro.ico")); } catch { }
+        var icon = Resources.LoadIcon("tiro.ico");
+        if (icon != null) Icon = icon;
 
         _webView.Dock = DockStyle.Fill;
         Controls.Add(_webView);
@@ -44,9 +45,6 @@ sealed class MainForm : Form
             }
         };
     }
-
-    private static string AssetPath(string name) =>
-        Path.Combine(AppContext.BaseDirectory, "Assets", name);
 
     /// <summary>
     /// The WebView2 runtime ships with Windows 11, but on Windows 10 it arrives
@@ -126,9 +124,13 @@ sealed class MainForm : Form
         await _webView.EnsureCoreWebView2Async(env);
         var core = _webView.CoreWebView2;
 
+        // The web core lives inside the EXE and is unpacked to a per-user folder,
+        // so this maps the extraction rather than the app folder. Same virtual
+        // host, same origin, so the service worker and everything it has cached
+        // carry across from before this changed.
         core.SetVirtualHostNameToFolderMapping(
             VirtualHost,
-            Path.Combine(AppContext.BaseDirectory, "web"),
+            Resources.EnsureWebRoot(),
             CoreWebView2HostResourceAccessKind.Allow);
 
         // Pre-grant the mic to our own origin so there is no browser-style
@@ -300,6 +302,12 @@ sealed class MainForm : Form
     public event Action<string, bool>? TakeRefused;
 
     public void PostHotkey(bool down) => PostToWeb(new { type = "hotkey", phase = down ? "down" : "up" });
+
+    /// <summary>Tell the settings screen whether Right Alt is AltGr here, so it
+    /// can stop offering a key that would cost the user @ and the brackets
+    /// (AUDIT WIN-01). The host decides this, not the page: only the host can
+    /// read the installed keyboard layouts.</summary>
+    public void PostAltGr(bool present) => PostToWeb(new { type = "altgr", present });
 
     /// <summary>Throw the take away: global Escape, or the pill's X.</summary>
     public void PostCancel() => PostToWeb(new { type = "cancel" });

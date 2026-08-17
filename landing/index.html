@@ -351,9 +351,9 @@
       <h2>Tiro for Windows</h2>
       <p>A tray app. Hold <strong>Right&nbsp;Alt</strong> in any application and the transcript
         is pasted into the box you were already typing in. One file, no installer.</p>
-      <a class="btn" id="win-download" href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-Windows-x64.zip">Download for Windows</a>
+      <a class="btn" id="win-download" href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-Windows-x64.exe">Download for Windows</a>
       <span class="detected"></span>
-      <span class="fine">Right-click the ZIP → Properties → <strong>Unblock</strong> before extracting.</span>
+      <span class="fine">A single <strong>.exe</strong>. Run it and it offers to add itself to your Start menu.</span>
     </div>
 
     <div class="dl" id="dl-mac">
@@ -548,7 +548,7 @@
         <div id="win-arm-note" hidden>
           <strong>Your PC is ARM-based</strong>
           The button now offers the native ARM64 build, with no emulation. The
-          <a href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-Windows-x64.zip">x64 build</a>
+          <a href="https://github.com/Gabriel-Dalton/tiro/releases/latest/download/Tiro-Windows-x64.exe">x64 build</a>
           also works if you prefer it.
         </div>
         <div id="win10-note" hidden>
@@ -558,9 +558,17 @@
           Tiro checks on first run and offers it if it is missing. Windows 11 already has it.
         </div>
         <div>
+          <strong>Windows: where it puts itself</strong>
+          Running the download starts Tiro straight away and then asks whether to install it.
+          Saying yes copies it to your own user folder, no administrator rights needed, and adds
+          it to the Start menu, which is where Windows lets you pin it to the taskbar. Saying no
+          keeps it portable. Either way it uninstalls from Apps and Features.
+        </div>
+        <div>
           <strong>Windows: SmartScreen</strong>
-          Unblocking the ZIP is usually enough. If the dialog still appears, choose
-          More info → Run anyway, or read
+          The first run of anything downloaded can be interrupted. Choose More info → Run anyway,
+          or right-click the file → Properties → tick <strong>Unblock</strong> first. Installing
+          clears that mark, so it only ever happens once. Here is
           <a href="https://github.com/Gabriel-Dalton/tiro/blob/main/docs/SIGNING.md">why it shows up</a>.
         </div>
         <div>
@@ -663,7 +671,7 @@
           if (h.architecture === "arm") {
             var link = document.getElementById("win-download");
             if (link) {
-              link.href = link.href.replace("Tiro-Windows-x64.zip", "Tiro-Windows-arm64.zip");
+              link.href = link.href.replace("Tiro-Windows-x64.exe", "Tiro-Windows-arm64.exe");
               link.textContent = "Download for Windows on ARM";
               var armNote = document.getElementById("win-arm-note");
               if (armNote) armNote.hidden = false;

@@ -22,7 +22,17 @@
 > silent on every surface at once. Worth recording as a pattern rather than a finding — the
 > audit read each client for what it did wrong, and this was neither client being wrong on
 > its own, only the seam between them dropping something on the floor. A second pass should
-> read the bridge as its own surface. It is now covered in `scripts/smoke-web.mjs`.
+> read the bridge as its own surface. The same branch's follow-up resolves **WIN-01**, the one
+> Critical on the Windows side, so the count in the table below is one high. It is now covered in `scripts/smoke-web.mjs`.
+
+> **Five findings added by running it.** The Windows app was reviewed and approved without ever
+> being executed; the first hands-on session on a real machine found that the single EXE did not
+> start at all (`WebView2Loader.dll` is a Content item, which `PublishSingleFile` leaves loose)
+> and that the Start Menu shortcut writer had never written a shortcut in two shipped releases
+> (`InitPropVariantFromString` is not an export of anything). Both are fixed rather than filed.
+> What is filed is what running it turned up next to those: **WIN-09**, **WIN-10**, **WIN-11**,
+> **PWA-15** and **PWA-16**. Reading found 27 things; pressing the buttons found five more in an
+> evening, which is the argument for doing it in that order rather than this one.
 
 A read of every source file in the three clients: the macOS Swift app (`Sources/`), the
 Windows WebView2 shell (`windows/`), and the PWA (`web/`), plus the shared build scripts
@@ -35,10 +45,10 @@ here, it says so rather than asserting.
 
 | | Critical | High | Medium | Low | Total |
 |---|---|---|---|---|---|
-| **PWA** (`web/`) | 2 | 2 | 4 | 5 | 13 |
-| **Windows** (`windows/`) | 1 | 2 | 3 | 2 | 8 |
+| **PWA** (`web/`) | 2 | 3 | 5 | 5 | 15 |
+| **Windows** (`windows/`) | 1 | 2 | 4 | 4 | 11 |
 | **macOS** (`Sources/`) | — | 1 | 2 | 3 | 6 |
-| **Total** | **3** | **5** | **9** | **10** | **27** |
+| **Total** | **3** | **6** | **11** | **12** | **32** |
 
 The macOS app is in the best shape of the three, which matches expectations — it is
 upstream's, and it has had real use. Its one serious finding is a stale pricing constant
@@ -327,9 +337,55 @@ the transcript still arrives and still looks like a sentence.
 
 ---
 
+### PWA-15 · High · ~~A take whose socket never opens leaves the microphone open~~ — fixed
+
+> **Fixed** alongside WIN-09: the socket-failure path releases the microphone the same way the
+> two paths a take normally ends on do.
+
+**`web/src/app.js:377-397`**
+
+The socket-failure path detaches the engine and aborts the socket, but never calls
+`engine.stop()`. Its two siblings do: `cancelTake` at `:499` and `finishTake` at `:506`. So
+this is a straight omission rather than a tradeoff, and unlike WIN-09 it holds the microphone
+open even for someone who turned the warm mic off.
+
+Measured: three takes with the socket refused, the track live throughout. The path someone
+reaches this on is a captive portal or a dead key, which is also where they are most likely to
+press repeatedly.
+
+---
+
+### PWA-16 · Medium · A press dropped by a guard says nothing, and `starting` can stick forever
+
+**`web/src/app.js:301-304`, `web/src/app.js:320-329`, `web/src/app.js:364`**
+
+`pressStart` returns early while a previous start is in flight, with no `refuseTake`, so there
+is no pill, no state change and no log line: on Windows the press is silent on every surface at
+once, which is the seam PWA-08's sibling was about. Worse, `starting` is cleared only when
+`engine.start()` resolves or rejects, so a `getUserMedia` that never settles — a real Windows
+condition when another application is holding the device, and this machine has one installed —
+wedges the app permanently. Measured: three presses, zero output of any kind.
+
+---
+
 ## Windows — `windows/`
 
 ### WIN-01 · Critical · Right Alt is AltGr, and we swallow it unconditionally
+
+> **Resolved.** `windows/Tiro.Windows/AltGr.cs` scans every installed layout with
+> `VkKeyScanEx` for a character behind Ctrl+Alt, and where one exists Right Alt is not a key
+> Tiro will take: the stored hotkey is moved to Scroll Lock, the change is announced in a tray
+> balloon and in Settings, and the option is greyed out and labelled. The hook carries the same
+> refusal independently, so a settings file copied from another machine cannot reach the bug.
+>
+> Two notes for anyone revisiting this. The obvious fix, **stop swallowing and pass Right Alt
+> through, is wrong**: typing `@` is a tap of Right Alt, a tap is what starts a hands-free take,
+> and every symbol typed would begin dictating. And the detection has to scan **past Latin-1**,
+> because on Polish everything behind AltGr is a letter above `U+00FF`; a scan stopping at 255
+> calls Polish AltGr-free and leaves those users with the original bug.
+>
+> The substitution is pinned by `--self-test`. The detection is not testable without a desktop
+> session and real layouts, which is the remaining risk in this fix.
 
 **`windows/Tiro.Windows/KeyboardHook.cs:61-88`, `windows/Tiro.Windows/SettingsStore.cs:12`**
 
@@ -478,6 +534,88 @@ disposed in `Quit()`, though process exit covers it in practice.
 
 ---
 
+### WIN-09 · Medium · ~~The warm mic never lets go~~ — fixed
+
+> **Fixed.** The microphone is released 45 seconds after a take now
+> (`micIdleReleaseSec` in `shared/design-tokens.json`), warm mic or not, and turning the setting
+> off releases it as soon as a take ends. A press cancels the pending release, so nothing is
+> taken from under a take that is starting. The reason it matters turned out to be bigger than
+> this entry said: while any process holds a capture stream, Windows keeps a Bluetooth headset in
+> its hands-free profile, so **everything else the machine plays drops to call quality** until
+> Tiro is quit. That is how it was reported — a video that sounded broken after dictating one
+> sentence — not as a lit indicator. The setting's own copy said the cost was "the recording
+> indicator staying lit and some battery", which was wrong, and is now corrected in the UI.
+>
+> Covered by `scripts/smoke-web.mjs`, which had never inspected a `MediaStreamTrack` before this;
+> that absence is why three microphone findings could sit here while every check passed.
+
+**`web/src/settings.js:13`, `web/src/app.js:499`, `web/src/app.js:506`**
+
+`micWarm` defaults to true, and `engine.stop()` — the only code that calls `track.stop()`
+(`web/src/audio.js:113-130`) — is reached only through the `!micWarm` branch of `finishTake`
+and `cancelTake`. There is no idle timeout. So the stream opened by the first press stays
+`live` for the life of the process: through the take, after the paste, and across every later
+press.
+
+Measured by driving the real web core through the bridge exactly as the hook does, counting
+`MediaStreamTrack.readyState`: warm mic on, one track live and still live after two full
+takes; warm mic off, the track is released. So the hold/tap machine is correct and this is the
+documented pre-roll tradeoff working as designed.
+
+It is a finding anyway, because of where it lands. On the PWA the tab's microphone indicator
+is next to the app you deliberately opened. In the shell the only signal is the microphone icon
+in the notification area, staying lit long after the transcript pasted, attached to an app whose
+window is hidden by design — and the one place the behaviour is explained is a hint inside a
+Settings card (`web/index.html:322-329`) in that same hidden window. Reported by the user as
+"it doesn't stop using the microphone when it should", which is exactly what it looks like.
+
+The fix is a judgement call rather than a correction: an idle timer that releases the mic if
+the state is still `idle` some seconds after a take keeps pre-roll for consecutive dictation
+and costs it after a pause. Defaulting `micWarm` to false when `bridge.isShell` is smaller and
+costs pre-roll on every first press. Neither is obviously right; the number is not in any spec.
+
+---
+
+### WIN-10 · Low · The first-run prompt opens wherever Windows puts it
+
+**`windows/Tiro.Windows/Setup.cs:173-187`**
+
+`Setup.Ask` shows its `TaskDialog` before the app has any window, so there is nothing for
+Windows to centre it on and it is placed wherever it likes. Observed opening in the
+bottom-right corner, over whatever the person was doing. For a prompt that appears unasked on
+first run and offers a three-way choice, a corner is the wrong place: it reads as a
+notification, and the reflex for something in that corner is to dismiss it. Giving the dialog
+an owner, or centring it explicitly, is the fix.
+
+**This entry was filed as a High and was wrong.** It described the dialog going invisible with
+`TaskDialog.ShowDialog` never returning, leaving a live process holding an invisible modal, no
+log line and 50 MB of mapped image. That was real and repeatable, but only under automation
+that was moving the foreground window around and synthesising keystrokes into it. Checked by
+hand on Windows 11 build 26200 the way a person would hit it — start a downloaded copy, click
+another window while the prompt is up, click back, answer it — and the app answered and carried
+on: `setup postponed`, then startup, shortcut, tray, web core, WebView2, all in one second. No
+invisible dialog, nothing wedged.
+
+Recorded rather than deleted because the lesson is worth more than the finding: a test harness
+that steals focus can manufacture a convincing bug in modal code, and the check that settled it
+took a minute of a human's time against an hour of automation. The rule this repository already
+has about the difference between reading code and running it cuts both ways.
+
+---
+
+### WIN-11 · Low · There is no way to install without a person clicking
+
+**`windows/Tiro.Windows/Program.cs`, `windows/Tiro.Windows/Setup.cs:133`**
+
+`--uninstall` and `--uninstall --quiet` both exist, and removal is scriptable. Installing is
+not: the only route is `Setup.MaybeInstall` and its dialog. So the install path cannot be
+exercised by CI or by the self-test, cannot be scripted for a deployment, and the QA that found
+WIN-10 had to drive a dialog with synthetic mouse and keyboard events to get at it. An
+`--install --quiet` that does what "Install Tiro" does would make the most consequential path
+in `Setup.cs` testable, and it is the same code either way.
+
+---
+
 ## macOS — `Sources/`
 
 Upstream's app, and it shows: the audio path is careful, the crash cases have comments
@@ -604,8 +742,10 @@ nobody has noticed.
 2. ~~**PWA-04**~~ — done.
 3. **Test PWA-01 on a real iPhone.** Everything about the PWA storage design depends on the
    answer, and the answer takes ten minutes to get.
-4. **WIN-01** — decide the AltGr policy before the Windows build gets any real distribution.
-   Shipping it and changing it later is worse than deciding now.
+4. ~~**WIN-01** — decide the AltGr policy before the Windows build gets any real distribution.
+   Shipping it and changing it later is worse than deciding now.~~ **Decided and shipped:** on
+   a layout where Right Alt is AltGr, Tiro does not take it and moves to Scroll Lock. See the
+   finding for why passing the key through is not the fix it appears to be.
 5. **PWA-03** — the "Deepgram rejected your key" misdiagnosis, which a new phone user on a
    captive portal hits in their first sixty seconds.
 6. **MAC-01, WIN-02** — both are cases where the product tells the user something that is

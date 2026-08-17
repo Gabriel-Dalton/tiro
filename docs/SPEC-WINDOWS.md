@@ -49,6 +49,30 @@ can see it. Upstream's default does not port. This is finding 8 in [RESEARCH.md]
 
 - Default to **Right Alt**. Configurable, mirroring upstream's dropdown.
 - Offer Right Alt, Right Shift, Right Ctrl, Caps Lock, Scroll Lock.
+- **Never take Right Alt on a layout where it is AltGr** (AUDIT WIN-01). On German, French,
+  Spanish, Portuguese, Polish, Czech, Turkish and the Nordic layouts, Right Alt *is* AltGr: it
+  is how you type `@ € { } [ ] \ ~`. Both ways of taking it are wrong, and the second one is
+  the trap:
+  - **Swallowing it** makes those characters untypable in every application on the machine for
+    as long as Tiro runs, and the symptom (cannot type `@` in my email client) is close to
+    impossible to connect back to a dictation app in the tray.
+  - **Passing it through** looks like the fix and is not. Typing `@` is a *tap* of Right Alt,
+    well under the 0.35 s threshold, and a tap is what starts a hands-free take. Every symbol
+    the user typed would begin dictating.
+
+  So the two uses cannot share the key. Detect it by scanning **every installed layout** with
+  `VkKeyScanEx` for any character behind Ctrl+Alt, and if one is found, substitute Scroll Lock,
+  persist that, and say so: a tray balloon once, and a note in Settings with Right Alt greyed
+  out and labelled. Test the installed layouts and not the foreground one, or the hotkey arms
+  and disarms as the user alt-tabs between a German document and an English browser.
+
+  Scan past Latin-1 when detecting. On Polish everything behind AltGr is a letter like `ą` or
+  `ż`, which live above `U+00FF`, so a scan that stops at 255 reports Polish as AltGr-free and
+  hands those users the bug intact.
+
+  The substitution is pure and is asserted by `Tiro.exe --self-test`, including that what it
+  substitutes is a key the hook can actually arm. The detection needs real layouts and a
+  desktop session, so it is not covered there.
 - **Do not default to Right Ctrl** on this machine: it is half of the Right Ctrl + Scroll Lock
   crash dump keystroke armed for the freeze investigation.
 - Caps Lock is an advanced option only. Suppressing its toggle from a hook is fiddly and leaves
@@ -207,11 +231,16 @@ contained change, which is why it is safe to try WebView2 first.
 
 ## Out of scope for this phase
 
-- Installer, winget manifest. Phase 5, and both are now settled: the manifest is checked in and
-  built by CI ([PACKAGING.md](PACKAGING.md)), and there is no installer because winget takes the
-  portable ZIP directly and Tiro has nothing for an installer to do. Authenticode signing landed
-  ahead of that phase because SmartScreen blocks first launches without it — see
-  [SIGNING.md](SIGNING.md).
+- Installer, winget manifest. Phase 5, and both are now settled. The manifest is checked in and
+  built by CI ([PACKAGING.md](PACKAGING.md)). There is still no MSI and no wizard, because Tiro
+  has nothing for one to do, but "no installer" turned out to have been answering the wrong
+  question: the download was a ZIP, Explorer runs an EXE out of a ZIP from `%TEMP%`, and so the
+  app could not be pinned to the taskbar or found again after a reboot. Since 1.3.0 the download
+  is a single EXE (the web core is embedded, `Resources.cs`) and it offers on first run to copy
+  itself into `%LOCALAPPDATA%\Programs\Tiro` with a Start menu shortcut and an Apps and Features
+  entry (`Setup.cs`). That is a file copy, a `.lnk` and one registry key, all per-user, none of
+  it needing administrator rights. Authenticode signing landed ahead of that phase because
+  SmartScreen blocks first launches without it — see [SIGNING.md](SIGNING.md).
 - Any UI written in XAML beyond the tray, the pill and the WebView host. All product UI is the
   web core.
 - Windows 10 support. Check WebView2 runtime presence if this comes up later; it is guaranteed

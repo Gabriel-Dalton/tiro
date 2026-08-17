@@ -1,5 +1,5 @@
 # Builds the two downloadable apps the landing page links to:
-#   Tiro-Windows-x64.zip   self-contained single EXE (WebView2 shell + web core)
+#   Tiro-Windows-x64.exe   self-contained single EXE (WebView2 shell + web core)
 #   Tiro-macOS.zip         upstream's Swift menu-bar app, ad-hoc signed
 #
 # Every push builds both and uploads them as workflow artifacts.
@@ -23,7 +23,7 @@
 #
 # Release builds of the Windows EXE are Authenticode-signed by SignPath Foundation
 # when the repository carries the settings docs/SIGNING.md describes; without them
-# the same ZIP is produced unsigned.
+# the same EXE is produced unsigned.
 
 name: build
 
@@ -232,10 +232,29 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install Playwright
+      # Drive the browser the runner already has, rather than downloading one.
+      # cdn.playwright.dev began answering 403 "this service is not available in
+      # your location" for these runners on 2026-08-17, which is not something a
+      # build of this repository can fix or usefully wait out: it turned every
+      # push red at the Install step, before a line of the suite had run.
+      #
+      # smoke-web.mjs already takes TIRO_CHROMIUM for exactly this. It was added
+      # to point a local run at a system Chromium, and CI uses the same door.
+      # The download is still the fallback, so a runner image that drops Chrome
+      # goes back to the old behaviour rather than failing.
+      - name: Install Playwright, and find a browser for it to drive
         run: |
+          set -euo pipefail
           npm init -y >/dev/null
           npm install --no-save playwright@1
+          for candidate in "${CHROME_PATH:-}" /usr/bin/google-chrome /usr/bin/chromium-browser /usr/bin/chromium; do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+              echo "Driving $candidate ($("$candidate" --version))"
+              echo "TIRO_CHROMIUM=$candidate" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "::warning::No preinstalled browser found, downloading one."
           npx playwright install --with-deps chromium
 
       - name: Check the generated tokens and icons match their source
@@ -302,27 +321,6 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish
 
-      # The shell has almost no logic worth a test project, but version
-      # comparison is the exception: get it wrong and every user simply stops
-      # being told about updates, silently, forever. `--self-test` asserts it
-      # against the EXE that is about to ship. x64 only — the arm64 build is the
-      # same IL, and this runner cannot execute it.
-      - name: Self-test the shipped EXE
-        if: matrix.rid == 'win-x64'
-        shell: pwsh
-        # Start-Process -Wait, not `&`. Tiro.exe is a GUI-subsystem binary — it
-        # has to be, or every launch would flash a console window — and the shell
-        # does not wait on those: `&` returns immediately, leaves $LASTEXITCODE
-        # untouched, and the next line reads a log the app has not written yet.
-        run: |
-          $exe = (Resolve-Path publish/Tiro.exe).Path   # Start-Process resolves against the
-          # process CWD, which PowerShell does not keep in step with Set-Location
-          $run = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
-          $log = Join-Path $env:APPDATA 'Tiro/tiro.log'
-          if (Test-Path $log) { Get-Content $log -Tail 40 } else { "No log at $log" }
-          if ($run.ExitCode -ne 0) { throw "Tiro.exe --self-test exited $($run.ExitCode); see the log above." }
-          "Self-test passed."
-
       # SignPath Foundation signs releases, not every push: its free tier is for
       # published open-source builds, and each signing request is a human-auditable
       # record rather than something to spend on a branch build.
@@ -374,22 +372,80 @@ jobs:
           if ($sig.Status -ne 'Valid') { throw "Tiro.exe came back $($sig.Status), not Valid." }
           "Signed by $($sig.SignerCertificate.Subject)"
 
-      - name: Zip
+      # The download is one EXE, not an archive. It used to be a ZIP because
+      # PublishSingleFile does not bundle Content files, so the "single file"
+      # publish was really the EXE plus Assets/ plus the whole web core, and
+      # twenty-seven loose files have to be held together by something.
+      #
+      # That ZIP was the worst part of using Tiro on Windows. Explorer runs an EXE
+      # from inside one by extracting it to %TEMP%, so the app people thought they
+      # had installed lived somewhere Windows deletes: it could not be pinned to
+      # the taskbar in any way that survived a reboot, and every launch meant
+      # finding the ZIP again. web/ and Assets/ are embedded resources now
+      # (windows/Tiro.Windows/Resources.cs), so there is one file to ship.
+      #
+      # `dotnet publish` still leaves files beside the EXE that nobody now
+      # receives: XML doc comments for IntelliSense, and WebView2's native loader,
+      # which the package copies to the output as a convenience for
+      # framework-dependent apps even though IncludeNativeLibrariesForSelfExtraction
+      # has already put a copy inside the bundle. Listing them is worth it, but a
+      # list cannot tell you which ones matter, and the first attempt at this step
+      # guessed: it failed the build on any stray at all, which is both too strict
+      # (a doc file is not a dependency) and too weak (it can only see what the
+      # build produced, never whether the EXE actually works without it).
+      #
+      # So the EXE is copied somewhere empty and made to prove it, below.
+      - name: Take the EXE on its own
         shell: pwsh
         # `signed` exists only when the steps above ran, so an unsigned build still ships.
-        # SignPath returns the artifact's own layout, but a nested folder would quietly
-        # produce a ZIP nobody can run, so check before packing rather than after.
         run: |
           $source = if (Test-Path signed) { 'signed' } else { 'publish' }
-          if (-not (Test-Path (Join-Path $source 'Tiro.exe'))) {
-            throw "$source/Tiro.exe is missing, so the ZIP layout would be wrong."
-          }
-          Compress-Archive -Path "$source/*" -DestinationPath ${{ matrix.asset }}.zip
+          $exe = Join-Path $source 'Tiro.exe'
+          if (-not (Test-Path $exe)) { throw "$source/Tiro.exe is missing." }
+
+          $root = (Resolve-Path $source).Path
+          Get-ChildItem $source -Recurse -File |
+            Where-Object { $_.Name -ne 'Tiro.exe' } |
+            ForEach-Object { Write-Host "  left behind: $($_.FullName.Substring($root.Length + 1))" }
+
+          # Nothing else goes in here. That is the entire point of the folder.
+          New-Item -ItemType Directory -Force -Path standalone | Out-Null
+          Copy-Item $exe standalone/Tiro.exe
+          Copy-Item $exe "${{ matrix.asset }}.exe"
+          "{0}: {1:N1} MB" -f "${{ matrix.asset }}.exe", ((Get-Item "${{ matrix.asset }}.exe").Length / 1MB)
+
+      # Run from a folder holding nothing but Tiro.exe, which is what the user
+      # downloads. That turns "is the single file self-sufficient" from something
+      # argued about in a comment into something the build answers: the self-test
+      # loads the embedded web core, extracts it, and asks WebView2 for its
+      # version, which is a P/Invoke into the native loader and so fails here
+      # rather than on somebody's PC if that loader did not make it into the
+      # bundle. It also still covers version comparison, where a string compare
+      # says 1.9.0 beats 1.10.0 and every user silently stops hearing about
+      # updates.
+      #
+      # x64 only — the arm64 build is the same IL and this runner cannot execute it.
+      - name: Prove the single EXE works with nothing beside it
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        # Start-Process -Wait, not `&`. Tiro.exe is a GUI-subsystem binary — it
+        # has to be, or every launch would flash a console window — and the shell
+        # does not wait on those: `&` returns immediately, leaves $LASTEXITCODE
+        # untouched, and the next line reads a log the app has not written yet.
+        run: |
+          $exe = (Resolve-Path standalone/Tiro.exe).Path   # Start-Process resolves against the
+          # process CWD, which PowerShell does not keep in step with Set-Location
+          $run = Start-Process -FilePath $exe -ArgumentList '--self-test' `
+                               -WorkingDirectory (Split-Path $exe) -Wait -PassThru
+          $log = Join-Path $env:APPDATA 'Tiro/tiro.log'
+          if (Test-Path $log) { Get-Content $log -Tail 60 } else { "No log at $log" }
+          if ($run.ExitCode -ne 0) { throw "Tiro.exe --self-test exited $($run.ExitCode); see the log above." }
+          "Self-test passed against the EXE that ships, alone in its own folder."
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}.zip
+          path: ${{ matrix.asset }}.exe
 
   macos:
     needs: [cut]
@@ -497,8 +553,8 @@ jobs:
           set -euo pipefail
           node scripts/gen-winget.mjs \
             --tag "${{ steps.v.outputs.version }}" \
-            --x64 dist/Tiro-Windows-x64.zip \
-            --arm64 dist/Tiro-Windows-arm64.zip \
+            --x64 dist/Tiro-Windows-x64.exe \
+            --arm64 dist/Tiro-Windows-arm64.exe \
             --out winget-out
           # Zipped so the manifests/g/GabrielDalton/Tiro/<version>/ path survives:
           # that path is the package identity as far as winget-pkgs is concerned,
@@ -518,6 +574,10 @@ jobs:
         with:
           tag_name: ${{ steps.v.outputs.version }}
           name: Tiro ${{ steps.v.outputs.version }}
-          files: dist/*.zip
+          # The Windows builds are bare EXEs now; the Mac app and the winget
+          # manifests are still archives, so both patterns have to be listed.
+          files: |
+            dist/*.exe
+            dist/*.zip
           make_latest: true
           body_path: notes.md

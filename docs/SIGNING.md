@@ -13,9 +13,9 @@ Two separate things have to be true for SmartScreen to interrupt a launch, and i
 keeping them apart, because only one of them costs money to fix.
 
 **1. The file carries the Mark of the Web.** Anything downloaded by a browser gets an
-alternate data stream (`Zone.Identifier`) marking it as coming from the internet. Files
-extracted from a downloaded ZIP inherit it. No mark, no SmartScreen check — this is why the
-same EXE built locally starts without a murmur.
+alternate data stream (`Zone.Identifier`) marking it as coming from the internet. The mark is
+copied along with the file, so a copy of a marked EXE is marked too. No mark, no SmartScreen
+check — this is why the same EXE built locally starts without a murmur.
 
 **2. Neither the file nor its publisher has a reputation.** SmartScreen looks the binary up
 by hash, and its signing certificate by identity. A fresh unsigned EXE is unknown on both
@@ -27,21 +27,27 @@ anonymous hash.
 
 ## What a user can do right now
 
-Unblocking removes the Mark of the Web, which skips the reputation check entirely. Do it to
-the **ZIP, before extracting** — the extracted files inherit the mark otherwise:
+Unblocking removes the Mark of the Web, which skips the reputation check entirely:
 
-1. Right-click `Tiro-Windows-x64.zip` → **Properties**
+1. Right-click `Tiro-Windows-x64.exe` → **Properties**
 2. Tick **Unblock** at the bottom of the General tab → **OK**
-3. Extract, and run `Tiro.exe`
+3. Run it
 
 Or in PowerShell:
 
 ```powershell
-Unblock-File .\Tiro-Windows-x64.zip     # before extracting
-Get-ChildItem -Recurse .\Tiro | Unblock-File   # if it is already extracted
+Unblock-File .\Tiro-Windows-x64.exe
 ```
 
 Failing that, the dialog's own **More info → Run anyway** works and is remembered per file.
+
+**Installing does this once, permanently.** `Setup.Unblock` in
+[`windows/Tiro.Windows/Setup.cs`](../windows/Tiro.Windows/Setup.cs) deletes the
+`Zone.Identifier` stream from the installed copy, which is precisely what ticking the box does,
+at the moment the user asked for the app to be installed. Without it the copy would inherit the
+download's mark and SmartScreen would go on interrupting every launch of an app somebody had
+explicitly chosen to install. It changes nothing else about the file: an unsigned build stays
+unsigned, and the first launch, before any of this has run, still gets the dialog.
 
 ## How the repository signs releases
 
@@ -56,10 +62,10 @@ key never exists outside SignPath.
 2. decides whether to sign — release builds only (a `v*` tag, a `release/v*` branch, or a
    manual run with a version), and only when the settings below exist,
 3. uploads `publish/` as an artifact and submits it to SignPath,
-4. downloads the signed result to `signed/` and zips that instead of `publish/`.
+4. downloads the signed result to `signed/` and publishes that EXE instead of `publish/`'s.
 
 If the settings are absent — a fork, a pull request, a plain branch push — steps 2–4 are
-skipped and the job produces exactly the ZIP it produced before. Releasing without them logs a
+skipped and the job produces exactly the EXE it produced before. Releasing without them logs a
 workflow warning rather than failing the build.
 
 ### One-time setup
@@ -69,8 +75,9 @@ workflow warning rather than failing the build.
    URL and a maintainer to vouch for.
 2. **Install the SignPath GitHub app** on `Gabriel-Dalton/tiro` when SignPath asks; that is how
    it fetches build artifacts and verifies their origin.
-3. **Create the artifact configuration** in the SignPath project. The GitHub artifact arrives
-   as a ZIP of `publish/`, with the EXE at its root:
+3. **Create the artifact configuration** in the SignPath project. GitHub always hands over a
+   ZIP of the uploaded directory, so the configuration is a `zip-file` even though the download
+   users get is not. `publish/` has the EXE at its root:
 
    ```xml
    <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
@@ -82,7 +89,10 @@ workflow warning rather than failing the build.
    </artifact-configuration>
    ```
 
-   The rest of the ZIP is the web core and WebView2's loader; only `Tiro.exe` needs signing.
+   This did not have to change when the download stopped being an archive: `publish/` used to
+   hold the web core and WebView2's loader alongside the EXE, and now holds only `Tiro.exe` and
+   its debug symbols, but `Tiro.exe` was at the root then and is at the root now, and it was
+   always the only thing being signed.
 4. **Add the repository settings** (Settings → Secrets and variables → Actions):
 
    | Kind | Name | Value |
@@ -91,13 +101,13 @@ workflow warning rather than failing the build.
    | Variable | `SIGNPATH_ORGANIZATION_ID` | the organization GUID |
    | Variable | `SIGNPATH_PROJECT_SLUG` | project slug — defaults to `tiro` |
    | Variable | `SIGNPATH_SIGNING_POLICY_SLUG` | defaults to `release-signing` |
-   | Variable | `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` | defaults to `windows-zip` |
+   | Variable | `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` | defaults to `windows-zip` (the *upload* is still a ZIP; see step 3) |
 
    The three slug variables only need setting where the SignPath project disagrees with those
    defaults. `SIGNPATH_API_TOKEN` and `SIGNPATH_ORGANIZATION_ID` are what the workflow tests
    for, so signing stays off until both are present.
-5. **Cut a release** and check the run: the `Sign with SignPath` step should appear, and
-   `Tiro.exe` inside the published ZIP should show a Digital Signatures tab in Properties.
+5. **Cut a release** and check the run: the `Sign with SignPath` step should appear, and the
+   published `Tiro-Windows-x64.exe` should show a Digital Signatures tab in Properties.
 
 ### What changes for users, and what doesn't
 

@@ -44,6 +44,7 @@ js += `export const TAIL_SEC = ${c.tailSec};\n`;
 js += `export const TARGET_SAMPLE_RATE = ${c.sampleRate};\n`;
 js += `export const STREAMING_PER_MIN = ${c.deepgramStreamingPerMin};\n`;
 js += `export const KEEPALIVE_INTERVAL_MS = ${c.keepAliveIntervalSec * 1000};\n`;
+js += `export const MIC_IDLE_RELEASE_MS = ${c.micIdleReleaseSec * 1000};\n`;
 js += `export const COMPETITORS = ${JSON.stringify(c.competitors, null, 2)};\n`;
 js += `export const MARK = ${JSON.stringify(tokens.mark, null, 2)};\n`;
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // packaging/winget/*.yaml templates -> a submittable winget-pkgs manifest folder.
 //
-//   node scripts/gen-winget.mjs --tag v1.2.0 \
-//     --x64 dist/Tiro-Windows-x64.zip --arm64 dist/Tiro-Windows-arm64.zip \
+//   node scripts/gen-winget.mjs --tag v1.3.0 \
+//     --x64 dist/Tiro-Windows-x64.exe --arm64 dist/Tiro-Windows-arm64.exe \
 //     --out dist/winget
 //
-// The hashes come from the ZIPs themselves rather than from anything a human
-// typed, because a wrong InstallerSha256 is the single most common way a winget
-// submission fails, and it fails at install time, on someone else's machine.
+// The hashes come from the release assets themselves rather than from anything a
+// human typed, because a wrong InstallerSha256 is the single most common way a
+// winget submission fails, and it fails at install time, on someone else's
+// machine.
 //
 // Output lands in the layout winget-pkgs expects, so submitting is: copy the
 // manifests/ tree into a clone of microsoft/winget-pkgs and open a PR.
@@ -42,8 +43,11 @@ const sha256 = (path) => {
   }
 };
 
-const x64 = args.get("x64") || join(root, "dist/Tiro-Windows-x64.zip");
-const arm64 = args.get("arm64") || join(root, "dist/Tiro-Windows-arm64.zip");
+// Bare EXEs since 1.3.0, when the web core moved inside the binary and the
+// download stopped being an archive. InstallerType in the template moved from
+// zip + NestedInstallerType to plain portable to match.
+const x64 = args.get("x64") || join(root, "dist/Tiro-Windows-x64.exe");
+const arm64 = args.get("arm64") || join(root, "dist/Tiro-Windows-arm64.exe");
 
 const fills = {
   __VERSION__: version,

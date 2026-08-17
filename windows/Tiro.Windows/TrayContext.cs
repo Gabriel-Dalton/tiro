@@ -13,9 +13,10 @@ sealed class TrayContext : ApplicationContext
     private readonly AppSettings _settings;
     private readonly Dictionary<string, Icon> _stateIcons = new();
     private readonly RegisteredWaitHandle _showWait;
+    private readonly RegisteredWaitHandle _quitWait;
     private ToolStripMenuItem? _updateItem;
 
-    public TrayContext(EventWaitHandle showEvent, bool startHidden)
+    public TrayContext(EventWaitHandle showEvent, EventWaitHandle quitEvent, bool startHidden)
     {
         _settings = SettingsStore.Load();
         _mainForm = new MainForm(_settings);
@@ -27,7 +28,11 @@ sealed class TrayContext : ApplicationContext
             OnStateChanged("blocked");
             _tray.Text = $"Tiro {Build.Version}. WebView2 runtime missing.";
         };
-        _mainForm.HotkeyRebound += (code) => _hook!.SetHotkey(code);
+        // The page has already written its choice to settings by the time this
+        // fires, so re-derive rather than trusting the code it sent: Settings
+        // does not offer Right Alt on an AltGr layout, but a settings file
+        // copied from another machine can still ask for it.
+        _mainForm.HotkeyRebound += (_) => _hook!.SetHotkey(ApplySafeHotkey(announce: true));
         _mainForm.LevelChanged += _pill.SetLevel;
 
         // The pill's own buttons, clicked in whatever app the user is dictating
@@ -46,14 +51,8 @@ sealed class TrayContext : ApplicationContext
 
         foreach (var state in new[] { "idle", "recording", "transcribing", "blocked" })
         {
-            try
-            {
-                _stateIcons[state] = new Icon(Path.Combine(AppContext.BaseDirectory, "Assets", $"tray-{state}.ico"));
-            }
-            catch (Exception ex)
-            {
-                Log.Write($"tray icon {state} missing: {ex.Message}");
-            }
+            var icon = Resources.LoadIcon($"tray-{state}.ico");
+            if (icon != null) _stateIcons[state] = icon;
         }
 
         _tray.Icon = _stateIcons.GetValueOrDefault("idle") ?? SystemIcons.Application;
@@ -72,6 +71,20 @@ sealed class TrayContext : ApplicationContext
             SettingsStore.SetAutostart(autostart.Checked);
         };
         menu.Items.Add(autostart);
+
+        // Only while it is not installed, so the menu says nothing once there is
+        // nothing to say. This is the way back for anyone who answered "not now"
+        // on the first run, or chose to keep it portable and changed their mind;
+        // without it that choice could only be undone by editing settings.json.
+        if (Setup.ShouldOffer(Environment.ProcessPath, declined: false))
+        {
+            menu.Items.Add("Install Tiro on this PC", null, (_, _) => InstallAndRestart());
+        }
+
+        // Both of these stay. Installing is about where the EXE lives; pinning is
+        // about the shortcut, which a portable copy is entitled to have too. The
+        // pin help is also the repair route for a shortcut someone deleted, and
+        // that is worth having whether or not the app was ever installed.
         menu.Items.Add("Pin to the taskbar…", null, (_, _) => PinHelp());
         menu.Items.Add("View log", null, (_, _) =>
         {
@@ -110,10 +123,20 @@ sealed class TrayContext : ApplicationContext
         menu.Items.Add("Quit", null, (_, _) => Quit());
         _tray.ContextMenuStrip = menu;
 
-        // global hotkey -> the web core's shared hold/tap state machine
-        _hook = new KeyboardHook(_settings.HotkeyCode);
+        // global hotkey -> the web core's shared hold/tap state machine.
+        // AltGr.SafeHotkey stands between the stored choice and the hook: on a
+        // layout where Right Alt is AltGr it is not a key Tiro may take (WIN-01).
+        _hook = new KeyboardHook(ApplySafeHotkey(announce: false));
         _hook.HotkeyChanged += (down) => _mainForm.BeginInvoke(() => _mainForm.PostHotkey(down));
         _hook.CancelPressed += () => _mainForm.BeginInvoke(() => _mainForm.PostCancel());
+        // A layout added while Tiro was already running. The person who just
+        // installed a German keyboard is the one about to lose the @ key.
+        _hook.LayoutsChanged += () =>
+        {
+            var code = ApplySafeHotkey(announce: true);
+            _hook!.SetHotkey(code);
+            _mainForm.PostAltGr(AltGr.IsPresent());
+        };
 
         // a second launch signals this event instead of starting a second copy
         _showWait = ThreadPool.RegisterWaitForSingleObject(
@@ -121,10 +144,28 @@ sealed class TrayContext : ApplicationContext
             (_, _) => _mainForm.BeginInvoke(() => _mainForm.ShowAndFocus()),
             null, -1, executeOnlyOnce: false);
 
+        // A newly downloaded copy about to install itself over this one signals
+        // this (Setup.StopRunningInstance), because Windows will not let it
+        // overwrite an EXE that is being executed. Quitting on request is what
+        // turns "download the update and run it" into an upgrade rather than an
+        // error. Once only: there is no second quit to serve.
+        _quitWait = ThreadPool.RegisterWaitForSingleObject(
+            quitEvent,
+            (_, _) => _mainForm.BeginInvoke(() =>
+            {
+                Log.Write("quitting so a newer copy can replace this one");
+                Quit();
+            }),
+            null, -1, executeOnlyOnce: true);
+
         // The window handle must exist from launch so the WebView2, and with it
         // the warm mic and the hotkey pipeline, is alive before it is ever shown.
         _mainForm.Show();
         if (startHidden) _mainForm.Hide();
+
+        // Queued until the web core says ready, which is why it can be sent
+        // this early. Settings needs it before it can draw the hotkey list.
+        _mainForm.PostAltGr(AltGr.IsPresent());
 
         // Once, on the first launch that ever gets here. Windows can only pin
         // something it can find, and a portable EXE sitting in Downloads is not
@@ -250,6 +291,36 @@ sealed class TrayContext : ApplicationContext
         _tray.Text = $"Tiro {Build.Version}. Version {version} is available.";
     }
 
+    /// <summary>Settle on a hotkey Tiro is allowed to take, persist it if that
+    /// differs from what was stored, and say so when the change is a surprise.
+    ///
+    /// Silent substitution would be the wrong shape here. The user picked Right
+    /// Alt, or accepted it as the default, and is about to find a different key
+    /// dictating; being told once is the difference between that and the app
+    /// looking broken. `announce` is false at startup only because the web core
+    /// is not listening yet, and the same news reaches the settings screen
+    /// through PostAltGr instead.</summary>
+    private string ApplySafeHotkey(bool announce)
+    {
+        var stored = _settings.HotkeyCode;
+        var safe = AltGr.SafeHotkey(stored, AltGr.IsPresent());
+        if (string.Equals(safe, stored, StringComparison.Ordinal)) return safe;
+
+        _settings.HotkeyCode = safe;
+        SettingsStore.Save(_settings);
+        Log.Write($"hotkey moved from {stored} to {safe}: Right Alt is AltGr on an installed layout");
+
+        if (announce)
+        {
+            _tray.BalloonTipTitle = "Tiro moved its hotkey to Scroll Lock";
+            _tray.BalloonTipText =
+                "Right Alt is AltGr on your keyboard layout, which is how you type @ and " +
+                "the bracket keys. Tiro will not take it. Pick another key in Settings.";
+            _tray.ShowBalloonTip(9000);
+        }
+        return safe;
+    }
+
     /// <summary>Windows has no API that lets an unpackaged app pin itself, and
     /// has not since Windows 10 removed the shell verb, so the honest thing is
     /// to make both routes work and say which they are. What the app can do is
@@ -301,9 +372,29 @@ sealed class TrayContext : ApplicationContext
         _hook.WatchCancel = state == "recording" || state == "transcribing";
     }
 
+    /// <summary>
+    /// Set when the app has just installed itself and wants Program.Main to
+    /// start the installed copy. It cannot start it from in here: this process
+    /// still holds the single-instance mutex, and the new copy would treat that
+    /// as "Tiro is already running" and exit again immediately.
+    /// </summary>
+    public bool RelaunchInstalled { get; private set; }
+
+    private void InstallAndRestart()
+    {
+        if (!Setup.InstallInPlace()) return;
+        RelaunchInstalled = true;
+        Quit();
+    }
+
     private void Quit()
     {
         _showWait.Unregister(null);
+        // In a try because the quit event is one of the things that calls Quit,
+        // and by then this wait has already retired itself (executeOnlyOnce).
+        // Whatever unregistering an expired wait does, being asked to quit must
+        // not be the thing that takes the app down on its way out.
+        try { _quitWait.Unregister(null); } catch { }
         _hook.Dispose();
         _tray.Visible = false;
         _tray.Dispose();

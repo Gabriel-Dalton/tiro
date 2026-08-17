@@ -18,6 +18,13 @@
     <ApplicationIcon>Assets\tiro.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- The NuGet packages ship XML doc comments beside their assemblies, for
+         IntelliSense. Nothing loads them at runtime, and now that the download is
+         a single EXE they were three loose files in a publish folder that is
+         supposed to contain one. The default here is ".pdb;.xml"; "none" is the
+         documented way to say neither. -->
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
 
   <!-- Version.props is generated from the VERSION file at the repository root, so
@@ -29,12 +36,60 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
+  <!-- Embedded, not copied alongside. PublishSingleFile only bundles the managed
+       and native binaries; Content files stay loose, so while these were Content
+       the "single file" publish was really twenty-seven of them and the download
+       had to be a ZIP to hold them together. That ZIP is what made the app feel
+       like a temporary file (Resources.cs explains what Explorer does with it).
+       As resources they are inside the EXE, and the download is one file.
+
+       The web core still ships verbatim; the PWA and this app are the same
+       product, and nothing here transforms it. Resources.EnsureWebRoot unpacks it
+       at runtime because WebView2 needs a real folder to map a virtual host to. -->
   <ItemGroup>
-    <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
-    <!-- the web core ships verbatim next to the EXE; the PWA and this app are the same product -->
-    <Content Include="..\..\web\**\*" Exclude="..\..\web\vercel.json"
-             Link="web\%(RecursiveDir)%(Filename)%(Extension)"
-             CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Assets\*.ico">
+      <LogicalName>Assets/%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\web\**\*" Exclude="..\..\web\vercel.json">
+      <LogicalName>web/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
+
+  <!-- WebView2's native loader, carried the same way as everything else above,
+       because the single-file bundler will not carry it.
+
+       It has to be on disk somewhere: it is a DLL that gets loaded by name, not a
+       stream the app reads. The WebView2 package delivers it as a Content item
+       (its build/Common.targets), and Content is exactly what PublishSingleFile
+       leaves loose, which is the same reason web/ and Assets/ had to move above.
+       Neither IncludeNativeLibrariesForSelfExtraction nor
+       IncludeAllContentForSelfExtraction bundles it; both were measured rather
+       than assumed, and both leave two copies sitting in the publish folder. So
+       the download was two files, and an EXE that travelled on its own threw
+       DllNotFoundException on the first call into WebView2, which a user reads as
+       a window that never opens.
+
+       This could not be seen on a build agent. Hosted Windows runners can resolve
+       a WebView2Loader.dll from elsewhere on the machine, so the self-test check
+       for it passes there whether or not the bundle carries one. It fails on a
+       clean machine, which is every machine a user downloads to.
+
+       Embedding it makes it ours to place: Resources.EnsureNativeLoader writes it
+       beside the extracted web core and loads it by full path before anything
+       asks WebView2 for a version. The copy-local reference is the RID-specific
+       one the SDK already resolved, so the arm64 build embeds the arm64 loader
+       without naming a path or a package version here. -->
+
+  <Target Name="EmbedWebView2Loader"
+          BeforeTargets="SplitResourcesByCulture"
+          DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <EmbeddedResource Include="@(ReferenceCopyLocalPaths->WithMetadataValue('Filename','WebView2Loader')->Distinct())">
+        <LogicalName>native/WebView2Loader.dll</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+    <Error Condition="'@(EmbeddedResource->WithMetadataValue('LogicalName','native/WebView2Loader.dll'))' == ''"
+           Text="WebView2Loader.dll was not among the copy-local references, so this build would ship without it. The WebView2 package changed how it delivers the loader; find its new item and embed that." />
+  </Target>
 
 </Project>

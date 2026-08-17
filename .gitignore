@@ -10,3 +10,11 @@ node_modules/
 
 # the local copy of smoke-web.mjs used to point Playwright at a system Chromium
 scripts/smoke.local.mjs
+
+# What building the Windows app leaves behind. docs/PACKAGING.md hands you the
+# publish command and the standalone folder, and the EXE in them is 50 MB, which
+# is worth keeping well away from anything that might stage it by accident.
+windows/**/bin/
+windows/**/obj/
+publish/
+standalone/

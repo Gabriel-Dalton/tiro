@@ -151,6 +151,7 @@
     "sampleRate": 16000,
     "deepgramStreamingPerMin": 0.0077,
     "keepAliveIntervalSec": 5,
+  "micIdleReleaseSec": 45,
     "competitors": [
       { "name": "Wispr Flow Pro", "perMonth": 15.0 },
       { "name": "superwhisper", "perMonth": 8.49 },

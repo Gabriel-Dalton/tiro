@@ -127,12 +127,18 @@ app survives a mic device change (unplugging headphones) without needing a resta
 Phases 0 to 4 are green. This phase was never a single deliverable, so it is tracked item by
 item rather than as one "done when".
 
-- **Packaging — done.** Authenticode signing via SignPath ([docs/SIGNING.md](docs/SIGNING.md)),
-  and a winget manifest generated and attached to every release
-  ([docs/PACKAGING.md](docs/PACKAGING.md)). No installer: winget takes the portable ZIP
-  directly, and Tiro registers no services, no file associations, and writes its autostart key
-  when you tick the box rather than at install time. An MSI would add a second artifact to sign
-  and buy nothing. Listing in the winget catalogue still depends on Microsoft's review.
+- **Packaging — done, then done properly in 1.3.0.** Authenticode signing via SignPath
+  ([docs/SIGNING.md](docs/SIGNING.md)), and a winget manifest generated and attached to every
+  release ([docs/PACKAGING.md](docs/PACKAGING.md)). Still no MSI: Tiro registers no services, no
+  file associations, and writes its autostart key when you tick the box rather than at install
+  time, so a wizard would add a second artifact to sign and buy nothing.
+
+  What that reasoning missed was that the ZIP it justified was itself the problem. Explorer runs
+  an EXE from inside a ZIP by extracting it to `%TEMP%`, so the app people thought they had
+  installed could not be pinned to the taskbar and vanished on the next reboot. The web core is
+  embedded in the binary now, the download is one EXE, and it offers on first run to install
+  itself into `%LOCALAPPDATA%\Programs\Tiro` with a Start menu shortcut and an Apps and Features
+  entry. Listing in the winget catalogue still depends on Microsoft's review.
 - **History portability — as far as it goes without a server.** JSONL export and import work in
   both directions and share upstream's format, so a Mac `history.jsonl`, a Windows export and a
   PWA export are the same file and move between devices by any means you like. Live sync stays
