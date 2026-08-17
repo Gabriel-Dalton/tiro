@@ -97,7 +97,9 @@ or throw the take away. While the transcript is being fetched, the same strip ke
 swell crossing it rather than the pill spelling out "Transcribing…", because that is a word to read
 at the one moment you have already looked back at what you were dictating into.
 
-![The recording pill mid-take](windows/pill-recording.png)
+*(No picture of the pill yet, and it is the one image here that cannot be automated: the keyboard
+hook ignores injected input so that the app's own paste cannot re-trigger it, and the waveform is
+somebody's voice rather than something a script can supply. It is in the table at the bottom.)*
 
 ---
 
