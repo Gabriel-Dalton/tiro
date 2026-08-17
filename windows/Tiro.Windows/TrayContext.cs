@@ -293,7 +293,11 @@ sealed class TrayContext : ApplicationContext
     private void Quit()
     {
         _showWait.Unregister(null);
-        _quitWait.Unregister(null);
+        // In a try because the quit event is one of the things that calls Quit,
+        // and by then this wait has already retired itself (executeOnlyOnce).
+        // Whatever unregistering an expired wait does, being asked to quit must
+        // not be the thing that takes the app down on its way out.
+        try { _quitWait.Unregister(null); } catch { }
         _hook.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
