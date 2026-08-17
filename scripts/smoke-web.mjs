@@ -405,6 +405,56 @@ const FAKE_SOCKET = () => {
     (await page.evaluate(() => window.__wsCount)) === 1,
     `${await page.evaluate(() => window.__wsCount)} sockets`);
 
+  // The confirmation is the button, not a chip in the corner of the card. The
+  // chip was the only answer there was and it was missed by everyone, because
+  // it is not where the tap is.
+  check("no confirmation chip left in the card head",
+    (await page.locator("#result-card .badge").count()) === 0);
+  // The automatic write still happens, and still says nothing: a card that
+  // arrives already reading "Copied" is reporting a state the user did not
+  // cause and cannot tell apart from one they did.
+  check("the transcript reaches the clipboard with nothing pressed",
+    (await page.evaluate(() => navigator.clipboard.readText())).includes("hello from the fake mic"));
+  check("but the button waits to be pressed rather than saying so",
+    (await page.locator("#result-copy").innerText()).trim() === "Copy",
+    await page.locator("#result-copy").innerText());
+  check("and carries no copied state before a press",
+    await page.locator("#result-copy.is-done").count() === 0);
+
+  await page.locator("#result-copy").click();
+  await page.waitForTimeout(120);
+  check("pressing Copy answers Copied",
+    (await page.locator("#result-copy").innerText()).trim() === "Copied",
+    await page.locator("#result-copy").innerText());
+  check("and the button carries the copied state, not just the word",
+    await page.locator("#result-copy.is-done").count() === 1);
+  check("the clipboard has the transcript in it",
+    (await page.evaluate(() => navigator.clipboard.readText())).includes("hello from the fake mic"));
+
+  // navigator.share does not exist in desktop Chromium, and used to hide this
+  // button outright: a desktop user had no way to send a transcript anywhere.
+  check("Share is offered whether or not the browser has an OS share sheet",
+    await page.locator("#result-share").isVisible());
+  await page.locator("#result-share").click();
+  await page.waitForTimeout(200);
+  check("Share opens Tiro's own sheet", await page.locator("#share-sheet").isVisible());
+  check("the sheet shows what is about to be sent",
+    (await page.locator("#share-preview").innerText()).includes("hello from the fake mic"));
+  const targets = await page.locator("#share-targets .share-target").count();
+  check("the sheet offers somewhere to send it", targets >= 2, `${targets} targets`);
+  const hasNative = await page.evaluate(() => !!navigator.share);
+  check("the hand-off to the OS sheet appears only where there is one",
+    (await page.locator("#share-targets").innerText()).includes("Other apps") === hasNative);
+
+  for (let i = 0; i < 8; i++) await page.keyboard.press("Tab");
+  check("Tab stays inside the share sheet",
+    await page.evaluate(() => document.getElementById("share-panel").contains(document.activeElement)));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  check("Escape closes the share sheet", await page.locator("#share-sheet").isHidden());
+  check("and hands focus back to the button that opened it",
+    await page.evaluate(() => document.activeElement === document.getElementById("result-share")));
+
   await page.locator('.tab[data-view="history"]').click();
   await page.waitForTimeout(300);
   check("the take is written to history",
@@ -943,6 +993,44 @@ for (const scheme of ["light", "dark"]) {
   const failing = worst.filter((s) => s.r < 4.5);
   check(`${scheme}: every sampled text colour clears 4.5:1`, failing.length === 0,
     failing.map((f) => `${f.sel} ${f.r}`).join(", ") || `worst was ${worst[0].sel} at ${worst[0].r}`);
+
+  await ctx.close();
+}
+
+// ------------------------------------------ the toast is sized against the screen
+//
+// It was positioned with `left: 50%` and centred with a transform. A fixed box
+// with a left edge and `right: auto` shrinks to fit what is left of the line, so
+// every message was laid out inside half the viewport and the 420px max-width
+// could never apply: "Recording. Tap the button when you're done" wrapped to
+// three lines inside a 195px pill on an iPhone, which is what it looked like.
+{
+  const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("tiro.apiKey", "test-key-not-real"));
+  await page.goto("http://localhost:8099/");
+  await page.waitForTimeout(300);
+
+  // A real path to a real toast, rather than poking one in from the test.
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.waitForTimeout(260);
+
+  const t = await page.evaluate(() => {
+    const el = document.getElementById("toast");
+    const span = document.getElementById("toast-text");
+    const b = el.getBoundingClientRect();
+    const line = parseFloat(getComputedStyle(span).lineHeight) || 20;
+    return {
+      w: Math.round(b.width), vw: innerWidth,
+      lines: Math.round(span.getBoundingClientRect().height / line),
+      offCentre: Math.abs((b.left + b.right) / 2 - innerWidth / 2),
+      overflows: b.left < 0 || b.right > innerWidth,
+    };
+  });
+  check("a toast may be wider than half the screen", t.w > t.vw / 2, `${t.w}px of ${t.vw}`);
+  check("an ordinary message fits on one line on a phone", t.lines === 1, `${t.lines} lines`);
+  check("the toast is still centred", t.offCentre < 1, `${t.offCentre.toFixed(1)}px off`);
+  check("and still inside the screen", !t.overflows);
 
   await ctx.close();
 }

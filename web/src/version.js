@@ -1,4 +1,4 @@
 // GENERATED from VERSION at the repository root. Do not edit by hand.
 // Regenerate with: node scripts/gen-version.mjs
 
-export const VERSION = "1.3.0";
+export const VERSION = "1.4.0";

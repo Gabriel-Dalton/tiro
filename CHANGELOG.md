@@ -20,6 +20,28 @@ something is added or the interface changes, the last when the fix is the whole 
 
 Nothing yet.
 
+## [1.4.0] — 2026-08-17
+
+### Added
+
+- **Press Copy and it says Copied**, with a check, on the button you just pressed. The
+  confirmation used to be a small chip in the opposite corner of the card, which is not where
+  anyone was looking, so the most common action in the app appeared to do nothing at all. Your
+  transcript still reaches the clipboard on its own the moment a take ends, exactly as before;
+  the button now answers your press rather than that. *(Web, Windows.)*
+- **Share** now opens a sheet of Tiro's own: email the transcript, text it, or keep it as a
+  `.txt` file, one tap each, with **Other apps** handing off to your device's own share menu
+  where there is one. Before this the button was nothing but that device menu, which most
+  browsers do not have at all: on a desktop it was hidden outright, so there was no way to
+  send a transcript anywhere. On Windows there is now a Share button where there was none,
+  offering the file. *(Web, Windows.)*
+
+### Fixed
+
+- Messages along the bottom of the screen were laid out inside half its width, whatever the
+  screen, so "Recording. Tap the button when you're done" arrived as three cramped lines in a
+  narrow bubble on a phone. They now use the width they were meant to and fit on one line. *(Web, Windows.)*
+
 ## [1.3.0] — 2026-08-17
 
 ### Added
@@ -221,7 +243,8 @@ covered.
   the same JSONL file so it moves between them.
 - **No account, no server, no telemetry.** Your Deepgram key talks straight to Deepgram.
 
-[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Gabriel-Dalton/tiro/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.4.0
 [1.3.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Gabriel-Dalton/tiro/releases/tag/v1.1.0

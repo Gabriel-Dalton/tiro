@@ -123,7 +123,26 @@ The critical path, and the thing most likely to fail silently. Three tiers, in o
 3. If that rejects too, reveal the transcript in a selectable field with a visible Copy button
    and select its contents.
 
-Tier 3 is not optional. Also offer `navigator.share()` as a secondary action.
+Tier 3 is not optional, and that button is also the confirmation: pressing it turns it into
+**Copied**, with a check, and it stays that way until there is a different transcript. This
+replaced a chip in the corner of the card reading "copied" / "tap copy", which was missed by
+everyone it was written for, because it is not where the tap is.
+
+The button answers a press and nothing else. Tiers 1 and 2 report neither success nor failure:
+having the card arrive already reading **Copied** was tried, and although it is true, it reads
+as a state the user did not cause and cannot tell apart from one they did. A failure says
+nothing either, because what it leaves behind is the plain **Copy** button, which is the
+instruction a failure needs.
+
+Sharing is the secondary action, and it is Tiro's own sheet rather than `navigator.share()`
+alone (`web/src/share.js`). Most browsers have no `navigator.share` at all, which used to hide
+the button outright and leave desktop users no way to send a transcript anywhere; where it does
+exist, the OS grid puts the three things people actually do with a transcript below the fold
+and in a different place each time. The sheet offers **Email** and **Messages** through
+`mailto:` and `sms:`, **a .txt file**, and hands off to `navigator.share()` under **Other apps**
+where there is one. Rows that cannot work on the device are not shown: no `sms:` off a phone,
+and no scheme rows at all inside the Windows shell, where the host allows exactly one URL out
+of the WebView and refuses the rest by design.
 
 **Acceptance on a real iPhone, over HTTPS, installed to the home screen:** hold, speak a
 sentence, release, switch to Messages, paste, and get correctly punctuated text. This is the

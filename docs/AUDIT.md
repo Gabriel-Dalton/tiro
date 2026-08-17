@@ -12,9 +12,9 @@
 >
 > **Since then**, the interface rebuild in #20 has resolved **PWA-08** in full, and added
 > **PWA-13**, which is new and cosmetic. The desktop-pill branch resolves **WIN-05** and adds
-> **PWA-14**, which is new, pre-dates this audit, and was missed by it. **PWA-09** was re-checked against that rebuild and
-> still stands: `app.js:348` still queues the fallback badge off the transcript promise
-> rather than off the clipboard write, so the happy path still flashes "tap copy" first.
+> **PWA-14**, which is new, pre-dates this audit, and was missed by it. **PWA-09** is now
+> resolved: the badge it was about is gone, and the Copy button answers a press instead, so
+> there is no state left to queue off the transcript promise and none to flash.
 >
 > **The taskbar branch** adds the `problem` bridge message and the pill's message mode, which
 > closes a gap this audit walked past: every refusal in `pressStart` reported itself only
@@ -240,6 +240,11 @@ control of the app cannot be operated by keyboard or by Switch Control.
 length take, close most of this.
 
 ### PWA-09 · Low · The "copied" badge flashes "tap copy" first on the happy path
+
+> **Fixed on main.** The badge is gone. The Copy button is the confirmation now: pressing it
+> turns it into **Copied**, and a failure leaves the untouched Copy button, which is the
+> instruction the chip was trying to give. The automatic write reports nothing at all, so
+> there is no state left to flash. `web/src/app.js`, `setCopied`.
 
 **`web/src/app.js:217-242`**
 
