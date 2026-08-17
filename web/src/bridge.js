@@ -5,10 +5,13 @@
 //   host -> web:  {type:"hotkey", phase:"down"|"up"}
 //                 {type:"key", value:"<api key or empty>"}         (reply to getKey)
 //                 {type:"pasteResult", ok:bool, reason?:"elevated"}
+//                 {type:"cancel"}                global Esc, or the pill's X
+//                 {type:"stop"}                  the pill's check: finish now
 //                 {type:"update", version:"1.3.0", url}  a newer release exists
 //   web -> host:  {type:"ready"}
 //                 {type:"transcript", text}      host pastes it into the focused app
 //                 {type:"state", state}          idle|recording|transcribing|blocked
+//                 {type:"level", value}          0..1 mic level for the pill waveform
 //                 {type:"getKey"} / {type:"storeKey", value}       DPAPI storage
 //                 {type:"setHotkey", code}
 //                 {type:"appendHistory", line}   host mirrors to %APPDATA%\Tiro\history.jsonl
@@ -27,8 +30,11 @@ class Bridge {
     this.hostVersion = host && host.version ? String(host.version) : "";
     this.onHotkey = null;       // (phase) => {}
     this.onPasteResult = null;  // ({ok, reason}) => {}
+    this.onCancel = null;       // () => {}   discard the take
+    this.onStop = null;         // () => {}   finish the take now
     this.onUpdate = null;       // ({version, url}) => {}
     this._keyWaiters = [];
+    this._lastLevel = -1;
     if (this.isShell) {
       webview.addEventListener("message", (e) => this._onMessage(e.data));
       this._post({ type: "ready" });
@@ -53,6 +59,12 @@ class Bridge {
       }
       case "pasteResult":
         if (this.onPasteResult) this.onPasteResult(msg);
+        break;
+      case "cancel":
+        if (this.onCancel) this.onCancel();
+        break;
+      case "stop":
+        if (this.onStop) this.onStop();
         break;
       case "update":
         // {version, url} straight from the host's read of GitHub's latest
@@ -90,6 +102,33 @@ class Bridge {
 
   setState(state) {
     this._post({ type: "state", state });
+  }
+
+  /** Mic level, 0..1, for the host's pill waveform.
+   *
+   * The caller is app.js's 50 ms level feed, which already paces this. It used
+   * to be the halo's requestAnimationFrame loop, and this method carried its own
+   * 50 ms throttle to cut 120 Hz down to 20. That throttle is now redundant, and
+   * a limiter set to the same interval as its producer is worth removing rather
+   * than leaving to sit: measured over 100 ticks of a 50 ms setInterval it threw
+   * away 1 sample, since setInterval fires at *or after* its interval and only
+   * occasionally lands early enough to trip. Small, but it buys nothing.
+   *
+   * What is worth keeping is dropping repeats, so silence stops talking to the
+   * host at all rather than posting the same number twenty times a second. That
+   * is what actually limits the traffic: against a steady tone the smoothed
+   * value rounds to the same two decimals and most ticks send nothing.
+   *
+   * Level is deliberately the *normalised* value the halo draws, not raw RMS.
+   * Getting from RMS to something that looks like a voice took a noise floor, a
+   * ceiling and a gamma curve (`normaliseLevel` in app.js, shared by both);
+   * duplicating that arithmetic in C# would leave two meters that disagree. */
+  setLevel(value) {
+    if (!this.isShell) return;
+    const v = Math.round(Math.max(0, Math.min(1, value)) * 100) / 100;
+    if (v === this._lastLevel) return;
+    this._lastLevel = v;
+    this._post({ type: "level", value: v });
   }
 
   setHotkey(code) {
